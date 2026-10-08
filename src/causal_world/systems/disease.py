@@ -40,6 +40,17 @@ class DiseaseSystem(System):
         out: list[Transition] = []
         agents = context.entities("agent:")
 
+        # Region membership via lightweight (unrecorded) reads: each agent is
+        # then recorded exactly once, by its own region's transition. The
+        # recorded read set is identical to the meaningful inputs.
+        members: dict[str, list[str]] = {
+            region: [] for region in context.entities("region:")
+        }
+        for agent in agents:
+            region = snapshot.get(agent, "region")
+            if region in members:
+                members[region].append(agent)
+
         # ---- environmental disease load, one transition per region --------
         for region in context.entities("region:"):
             b = context.builder("disease.environment")
@@ -47,12 +58,10 @@ class DiseaseSystem(System):
             disease_base = b.read(region, "disease_base")
             infected_alive = 0
             population = 0
-            for agent in agents:
+            for agent in members[region]:
                 is_alive = b.read(agent, "alive")
                 is_infected = b.read(agent, "infected")
-                agent_region = b.read(agent, "region")
-                if agent_region != region:
-                    continue
+                b.read(agent, "region")
                 population += 1
                 if is_alive and is_infected:
                     infected_alive += 1
@@ -82,24 +91,35 @@ class DiseaseSystem(System):
         return out
 
     def _try_infect(self, context, agent: str, region: str) -> Transition | None:
-        b = context.builder("disease.infect", priority=INFECTION_PRIORITY)
-        b.read(agent, "alive")
-        b.read(agent, "infected")
-        immunity = b.read(agent, "immunity")
-        hunger = b.read(agent, "hunger")
-        b.read(agent, "region")
-        load = b.read(region, "disease_load")
-        health = b.read(agent, "health")
-
+        snapshot = context.snapshot
+        # Addressable roll first: draws are pure functions of context, so
+        # deciding before recording reads cannot change any realization.
+        immunity = snapshot.get(agent, "immunity")
+        hunger = snapshot.get(agent, "hunger")
+        load = snapshot.get(region, "disease_load")
         probability = clamp(
             load * (0.35 + 0.85 * hunger) * (1.25 - immunity) * self.EXPOSURE,
             0.0,
             0.85,
         )
-        roll = b.draw("disease.infection", agent, index=0, threshold=probability)
-        if not roll.outcome:
+        roll_value = context.rng.draw(snapshot.tick, agent, "disease.infection", 0)
+        if not roll_value < probability:
             return None  # no state transition is created (spec §26)
 
+        # The transition exists: now record ALL of its inputs.
+        b = context.builder("disease.infect", priority=INFECTION_PRIORITY)
+        b.read(agent, "alive")
+        b.read(agent, "infected")
+        b.read(agent, "immunity")
+        b.read(agent, "hunger")
+        b.read(agent, "region")
+        b.read(region, "disease_load")
+        health = b.read(agent, "health")
+
+        # draw() recomputes the same pure addressable function, so the
+        # recorded draw is exactly the roll that was pre-checked above.
+        roll = b.draw("disease.infection", agent, index=0, threshold=probability)
+        assert roll.value == roll_value
         damage_draw = b.draw("disease.infection", agent, index=1)
         damage = 6.0 + 10.0 * damage_draw.value
         new_health = health - damage
@@ -113,15 +133,20 @@ class DiseaseSystem(System):
         return b.build()
 
     def _try_recover(self, context, agent: str) -> Transition | None:
+        snapshot = context.snapshot
+        immunity = snapshot.get(agent, "immunity")
+        hunger = snapshot.get(agent, "hunger")
+        probability = clamp(0.02 + 0.25 * immunity - 0.15 * hunger, 0.0, 0.5)
+        roll_value = context.rng.draw(snapshot.tick, agent, "disease.recovery", 0)
+        if not roll_value < probability:
+            return None
+
         b = context.builder("disease.recover", priority=INFECTION_PRIORITY)
         b.read(agent, "alive")
         b.read(agent, "infected")
-        immunity = b.read(agent, "immunity")
-        hunger = b.read(agent, "hunger")
-
-        probability = clamp(0.02 + 0.25 * immunity - 0.15 * hunger, 0.0, 0.5)
+        b.read(agent, "immunity")
+        b.read(agent, "hunger")
         roll = b.draw("disease.recovery", agent, threshold=probability)
-        if not roll.outcome:
-            return None
+        assert roll.value == roll_value
         b.write(agent, "infected", False)
         return b.build()

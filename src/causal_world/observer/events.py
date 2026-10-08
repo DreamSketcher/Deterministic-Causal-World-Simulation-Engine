@@ -69,8 +69,8 @@ def events_from_transition(transition: Transition) -> list[EventView]:
 
 
 def events_from_journal(journal) -> list[EventView]:
+    """Iterates the journal in id order (streaming-friendly)."""
     events: list[EventView] = []
-    ordered = sorted(journal.all(), key=lambda t: (t.id is None, t.id or 0))
-    for transition in ordered:
+    for transition in journal:
         events.extend(events_from_transition(transition))
     return events

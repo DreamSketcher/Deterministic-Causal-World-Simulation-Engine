@@ -23,25 +23,36 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    def add_world_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--seed", type=int, default=42)
+        p.add_argument("--ticks", type=int, default=100)
+        p.add_argument("--regions", type=int, default=2)
+        p.add_argument("--agents", type=int, default=10)
+        p.add_argument("--persist", type=str, default=None,
+                       help="SQLite archive path for the journal + causal index")
+
     run_p = sub.add_parser("run", help="run a world and print the summary")
-    run_p.add_argument("--seed", type=int, default=42)
-    run_p.add_argument("--ticks", type=int, default=100)
+    add_world_args(run_p)
     run_p.add_argument("--stats", action="store_true", help="print statistics block")
 
     trace_p = sub.add_parser("trace", help="run a world and trace one transition")
-    trace_p.add_argument("--seed", type=int, default=42)
-    trace_p.add_argument("--ticks", type=int, default=100)
+    add_world_args(trace_p)
     trace_p.add_argument("--transition", type=int, required=True)
     trace_p.add_argument("--depth", type=int, default=4)
     return parser
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
-    simulation = create_world(seed=args.seed, ticks=args.ticks)
+    simulation = create_world(
+        seed=args.seed,
+        ticks=args.ticks,
+        regions=args.regions,
+        agents=args.agents,
+        persist=args.persist,
+    )
     state = simulation.state
     fingerprint = simulation.fingerprint()
-    total = len(simulation.journal)
-    rejected = len(simulation.journal.rejected())
+    total, _committed, rejected = simulation.journal.counts()
 
     print(f"World seed:       {args.seed}")
     print(f"Ruleset:          {fingerprint['ruleset_version']}")
@@ -65,7 +76,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_trace(args: argparse.Namespace) -> int:
-    simulation = create_world(seed=args.seed, ticks=args.ticks)
+    simulation = create_world(
+        seed=args.seed,
+        ticks=args.ticks,
+        regions=args.regions,
+        agents=args.agents,
+        persist=args.persist,
+    )
     journal = simulation.journal
     if not journal.has(args.transition):
         print(

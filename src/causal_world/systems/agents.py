@@ -58,13 +58,24 @@ class AgentSystem(System):
     # ------------------------------------------------------------------
     def _census(self, context, agents: list[str]) -> list[Transition]:
         out: list[Transition] = []
+        snapshot = context.snapshot
+        # Lightweight membership pass (unrecorded), then each region's
+        # census records exactly its own members — each agent is read once.
+        members: dict[str, list[str]] = {
+            region: [] for region in context.entities("region:")
+        }
+        for agent in agents:
+            region = snapshot.get(agent, "region")
+            if region in members:
+                members[region].append(agent)
+
         for region in context.entities("region:"):
             b = context.builder("agents.census", priority=1)
             alive_count = 0
-            for agent in agents:
-                agent_region = b.read(agent, "region")
+            for agent in members[region]:
+                b.read(agent, "region")
                 is_alive = b.read(agent, "alive")
-                if agent_region == region and is_alive:
+                if is_alive:
                     alive_count += 1
             b.write(region, "population", alive_count)
             b.write(region, "workers", alive_count)
@@ -131,14 +142,30 @@ class AgentSystem(System):
         snapshot = context.snapshot
         if float(snapshot.get(agent, "hunger")) < self.MIGRATION_THRESHOLD:
             return None
+        risk = snapshot.get(agent, "risk_tolerance")
+        roll_value = context.rng.draw(snapshot.tick, agent, "agent.decision", 0)
+        if not roll_value < risk * 0.5:
+            return None
+
+        # The transition exists: record its inputs (draw recomputation is
+        # the same pure addressable function).
         b = context.builder("agent.migrate")
         b.read(agent, "hunger")
-        risk = b.read(agent, "risk_tolerance")
+        b.read(agent, "risk_tolerance")
         region = b.read(agent, "region")
-
         roll = b.draw("agent.decision", agent, threshold=risk * 0.5)
-        if not roll.outcome:
-            return None
-        destination = "region:1" if region == "region:0" else "region:0"
+        assert roll.value == roll_value
+        destination = self._other_region(region, context)
         b.write(agent, "region", destination)
         return b.build()
+
+    @staticmethod
+    def _other_region(region: str, context) -> str:
+        # Deterministic destination: the next region id (cyclic), which
+        # generalizes beyond the 2-region MVP world.
+        regions = context.entities("region:")
+        try:
+            position = regions.index(region)
+        except ValueError:
+            return regions[0]
+        return regions[(position + 1) % len(regions)]

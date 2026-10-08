@@ -20,3 +20,6 @@ venv/
 # Editors
 .idea/
 .vscode/
+
+# Experiment artifacts (SQLite archives are large; regenerate deterministically)
+runs/

@@ -62,7 +62,7 @@ def trace_back(
             if r.source_transition is not None
         )
         for source in sources:
-            if source in seen or source not in index.transitions:
+            if source in seen or not index.has(source):
                 continue
             seen.add(source)
             parents.append(trace_back(index, source, depth - 1, memo))
@@ -145,15 +145,29 @@ def format_transition(t: Transition) -> str:
     return "\n".join(lines)
 
 
-def format_trace(node: TraceNode, depth: int | None = None, indent: int = 0) -> str:
-    """Render the dependency tree in the spirit of spec §21."""
+def format_trace(
+    node: TraceNode,
+    depth: int | None = None,
+    indent: int = 0,
+    max_inputs: int | None = None,
+) -> str:
+    """Render the dependency tree in the spirit of spec §21.
+
+    ``max_inputs`` caps the printed inputs of each node (bulk transitions
+    such as censuses can have hundreds of reads); the cap never affects the
+    underlying trace object.
+    """
     pad = "  " * indent
     lines = [f"{pad}T{node.transition_id} {node.system}.{node.operation} (tick {node.tick})"]
     if node.inputs:
         lines.append(f"{pad}Inputs:")
-        for r in sorted(node.inputs, key=lambda r: (r.entity, r.field)):
+        ordered = sorted(node.inputs, key=lambda r: (r.entity, r.field))
+        shown = ordered if max_inputs is None else ordered[:max_inputs]
+        for r in shown:
             source = f"T{r.source_transition}" if r.source_transition is not None else "initial"
             lines.append(f"{pad}  {r.entity}.{r.field} = {fmt(r.value)} ← {source}")
+        if max_inputs is not None and len(ordered) > max_inputs:
+            lines.append(f"{pad}  … {len(ordered) - max_inputs} more input(s)")
     if node.draws:
         lines.append(f"{pad}Random:")
         for d in node.draws:
@@ -166,7 +180,7 @@ def format_trace(node: TraceNode, depth: int | None = None, indent: int = 0) -> 
     if depth is None or depth > 0:
         next_depth = None if depth is None else depth - 1
         for parent in node.parents:
-            lines.append(format_trace(parent, next_depth, indent + 1))
+            lines.append(format_trace(parent, next_depth, indent + 1, max_inputs))
     elif node.parents:
         lines.append(f"{pad}  … {len(node.parents)} more parent(s) beyond depth")
     return "\n".join(lines)

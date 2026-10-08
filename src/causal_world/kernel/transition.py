@@ -26,7 +26,7 @@ class TransitionStatus(Enum):
     REJECTED = "REJECTED"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StateRead:
     entity: str
     field: str
@@ -34,7 +34,7 @@ class StateRead:
     source_transition: int | None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StateChange:
     entity: str
     field: str
@@ -42,7 +42,7 @@ class StateChange:
     new: Any
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RandomDraw:
     purpose: str
     value: float
@@ -53,7 +53,7 @@ class RandomDraw:
     index: int = 0
 
 
-@dataclass
+@dataclass(slots=True)
 class Transition:
     id: int | None
     tick: int

@@ -1,5 +1,10 @@
 # Deterministic Causal World Simulation Engine
 
+> **CAUSAL KERNEL v0.1 — frozen** (tag `v0.1.0`). The kernel architecture is
+> not extended silently; anything considered redundant goes through an
+> explicit proposal first. v0.2 work adds observability and scale around the
+> frozen kernel, never inside it. See the [roadmap](#roadmap).
+
 A minimal **executable kernel** for an artificial world in which every
 change is a recorded, atomic, causally-explainable **Transition**.
 
@@ -262,8 +267,52 @@ python -m pytest          # 51 tests
 Plus conflict-resolution tests (`test_conflicts.py`): explicit winner rule,
 order independence, no value rewriting.
 
+## v0.2 — Causal survival experiment
+
+The next step is deliberately **not** "more systems". The kernel is frozen;
+the experiment scales the *same* world and compares two kinds of
+explanation: **statistical regularity** (correlations) vs **individual
+causality** (mechanical death traces).
+
+```bash
+python3 experiments/survival.py --seed 7 --regions 10 --agents 1000 \
+    --ticks 10000 --db runs/survival_seed7.db \
+    --report experiments/reports/survival_seed7.md
+```
+
+What v0.2 adds **around** the frozen kernel:
+
+* `SqliteArchive` — one SQLite file serving as BOTH the journal and the
+  causal index. Identical semantics and the *identical journal hash*
+  definition as the in-memory stores (verified by test), constant ~30 MB
+  RAM at any run length.
+* Generator scaling: `regions`/`agents` parameters. Addressable RNG
+  guarantees existing entities never shift when the world grows (I8); the
+  default 2×10 world remains bit-identical to v0.1. Food buffer is an
+  extensive initial condition and scales with per-region population.
+* `experiments/survival.py` — per-agent survival records
+  (`agent_id, birth_tick, death_tick, lifespan, death_transition`),
+  lifespan distribution, Pearson/Spearman correlations, and a mechanical
+  death-mechanism classification built purely from `trace_back`
+  (acute infection / epidemic disease / starvation).
+* 61 tests, including memory↔archive parity and scale-invariance tests.
+
+Read the results: [`experiments/reports/`](experiments/reports/).
+
 ## Roadmap
 
-Stage 2 (separate spec): scaling from 10 to 10⁵–10⁶ agents — memory layout,
-sparse state, batching, spatial partitioning, parallel execution, compressed
-provenance, materialized snapshots. None of that belongs in this MVP.
+```
+v0.1  Deterministic causal kernel            (frozen, tag v0.1.0)
+v0.2  1000 agents / 10k ticks survival run   (this branch)
+v0.3  Statistical observer
+v0.4  Causal query engine
+v0.5  Biography generator
+v0.6  LLM as causal-trace interpreter (observer adapter only)
+v0.7  100k+ agents: memory layout, sparse state, batching,
+      spatial partitioning, parallel execution, compressed provenance
+v1.0  Large artificial world
+```
+
+Order matters: while the system is small we can still *prove* its
+fundamental properties. New systems, economy, culture or an LLM come only
+after each stage's experiment has been run.

@@ -44,6 +44,9 @@ class CausalIndex:
                 self.dependents[r.source_transition].add(t.id)
 
     # ------------------------------------------------------------------
+    def has(self, transition_id: int) -> bool:
+        return transition_id in self.transitions
+
     def get(self, transition_id: int) -> Transition:
         if transition_id not in self.transitions:
             raise KeyError(f"no transition T{transition_id} in causal index")

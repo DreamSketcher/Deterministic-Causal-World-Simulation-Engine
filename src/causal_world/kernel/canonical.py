@@ -4,7 +4,8 @@ Deterministic, platform-stable serialization used for:
 
 * WorldState hashing (invariant I14),
 * journal hashing,
-* deterministic proposal ordering / transition id assignment.
+* deterministic proposal ordering / transition id assignment,
+* persisted transition payloads.
 
 Python's built-in ``hash()`` is per-process randomized and must never be
 used for reproducibility. Everything here is stable text + SHA-256/BLAKE2b.
@@ -34,6 +35,22 @@ def canonical_token(value: Any) -> str:
     if isinstance(value, str):
         return f"s:{value}"
     raise TypeError(f"value of type {type(value).__name__!r} is not canonicalizable")
+
+
+def parse_canonical_token(token: str) -> Any:
+    """Inverse of :func:`canonical_token`."""
+    tag, _, rest = token.partition(":")
+    if tag == "n":
+        return None
+    if tag == "b":
+        return rest == "1"
+    if tag == "i":
+        return int(rest)
+    if tag == "f":
+        return float(rest)
+    if tag == "s":
+        return rest
+    raise ValueError(f"unknown canonical token tag {tag!r}")
 
 
 def canonical_json(obj: Any) -> str:

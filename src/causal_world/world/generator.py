@@ -21,6 +21,13 @@ AGENT_COUNT = 10
 GENESIS_SYSTEM = "GenesisSystem"
 GENESIS_PURPOSE = "genesis.attribute"
 
+#: Stable defaults. The RNG context is (tick=0, entity, purpose, index), so
+#: adding/removing OTHER entities never shifts an entity's attributes (I8):
+#: a world with 1000 agents gives agent:0..agent:9 exactly the same genesis
+#: values as the default 10-agent world.
+DEFAULT_REGION_COUNT = REGION_COUNT
+DEFAULT_AGENT_COUNT = AGENT_COUNT
+
 
 def _attr(
     rng: RandomSource,
@@ -65,16 +72,21 @@ def _genesis_transition(
     )
 
 
-def generate_genesis(rng: RandomSource, tick: int = 0) -> list[Transition]:
+def generate_genesis(
+    rng: RandomSource,
+    tick: int = 0,
+    region_count: int = DEFAULT_REGION_COUNT,
+    agent_count: int = DEFAULT_AGENT_COUNT,
+) -> list[Transition]:
     transitions: list[Transition] = []
 
     agents_per_region: dict[str, int] = {}
-    for i in range(AGENT_COUNT):
-        region = f"region:{i % REGION_COUNT}"
+    for i in range(agent_count):
+        region = f"region:{i % region_count}"
         agents_per_region[region] = agents_per_region.get(region, 0) + 1
 
     # ---- regions -------------------------------------------------------
-    for r in range(REGION_COUNT):
+    for r in range(region_count):
         entity = f"region:{r}"
         draws: list[RandomDraw] = []
         temperature_base = 8.0 + 14.0 * _attr(rng, tick, entity, 0, draws)
@@ -86,8 +98,13 @@ def generate_genesis(rng: RandomSource, tick: int = 0) -> list[Transition]:
             1.0, max(0.0, rainfall_base + (_attr(rng, tick, entity, 5, draws) - 0.5) * 0.2)
         )
         disease_base = 0.15 + 0.20 * _attr(rng, tick, entity, 6, draws)
-        food_stock = 60.0 + 40.0 * _attr(rng, tick, entity, 7, draws)
         population = agents_per_region.get(entity, 0)
+        # Food buffer is an EXTENSIVE initial condition: it scales with the
+        # number of agents that must eat it, keeping the per-capita world
+        # equivalent to the default one. The default 2-region/10-agent world
+        # (5 agents per region) keeps factor 1.0 -> bit-identical genesis.
+        buffer_scale = max(1.0, population / float(DEFAULT_AGENT_COUNT / REGION_COUNT))
+        food_stock = (60.0 + 40.0 * _attr(rng, tick, entity, 7, draws)) * buffer_scale
 
         fields: list[tuple[str, object]] = [
             ("temperature_base", temperature_base),
@@ -107,7 +124,7 @@ def generate_genesis(rng: RandomSource, tick: int = 0) -> list[Transition]:
         )
 
     # ---- agents ---------------------------------------------------------
-    for i in range(AGENT_COUNT):
+    for i in range(agent_count):
         entity = f"agent:{i}"
         draws = []
         health = 65.0 + 30.0 * _attr(rng, tick, entity, 0, draws)
@@ -116,7 +133,7 @@ def generate_genesis(rng: RandomSource, tick: int = 0) -> list[Transition]:
         risk_tolerance = _attr(rng, tick, entity, 3, draws)
 
         fields = [
-            ("region", f"region:{i % REGION_COUNT}"),
+            ("region", f"region:{i % region_count}"),
             ("alive", True),
             ("infected", False),
             ("health", health),
