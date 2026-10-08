@@ -62,6 +62,12 @@ _SCHEMA = [
         target INTEGER NOT NULL,
         PRIMARY KEY(source, target)
     )""",
+    """CREATE INDEX IF NOT EXISTS idx_transitions_op_status
+       ON transitions(operation, status)""",
+    """CREATE TABLE IF NOT EXISTS meta(
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )""",
 ]
 
 #: Periodic commit cadence. Keeps the on-disk database valid if a long run
@@ -122,8 +128,11 @@ class SqliteArchive:
         self.path = path
         self._conn = sqlite3.connect(path, isolation_level=None)
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=OFF")
-        self._conn.execute("PRAGMA synchronous=OFF")
+        # Crash-safe WAL mode: a killed run leaves a VALID database that
+        # rolls back to the last periodic commit (journal_mode=OFF would
+        # corrupt on torn writes even inside a transaction).
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.execute("BEGIN")
         for statement in _SCHEMA:
             self._conn.execute(statement)
@@ -342,6 +351,27 @@ class SqliteArchive:
         return [row["target"] for row in rows]
 
     # ------------------------------------------------------------------
+    def set_meta(self, key: str, value: str) -> None:
+        self._conn.execute(
+            "INSERT INTO meta VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, str(value)),
+        )
+
+    def get_meta(self, key: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT value FROM meta WHERE key=?", (key,)
+        ).fetchone()
+        return row["value"] if row else None
+
+    def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
+        """Escape hatch for read-only observer-side SQL (analysis layer).
+
+        The simulation itself never uses this; it exists so observers can
+        aggregate over the journal without reconstructing every object.
+        """
+        return self._conn.execute(sql, params).fetchall()
+
     def close(self) -> None:
         try:
             self._conn.execute("COMMIT")

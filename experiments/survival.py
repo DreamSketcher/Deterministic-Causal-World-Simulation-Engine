@@ -106,30 +106,64 @@ def collect_records(journal, total_ticks: int) -> list[AgentSurvivalRecord]:
             initial_region=str(fields["region"]),
         )
 
-    wanted = {"agent.migrate", "disease.infect", "agent.death", "agent.metabolism"}
-    for t in journal.iter_operations(wanted):
-        if t.operation == "agent.migrate":
-            for w in t.writes:
-                if w.field == "region" and w.entity in records:
-                    records[w.entity].migrations += 1
-        elif t.operation == "disease.infect":
-            agent = t.writes[0].entity
+    for t in journal.iter_operations({"agent.migrate"}):
+        for w in t.writes:
+            if w.field == "region" and w.entity in records:
+                records[w.entity].migrations += 1
+
+    for t in journal.iter_operations({"disease.infect"}):
+        agent = t.writes[0].entity
+        if agent in records:
+            records[agent].infections += 1
+            for w in t.writes:  # lethal infections write alive -> false
+                if w.field == "alive" and w.old is True and w.new is False:
+                    rec = records[agent]
+                    if rec.death_tick is None:
+                        rec.death_tick = t.tick
+                        rec.death_transition = t.id
+
+    for t in journal.iter_operations({"agent.death"}):
+        agent = t.writes[0].entity
+        if agent in records:
+            rec = records[agent]
+            if rec.death_tick is None:
+                rec.death_tick = t.tick
+                rec.death_transition = t.id
+
+    # Food access / density: exact per-tick values from the recorded reads
+    # of agent.metabolism. SQL-side aggregation keeps this O(1) in RAM and
+    # fast even for millions of metabolism transitions.
+    if hasattr(journal, "query"):
+        rows = journal.query(
+            """
+            SELECT agent,
+                   AVG(food / pop) AS avg_food,
+                   AVG(pop)        AS avg_density,
+                   COUNT(*)        AS n
+            FROM (
+                SELECT t.id AS tid,
+                       json_extract(t.payload, '$.writes[0][0]') AS agent,
+                       MAX(CASE WHEN json_extract(re.value, '$[1]') = 'food_stock'
+                                THEN json_extract(re.value, '$[2]') END) AS food,
+                       MAX(CASE WHEN json_extract(re.value, '$[1]') = 'population'
+                                THEN MAX(json_extract(re.value, '$[2]'), 1) END) AS pop
+                FROM transitions AS t,
+                     json_each(json_extract(t.payload, '$.reads')) AS re
+                WHERE t.operation = 'agent.metabolism'
+                  AND t.status = 'COMMITTED'
+                GROUP BY t.id
+            )
+            GROUP BY agent
+            """
+        )
+        for row in rows:
+            agent = row["agent"]
             if agent in records:
-                records[agent].infections += 1
-                for w in t.writes:  # lethal infections write alive -> false
-                    if w.field == "alive" and w.old is True and w.new is False:
-                        rec = records[agent]
-                        if rec.death_tick is None:
-                            rec.death_tick = t.tick
-                            rec.death_transition = t.id
-        elif t.operation == "agent.death":
-            agent = t.writes[0].entity
-            if agent in records:
-                rec = records[agent]
-                if rec.death_tick is None:
-                    rec.death_tick = t.tick
-                    rec.death_transition = t.id
-        else:  # agent.metabolism: reads region.food_stock + region.population
+                food_sum[agent] = float(row["avg_food"]) * int(row["n"])
+                density_sum[agent] = float(row["avg_density"]) * int(row["n"])
+                samples[agent] = int(row["n"])
+    else:  # in-memory journals: plain python path
+        for t in journal.iter_operations({"agent.metabolism"}):
             agent = t.writes[0].entity
             if agent not in records:
                 continue
@@ -214,37 +248,89 @@ def spearman(xs: list[float], ys: list[float]) -> float:
 # Causal classification of deaths
 # ----------------------------------------------------------------------
 
-def classify_death(archive, rec: AgentSurvivalRecord, depth: int = 10) -> str:
-    """Mechanical mechanism label from the backward trace of the death."""
-    node = trace_back(archive, rec.death_transition, depth)
-    stack: list[tuple[TraceNode, int]] = [(node, 0)]
-    disease_hit = False
-    starvation_hit = False
-    acute = node.operation == "disease.infect"
-    seen = {node.transition_id}
-    while stack:
-        current, d = stack.pop()
-        for read in current.inputs:
-            if read.field == "hunger" and read.value is not None:
-                if read.value >= STARVATION_THRESHOLD:
-                    starvation_hit = True
-        for parent in current.parents:
-            if parent.transition_id in seen:
-                continue
-            seen.add(parent.transition_id)
-            if parent.operation == "disease.infect":
-                disease_hit = True
-            if d + 1 < depth:
-                stack.append((parent, d + 1))
-    if acute:
-        return "acute_infection"
-    if disease_hit and starvation_hit:
-        return "disease+starvation"
-    if disease_hit:
-        return "disease"
-    if starvation_hit:
-        return "starvation"
-    return "other"
+class DeathClassifier:
+    """Backward-DAG reachability over the DECEASED'S OWN causal chain.
+
+    Two mechanical per-death properties:
+
+    * disease-reach:  some ``disease.infect`` transition is an ancestor
+      reached through the agent's own fields;
+    * starvation-reach: some ancestor transition reads THIS agent's
+      hunger >= threshold.
+
+    Restricting the walk to reads of the agent's own entity is complete
+    for both questions — an agent's fields are only ever written by
+    transitions reading that same agent — and it keeps each classification
+    narrow and unambiguous: "starvation" means the deceased was starving,
+    not that someone upstream in the epidemic network was. The causal
+    graph is acyclic, so the depth-bounded DFS is exact.
+    """
+
+    def __init__(self, archive) -> None:
+        self._archive = archive
+        self._node_cache: dict[int, list] = {}
+
+    def _node(self, tid: int) -> list:
+        """Parsed read summary: [(field, entity, value, source), ...]."""
+        cached = self._node_cache.get(tid)
+        if cached is not None:
+            return cached
+        import json
+
+        rows = self._archive.query(
+            "SELECT payload FROM transitions WHERE id=?", (tid,)
+        )
+        if rows:
+            payload = json.loads(rows[0]["payload"])
+            summary = [
+                (r[1], r[0], r[2], r[3]) for r in payload["reads"]
+            ]
+        else:
+            summary = []
+        self._node_cache[tid] = summary
+        return summary
+
+    def operation_of(self, tid: int) -> str:
+        rows = self._archive.query(
+            "SELECT operation FROM transitions WHERE id=?", (tid,)
+        )
+        return rows[0]["operation"] if rows else ""
+
+    def classify(self, rec: AgentSurvivalRecord, depth: int) -> str:
+        agent = rec.agent
+        tid = rec.death_transition
+        acute = self.operation_of(tid) == "disease.infect"
+
+        disease = acute
+        starvation = False
+        stack: list[tuple[int, int]] = [(tid, 0)]
+        seen = {tid}
+        while stack and not (disease and starvation):
+            current, d = stack.pop()
+            if not disease and self.operation_of(current) == "disease.infect":
+                disease = True
+            for field, entity, value, source in self._node(current):
+                if entity != agent:
+                    continue  # follow only the deceased's own chain
+                if (
+                    field == "hunger"
+                    and isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and value >= STARVATION_THRESHOLD
+                ):
+                    starvation = True
+                if source is not None and d < depth and source not in seen:
+                    seen.add(source)
+                    stack.append((source, d + 1))
+        if acute:
+            return "acute_infection"
+        if disease and starvation:
+            return "disease+starvation"
+        if disease:
+            return "disease"
+        if starvation:
+            return "starvation"
+        return "other"
 
 
 # ----------------------------------------------------------------------
@@ -321,8 +407,9 @@ def build_report(
     add("")
 
     # ---- causal classification -------------------------------------
+    classifier = DeathClassifier(archive)
     for rec in dead:
-        rec.mechanism = classify_death(archive, rec, depth=trace_depth)
+        rec.mechanism = classifier.classify(rec, depth=trace_depth)
 
     counts: dict[str, int] = {}
     for rec in dead:
@@ -333,6 +420,15 @@ def build_report(
     add("|---|---|---|")
     for mech in sorted(counts, key=lambda m: -counts[m]):
         add(f"| {mech} | {counts[mech]} | {counts[mech] / max(len(dead), 1):.1%} |")
+    add("")
+
+    add("> **Interpretation caveat.** `migration_count`, `infection_count` and")
+    add("> the sampled food/density aggregates are *time-at-risk* variables:")
+    add("> agents that die early simply have fewer ticks in which to migrate")
+    add("> or meet pathogens. A positive correlation of such a variable with")
+    add("> lifespan is therefore expected even when the variable is harmful.")
+    add("> The group tables below exist precisely to confront those numbers")
+    add("> with per-death causal mechanisms.")
     add("")
 
     # ---- statistical vs causal --------------------------------------
@@ -389,8 +485,8 @@ def build_report(
         )
         add("")
         add("```")
-        add(format_trace(trace_back(archive, rec.death_transition, 4), depth=4,
-                         max_inputs=10))
+        add(format_trace(trace_back(archive, rec.death_transition, 3), depth=3,
+                         max_inputs=8, max_parents=4))
         add("```")
         add("")
 
@@ -415,18 +511,31 @@ def build_report(
 def analyze_existing(args) -> int:
     t0 = time.time()
     archive = SqliteArchive(args.db)
-    # Scale is derivable from the archive itself (genesis transitions).
-    agent_set = set()
-    region_set = set()
-    for t in archive.iter_operations({"genesis.agent", "genesis.region"}):
-        entity = t.writes[0].entity
-        if entity.startswith("agent:"):
-            agent_set.add(entity)
-        else:
-            region_set.add(entity)
+
+    def meta(key: str) -> str | None:
+        try:
+            return archive.get_meta(key)
+        except Exception:
+            return None  # archive predates the meta table
+
+    seed_text = meta("seed")
+    seed = int(seed_text) if seed_text is not None else None
+    regions_text = meta("regions")
+    agents_text = meta("agents")
+    if regions_text is None or agents_text is None:
+        # Scale is derivable from the archive itself (genesis transitions).
+        agent_set = set()
+        region_set = set()
+        for t in archive.iter_operations({"genesis.agent", "genesis.region"}):
+            entity = t.writes[0].entity
+            (agent_set if entity.startswith("agent:") else region_set).add(entity)
+        regions_used, agents_used = len(region_set), len(agent_set)
+    else:
+        regions_used, agents_used = int(regions_text), int(agents_text)
+
     records = collect_records(archive, args.ticks)
     report = build_report(
-        None, len(region_set), len(agent_set), args.ticks, records, archive,
+        seed, regions_used, agents_used, args.ticks, records, archive,
         time.time() - t0, args.db, trace_depth=args.trace_depth,
     )
     with open(args.report, "w", encoding="utf-8") as fh:

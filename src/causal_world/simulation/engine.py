@@ -199,6 +199,12 @@ def create_world(
         archive = SqliteArchive(persist)
         journal = archive
         index = archive  # one SQLite file serves both roles
+        # World identity travels with the archive.
+        archive.set_meta("seed", seed)
+        archive.set_meta("regions", regions)
+        archive.set_meta("agents", agents)
+        archive.set_meta("ruleset_version", rules.ruleset_version)
+        archive.set_meta("rng_version", rules.rng_version)
 
     systems = [registry[name]() for name in names]
     simulation = Simulation(seed, systems, rules, rng, journal=journal, index=index)

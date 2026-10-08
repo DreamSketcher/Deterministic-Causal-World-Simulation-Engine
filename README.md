@@ -299,6 +299,41 @@ What v0.2 adds **around** the frozen kernel:
 
 Read the results: [`experiments/reports/`](experiments/reports/).
 
+### First results (seed 7, 10 regions × 1000 agents × 10 000 ticks)
+
+Simulation: **689 s**, analysis from the committed archive: **~5 s**,
+peak RAM ≈ 30 MB, archive ≈ 4 GB (`runs/`, gitignored, regenerable).
+
+1. **Ruleset 0.1.0 is not viable at scale — and the kernel proves it.**
+   The population goes extinct by tick 553 (median lifespan 82 ticks,
+   no censoring: all 1000 deaths traced). Mechanically, every death is
+   disease-mediated: `disease` 51.2 %, `disease+starvation` 37.2 %,
+   `acute_infection` 11.6 %. The cause is structural: there is **no
+   immune memory** — recovered agents are immediately susceptible again,
+   and at high density the disease never stochastically dies out, so
+   reinfection cycles (~36 health each) grind the population down. In the
+   small 2×10 world the same laws survive because the disease *can* go
+   locally extinct — a genuine scale-emergent property, found by running,
+   not by arguing.
+2. **Statistical regularity vs individual causality.** Pearson:
+   `infection_count` +0.89, `avg_social_density` −0.90, `migration_count`
+   +0.41 with lifespan. The first is a pure **time-at-risk confound**
+   (longer life ⇒ more exposure opportunities) — the report flags such
+   variables explicitly. Migrants live longer on average (194 vs 106
+   ticks) **but die of different mechanisms**: stayers die mostly of
+   pure/acute disease (99 acute, 443 disease, 57 with starvation),
+   migrants mostly with a starvation component (17 / 69 / 315). Same
+   observable, different causal pathways — exactly the comparison the
+   experiment exists for.
+3. **Every death has a mechanical explanation.** Example from the report:
+   `agent:0` died at tick 73; the trace shows recovery at tick 62, then
+   infection at tick 65 (roll `0.052457 < threshold 0.059782` at
+   `disease_load = 0.439`), then health erosion 70 → 30 → 19 → … → 0.
+   No narrative was stored — the explanation is reconstructed.
+
+A ruleset variant with immune memory is the obvious v0.3 candidate — it
+is proposed, not silently introduced: the v0.1 laws are frozen.
+
 ## Roadmap
 
 ```

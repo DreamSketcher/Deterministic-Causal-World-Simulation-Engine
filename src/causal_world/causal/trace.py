@@ -150,12 +150,14 @@ def format_trace(
     depth: int | None = None,
     indent: int = 0,
     max_inputs: int | None = None,
+    max_parents: int | None = None,
 ) -> str:
     """Render the dependency tree in the spirit of spec §21.
 
-    ``max_inputs`` caps the printed inputs of each node (bulk transitions
-    such as censuses can have hundreds of reads); the cap never affects the
-    underlying trace object.
+    ``max_inputs`` caps the printed inputs of each node and ``max_parents``
+    caps the rendered children (bulk transitions such as censuses or
+    disease-environment updates can have hundreds of reads/parents); the
+    caps never affect the underlying trace object.
     """
     pad = "  " * indent
     lines = [f"{pad}T{node.transition_id} {node.system}.{node.operation} (tick {node.tick})"]
@@ -179,8 +181,19 @@ def format_trace(
             lines.append(f"{pad}  {w.entity}.{w.field}: {fmt(w.old)} → {fmt(w.new)}")
     if depth is None or depth > 0:
         next_depth = None if depth is None else depth - 1
-        for parent in node.parents:
-            lines.append(format_trace(parent, next_depth, indent + 1, max_inputs))
+        shown_parents = (
+            node.parents
+            if max_parents is None
+            else node.parents[:max_parents]
+        )
+        for parent in shown_parents:
+            lines.append(
+                format_trace(parent, next_depth, indent + 1, max_inputs, max_parents)
+            )
+        if max_parents is not None and len(node.parents) > max_parents:
+            lines.append(
+                f"{pad}  … {len(node.parents) - max_parents} more parent(s)"
+            )
     elif node.parents:
         lines.append(f"{pad}  … {len(node.parents)} more parent(s) beyond depth")
     return "\n".join(lines)
