@@ -104,3 +104,74 @@ class DefaultWorldRules(WorldRuleValidator):
                         f"invariant_violation:{w.entity}.temperature_out_of_range"
                     )
         return violations
+
+
+class ImmuneMemoryRules(DefaultWorldRules):
+    """v0.3 ruleset: the v0.1 world + one new law — adaptive immune memory.
+
+    The kernel is frozen; this is a proposal implemented purely as rules:
+
+    * new agent field ``immune_memory`` in [0, 1] (naive, 0.0, at genesis);
+    * infection probability is scaled by ``1 - 0.85 * immune_memory``;
+    * infection damage is attenuated by ``1 - 0.60 * immune_memory``;
+    * every infection teaches: memory grows +0.35, atomically inside the
+      SAME transition that writes ``infected`` and ``health``;
+    * recovery is faster with memory: ``+0.20 * immune_memory``.
+
+    Addressable draws are NOT changed: the immune world consumes the exact
+    same roll stream as the 0.1.0 world under the same seed (same purposes,
+    same (tick, entity, purpose, index) addresses, same rng_version), so any
+    divergence is attributable to the laws alone — not to different dice.
+    """
+
+    ruleset_version = "0.3.0"
+
+    #: Duck-typed by ``create_world``: which systems the world runs.
+    default_systems = [
+        "ClimateSystem",
+        "AgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Rulesets may extend the schema: immune_memory is an agent field.
+        self._field_types = dict(FIELD_TYPES)
+        self._field_types["immune_memory"] = float
+
+    def field_type(self, field_name: str) -> type | None:
+        return self._field_types.get(field_name)
+
+    def validate_transition(
+        self, transition: Transition, snapshot: Snapshot
+    ) -> list[str]:
+        violations = super().validate_transition(transition, snapshot)
+        for w in transition.writes:
+            if w.field == "immune_memory" and isinstance(w.new, (int, float)):
+                if not 0.0 <= w.new <= 1.0:
+                    violations.append(
+                        f"invariant_violation:{w.entity}.immune_memory_must_be_in_[0,1]"
+                    )
+        return violations
+
+    def extra_genesis_fields(self, kind, rng, tick, entity):
+        """Duck-typed hook used by the world generator (spec-free)."""
+        if kind == "agent":
+            # Naive immune system at genesis: no draw consumed, so the
+            # genesis draw stream of the default world stays untouched.
+            return [("immune_memory", 0.0)]
+        return []
+
+
+RULESETS: dict[str, type] = {
+    "default": DefaultWorldRules,
+    "immune": ImmuneMemoryRules,
+}
+
+
+def get_ruleset(name: str):
+    try:
+        return RULESETS[name]()
+    except KeyError:
+        raise KeyError(f"unknown ruleset {name!r}; have {sorted(RULESETS)}") from None

@@ -2,8 +2,9 @@
 
 > **CAUSAL KERNEL v0.1 — frozen** (tag `v0.1.0`). The kernel architecture is
 > not extended silently; anything considered redundant goes through an
-> explicit proposal first. v0.2 work adds observability and scale around the
-> frozen kernel, never inside it. See the [roadmap](#roadmap).
+> explicit proposal first. v0.2 added observability and scale around the
+> frozen kernel; v0.3 adds a **ruleset variant** (immune memory) — a change
+> of laws, never of kernel. See the [roadmap](#roadmap).
 
 A minimal **executable kernel** for an artificial world in which every
 change is a recorded, atomic, causally-explainable **Transition**.
@@ -236,7 +237,7 @@ Enforced by construction and by the test suite:
 | component | value | change means |
 |---|---|---|
 | `kernel_version` | `0.1.0` | engine mechanics changed |
-| `ruleset_version` | `0.1.0` | world laws / schema / purposes changed |
+| `ruleset_version` | `0.1.0` (`default`) / `0.3.0` (`immune`) | world laws / schema / purposes changed |
 | `rng_version` | `blake2b-v1` | draw algorithm changed |
 
 Changing the RNG algorithm or the semantics of a purpose is a **ruleset**
@@ -246,7 +247,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 51 tests
+python -m pytest          # 76 tests
 ```
 
 | spec test | where |
@@ -266,6 +267,11 @@ python -m pytest          # 51 tests
 
 Plus conflict-resolution tests (`test_conflicts.py`): explicit winner rule,
 order independence, no value rewriting.
+
+Plus the v0.3 ruleset contract (`test_immune_ruleset.py`): default world
+bit-identity pinned, deterministic replay of the immune world, atomic
+`immune_memory` growth with provenance, same addressable draw stream as
+the baseline, schema invariant enforced by the ruleset.
 
 ## v0.2 — Causal survival experiment
 
@@ -334,16 +340,80 @@ peak RAM ≈ 30 MB, archive ≈ 4 GB (`runs/`, gitignored, regenerable).
 A ruleset variant with immune memory is the obvious v0.3 candidate — it
 is proposed, not silently introduced: the v0.1 laws are frozen.
 
+## v0.3 — Immune memory: a different law, same kernel, same dice
+
+Implemented as a **separate ruleset** (`"0.3.0"`, selectable via
+`--ruleset immune` in the CLI and the experiment runner), not as a kernel
+change. `src/causal_world/kernel/` is byte-identical to tag `v0.1.0`, and
+the default world stays **bit-identical** to v0.2 (same state hash *and*
+journal hash — pinned in `tests/test_immune_ruleset.py`).
+
+The new law, in full:
+
+* new agent field `immune_memory ∈ [0, 1]`, naive (`0.0`) at genesis —
+  injected through a duck-typed `extra_genesis_fields` hook, so the
+  default generator path is untouched;
+* infection probability scaled by `1 − 0.85·memory`;
+* infection damage attenuated by `1 − 0.60·memory`;
+* every infection teaches: `+0.35` memory, written **atomically inside the
+  same transition** that writes `infected` and `health`;
+* recovery probability gains `+0.20·memory`.
+
+Design point — **same dice**: the immune world draws from the exact same
+addressable stream as ruleset 0.1.0 under the same seed (same purposes,
+same `(tick, entity, purpose, index)` addresses, same `rng_version`).
+Every divergence between the two runs is therefore attributable to the
+laws alone.
+
+### Result (seed 7, 10 regions × 1000 agents × 10 000 ticks)
+
+Simulation 697 s, analysis ~9 s; full report:
+[`experiments/reports/survival_seed7_immune.md`](experiments/reports/survival_seed7_immune.md).
+
+| quantity | ruleset 0.1.0 | ruleset 0.3.0 |
+|---|---|---|
+| extinction tick | 553 | **573** |
+| mean lifespan | 141 | **335** |
+| median lifespan | 82 | **396** |
+| dominant death mechanism | `disease` 51.2 % | `disease+starvation` 95.4 % |
+| acute infections | 11.6 % | 3.9 % |
+| corr(density, lifespan) | **−0.90** | **+0.68** |
+
+Three findings:
+
+1. **Memory changes the trajectory, not the verdict.** Mean lifespan more
+   than doubles and reinfection damage collapses, but at this density the
+   population still goes extinct — only ~20 ticks later. One law is not
+   enough; the collapse is structural (endemic load + food pressure), not
+   a single-mechanism failure.
+2. **The death mechanism mix flips.** Acute single-infection deaths almost
+   vanish (11.6 % → 3.9 %): memory blunts damage below lethality. Almost
+   everyone now dies in a slow `disease+starvation` chain (37.2 % →
+   95.4 %) — immune agents survive each infection but are worn down across
+   many of them while the food base is under pressure.
+3. **A correlation reverses sign between rulesets.** Social density is
+   nearly perfectly lethal in the baseline (−0.90) and *positively*
+   correlated with lifespan in the immune world (+0.68). Same observable,
+   same seed, same dice — opposite statistical story, because the causal
+   structure behind it changed. This is exactly why the project separates
+   per-death mechanical traces from population statistics.
+
+Every death in both runs has a trace; in the immune world the traces show
+`immune_memory` as a causal input of the killing infection (e.g.
+`agent:102`: memory 0.7 read at the tick-79 infection that finished it).
+
 ## Roadmap
 
 ```
 v0.1  Deterministic causal kernel            (frozen, tag v0.1.0)
-v0.2  1000 agents / 10k ticks survival run   (this branch)
-v0.3  Statistical observer
-v0.4  Causal query engine
-v0.5  Biography generator
-v0.6  LLM as causal-trace interpreter (observer adapter only)
-v0.7  100k+ agents: memory layout, sparse state, batching,
+v0.2  1000 agents / 10k ticks survival run
+v0.3  Immune-memory ruleset variant          (this branch — laws-only
+      proposal implemented on the frozen kernel, same draw stream)
+v0.4  Statistical observer
+v0.5  Causal query engine
+v0.6  Biography generator
+v0.7  LLM as causal-trace interpreter (observer adapter only)
+v0.8  100k+ agents: memory layout, sparse state, batching,
       spatial partitioning, parallel execution, compressed provenance
 v1.0  Large artificial world
 ```

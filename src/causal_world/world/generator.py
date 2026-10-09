@@ -77,7 +77,23 @@ def generate_genesis(
     tick: int = 0,
     region_count: int = DEFAULT_REGION_COUNT,
     agent_count: int = DEFAULT_AGENT_COUNT,
+    rules=None,
 ) -> list[Transition]:
+    """Genesis transitions for the initial state.
+
+    ``rules`` may provide an optional duck-typed hook
+    ``extra_genesis_fields(kind, rng, tick, entity) -> [(field, value)]``
+    so that a ruleset variant (e.g. the v0.3 immune-memory world) can add
+    fields without touching the kernel. Rulesets that declare nothing keep
+    the genesis of the default world bit-identical.
+    """
+    extra = getattr(rules, "extra_genesis_fields", None)
+
+    def extra_fields(kind: str, entity: str) -> list[tuple[str, object]]:
+        if extra is None:
+            return []
+        return list(extra(kind, rng, tick, entity))
+
     transitions: list[Transition] = []
 
     agents_per_region: dict[str, int] = {}
@@ -119,6 +135,7 @@ def generate_genesis(
             ("population", population),
             ("workers", population),
         ]
+        fields.extend(extra_fields("region", entity))
         transitions.append(
             _genesis_transition(tick, entity, "genesis.region", fields, draws)
         )
@@ -141,6 +158,7 @@ def generate_genesis(
             ("immunity", immunity),
             ("risk_tolerance", risk_tolerance),
         ]
+        fields.extend(extra_fields("agent", entity))
         transitions.append(
             _genesis_transition(tick, entity, "genesis.agent", fields, draws)
         )

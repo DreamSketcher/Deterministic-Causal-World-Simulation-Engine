@@ -14,6 +14,7 @@ from causal_world.causal.trace import format_trace, format_transition, trace_bac
 from causal_world.kernel.transition import TransitionStatus
 from causal_world.observer.statistics import compute_statistics, format_statistics
 from causal_world.simulation.engine import create_world
+from causal_world.world.rules import get_ruleset
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -28,6 +29,8 @@ def _build_parser() -> argparse.ArgumentParser:
         p.add_argument("--ticks", type=int, default=100)
         p.add_argument("--regions", type=int, default=2)
         p.add_argument("--agents", type=int, default=10)
+        p.add_argument("--ruleset", type=str, default="default",
+                       help="world rules: default | immune")
         p.add_argument("--persist", type=str, default=None,
                        help="SQLite archive path for the journal + causal index")
 
@@ -48,6 +51,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         ticks=args.ticks,
         regions=args.regions,
         agents=args.agents,
+        ruleset=get_ruleset(args.ruleset),
         persist=args.persist,
     )
     state = simulation.state
@@ -81,6 +85,7 @@ def _cmd_trace(args: argparse.Namespace) -> int:
         ticks=args.ticks,
         regions=args.regions,
         agents=args.agents,
+        ruleset=get_ruleset(args.ruleset),
         persist=args.persist,
     )
     journal = simulation.journal

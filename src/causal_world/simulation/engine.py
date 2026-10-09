@@ -166,6 +166,7 @@ def create_world(
     from causal_world.systems.agriculture import AgricultureSystem
     from causal_world.systems.climate import ClimateSystem
     from causal_world.systems.disease import DiseaseSystem
+    from causal_world.systems.immune_disease import ImmuneDiseaseSystem
     from causal_world.world.generator import generate_genesis
     from causal_world.world.rules import DefaultWorldRules
 
@@ -173,14 +174,18 @@ def create_world(
         "ClimateSystem": ClimateSystem,
         "AgricultureSystem": AgricultureSystem,
         "DiseaseSystem": DiseaseSystem,
+        "ImmuneDiseaseSystem": ImmuneDiseaseSystem,
         "AgentSystem": AgentSystem,
     }
-    names = system_order or [
+    default_order = [
         "ClimateSystem",
         "AgricultureSystem",
         "DiseaseSystem",
         "AgentSystem",
     ]
+    # A ruleset may declare its own system roster (duck-typed); the kernel
+    # does not know about it otherwise.
+    names = system_order or getattr(ruleset, "default_systems", None) or default_order
     unknown = [n for n in names if n not in registry]
     if unknown:
         raise KeyError(f"unknown systems: {unknown}")
@@ -209,7 +214,7 @@ def create_world(
     systems = [registry[name]() for name in names]
     simulation = Simulation(seed, systems, rules, rng, journal=journal, index=index)
     simulation.initialize(
-        generate_genesis(rng, region_count=regions, agent_count=agents)
+        generate_genesis(rng, region_count=regions, agent_count=agents, rules=rules)
     )
     if ticks:
         simulation.run(ticks)

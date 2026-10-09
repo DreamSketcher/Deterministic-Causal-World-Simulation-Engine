@@ -347,6 +347,7 @@ def build_report(
     elapsed: float,
     db_path: str,
     trace_depth: int = 10,
+    ruleset_version: str = "0.1.0",
 ) -> str:
     dead = [r for r in records if not r.alive_at_end]
     alive = [r for r in records if r.alive_at_end]
@@ -355,14 +356,20 @@ def build_report(
 
     add(f"# Causal survival experiment" + (f" — seed {seed}" if seed is not None else ""))
     add("")
-    add("Frozen **CAUSAL KERNEL v0.1** — no new systems, no new laws.")
-    add("Scale, statistics and mechanical death traces only.")
+    if ruleset_version == "0.1.0":
+        add("Frozen **CAUSAL KERNEL v0.1**, ruleset **0.1.0** — no new systems,")
+        add("no new laws. Scale, statistics and mechanical death traces only.")
+    else:
+        add(f"Kernel **v0.1 (frozen)**, ruleset **{ruleset_version}** — the laws")
+        add("differ from the baseline by proposal only; the kernel, the purposes")
+        add("and the addressable draw stream are unchanged.")
     add("")
     add("## Run")
     add("")
     add("| parameter | value |")
     add("|---|---|")
     add(f"| seed | {seed} |")
+    add(f"| ruleset | {ruleset_version} |")
     add(f"| regions | {regions} |")
     add(f"| agents | {agents} |")
     add(f"| ticks | {ticks} |")
@@ -492,17 +499,18 @@ def build_report(
 
     add("## Reproduction")
     add("")
+    ruleset_flag = "" if ruleset_version == "0.1.0" else f" --ruleset immune"
     add("```bash")
     if seed is not None:
         add(f"python3 experiments/survival.py --seed {seed} --regions {regions} "
-            f"--agents {agents} --ticks {ticks} --db {db_path} --report <path>")
+            f"--agents {agents} --ticks {ticks}{ruleset_flag} --db {db_path} --report <path>")
     else:
         add(f"python3 experiments/survival.py --analyze --ticks {ticks} "
             f"--db {db_path} --report <path>")
     add("```")
     add("")
-    add("Same seed + kernel v0.1.0 + ruleset 0.1.0 → bit-identical world, "
-        "identical traces, identical report.")
+    add(f"Same seed + kernel v0.1.0 + ruleset {ruleset_version} → bit-identical "
+        "world, identical traces, identical report.")
     return "\n".join(lines)
 
 
@@ -534,9 +542,11 @@ def analyze_existing(args) -> int:
         regions_used, agents_used = int(regions_text), int(agents_text)
 
     records = collect_records(archive, args.ticks)
+    ruleset_version = meta("ruleset_version") or "0.1.0"
     report = build_report(
         seed, regions_used, agents_used, args.ticks, records, archive,
         time.time() - t0, args.db, trace_depth=args.trace_depth,
+        ruleset_version=ruleset_version,
     )
     with open(args.report, "w", encoding="utf-8") as fh:
         fh.write(report)
@@ -554,6 +564,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--db", type=str, required=True)
     parser.add_argument("--report", type=str, required=True)
     parser.add_argument("--trace-depth", type=int, default=10)
+    parser.add_argument("--ruleset", type=str, default="default",
+                        help="world rules: default | immune")
     parser.add_argument("--analyze", action="store_true",
                         help="re-analyze an existing archive; do not simulate")
     args = parser.parse_args(argv)
@@ -566,13 +578,20 @@ def main(argv: list[str] | None = None) -> int:
         os.remove(args.db)
     os.makedirs(os.path.dirname(args.db) or ".", exist_ok=True)
 
+    from causal_world.world.rules import get_ruleset
+
+    rules = get_ruleset(args.ruleset)
     t0 = time.time()
     sim = create_world(
         seed=args.seed,
         regions=args.regions,
         agents=args.agents,
+        ruleset=rules,
         persist=args.db,
     )
+    if getattr(rules, "default_systems", None) is not None:
+        print(f"ruleset {rules.ruleset_version}: systems = "
+              f"{', '.join(s.name for s in sim.systems)}", flush=True)
     for tick in range(1, args.ticks + 1):
         sim.step()
         if tick % 500 == 0:
@@ -592,6 +611,7 @@ def main(argv: list[str] | None = None) -> int:
     report = build_report(
         seed_used, regions_used, agents_used, args.ticks, records, sim.journal,
         time.time() - t0, args.db, trace_depth=args.trace_depth,
+        ruleset_version=rules.ruleset_version,
     )
     with open(args.report, "w", encoding="utf-8") as fh:
         fh.write(report)
