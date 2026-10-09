@@ -56,7 +56,7 @@ def _immune_world(ticks: int = 600):
 
 
 def test_ruleset_registry():
-    assert sorted(RULESETS) == ["default", "immune"]
+    assert {"default", "immune"} <= set(RULESETS)
     assert isinstance(get_ruleset("default"), DefaultWorldRules)
     assert isinstance(get_ruleset("immune"), ImmuneMemoryRules)
     assert get_ruleset("immune").ruleset_version == "0.3.0"

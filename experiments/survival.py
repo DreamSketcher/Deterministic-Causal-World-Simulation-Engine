@@ -348,6 +348,8 @@ def build_report(
     db_path: str,
     trace_depth: int = 10,
     ruleset_version: str = "0.1.0",
+    ruleset_name: str = "default",
+    description: str | None = None,
 ) -> str:
     dead = [r for r in records if not r.alive_at_end]
     alive = [r for r in records if r.alive_at_end]
@@ -363,6 +365,9 @@ def build_report(
         add(f"Kernel **v0.1 (frozen)**, ruleset **{ruleset_version}** — the laws")
         add("differ from the baseline by proposal only; the kernel, the purposes")
         add("and the addressable draw stream are unchanged.")
+        if description:
+            add("")
+            add(f"> {description}")
     add("")
     add("## Run")
     add("")
@@ -499,7 +504,7 @@ def build_report(
 
     add("## Reproduction")
     add("")
-    ruleset_flag = "" if ruleset_version == "0.1.0" else f" --ruleset immune"
+    ruleset_flag = "" if ruleset_name == "default" else f" --ruleset {ruleset_name}"
     add("```bash")
     if seed is not None:
         add(f"python3 experiments/survival.py --seed {seed} --regions {regions} "
@@ -543,10 +548,12 @@ def analyze_existing(args) -> int:
 
     records = collect_records(archive, args.ticks)
     ruleset_version = meta("ruleset_version") or "0.1.0"
+    ruleset_name = meta("ruleset_name") or ("default" if ruleset_version == "0.1.0" else "immune")
     report = build_report(
         seed, regions_used, agents_used, args.ticks, records, archive,
         time.time() - t0, args.db, trace_depth=args.trace_depth,
-        ruleset_version=ruleset_version,
+        ruleset_version=ruleset_version, ruleset_name=ruleset_name,
+        description=meta("ruleset_description"),
     )
     with open(args.report, "w", encoding="utf-8") as fh:
         fh.write(report)
@@ -592,6 +599,10 @@ def main(argv: list[str] | None = None) -> int:
     if getattr(rules, "default_systems", None) is not None:
         print(f"ruleset {rules.ruleset_version}: systems = "
               f"{', '.join(s.name for s in sim.systems)}", flush=True)
+    # World identity beyond the version string travels with the archive.
+    sim.journal.set_meta("ruleset_name", args.ruleset)
+    if getattr(rules, "description", None):
+        sim.journal.set_meta("ruleset_description", rules.description)
     for tick in range(1, args.ticks + 1):
         sim.step()
         if tick % 500 == 0:
@@ -611,7 +622,8 @@ def main(argv: list[str] | None = None) -> int:
     report = build_report(
         seed_used, regions_used, agents_used, args.ticks, records, sim.journal,
         time.time() - t0, args.db, trace_depth=args.trace_depth,
-        ruleset_version=rules.ruleset_version,
+        ruleset_version=rules.ruleset_version, ruleset_name=args.ruleset,
+        description=getattr(rules, "description", None),
     )
     with open(args.report, "w", encoding="utf-8") as fh:
         fh.write(report)

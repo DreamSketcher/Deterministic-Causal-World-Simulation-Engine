@@ -247,7 +247,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 76 tests
+python -m pytest          # 87 tests
 ```
 
 | spec test | where |
@@ -272,6 +272,13 @@ Plus the v0.3 ruleset contract (`test_immune_ruleset.py`): default world
 bit-identity pinned, deterministic replay of the immune world, atomic
 `immune_memory` growth with provenance, same addressable draw stream as
 the baseline, schema invariant enforced by the ruleset.
+
+Plus the v0.3.1 surgery checks (`test_diagnostic_rulesets.py`): each
+diagnostic ruleset cuts exactly its link — no infection writes health in
+`iron_health`, soil is never written after genesis in `stable_soil`,
+infection reads no hunger and immunity ignores hunger in
+`no_hunger_immunity`, no disease operations in the control — and every
+variant replays bit-identically on the shared draw stream.
 
 ## v0.2 — Causal survival experiment
 
@@ -402,6 +409,46 @@ Every death in both runs has a trace; in the immune world the traces show
 `immune_memory` as a causal input of the killing infection (e.g.
 `agent:102`: memory 0.7 read at the tick-79 infection that finished it).
 
+## v0.3.1 — structural diagnosis: which link is the bottleneck?
+
+The immune world still collapsed (tick 573 vs 553 — noise). Four more
+laws-only rulesets, each severing exactly one link of the presumed spiral,
+same seed and scale. Full write-up:
+[`experiments/reports/v031_diagnosis.md`](experiments/reports/v031_diagnosis.md).
+
+| measure | 0.1.0 | 0.3.0 immune | A: no infection damage | B: no soil depletion | C: no hunger→susceptibility | control: no disease |
+|---|---|---|---|---|---|---|
+| survivors | 0/1000 | 0/1000 | 0/1000 | **950/1000** | 0/1000 | 0/1000 |
+| extinction tick | 553 | 573 | 573 | — | 573 | 573 |
+| median lifespan | 82 | 396 | 407 | 4000¹ | 405 | 407 |
+| dominant mechanism | disease | dis+starv | dis+starv | (50 early deaths) | dis+starv | **starvation** |
+
+¹ Censored at the 4000-tick run (archive size limit); last death at tick
+83, then 3917 ticks with zero deaths.
+
+Three results define the stage:
+
+1. **The collapse clock ignores the disease variables.** Four rulesets —
+   full memory, zero infection damage, severed hunger↔susceptibility loop,
+   and *no pathogen at all* — go extinct on the **same tick (573)** with
+   near-identical lifespan distributions. In the no-disease control every
+   death traces to pure starvation.
+2. **Stop the soil countdown and the world survives.** Soil fertility in
+   the frozen laws depletes unconditionally (−0.0009/tick, floor 0.05,
+   no restoration). With that one write removed, 950/1000 agents are alive
+   at run end — disease fully active, but no longer lethal.
+3. **The spiral is real but not the bottleneck.** The
+   infection→health→hunger→susceptibility loop shapes *how* agents die
+   (the mechanism mix); the *time* of collapse is set by a terminal
+   abiotic resource. Also found while cutting: the proposed
+   "health→labor→harvest" link never existed — harvest already ignores
+   health; the real food-side link was the soil clock.
+
+The bottleneck is the soil countdown. The next experiment (v0.4 era) is
+the food side: a *realistic* mechanism (restoration, storage, rationing)
+instead of removing the clock — and the observer now has five genuinely
+different regimes to compare.
+
 ## Roadmap
 
 ```
@@ -409,6 +456,8 @@ v0.1  Deterministic causal kernel            (frozen, tag v0.1.0)
 v0.2  1000 agents / 10k ticks survival run
 v0.3  Immune-memory ruleset variant          (this branch — laws-only
       proposal implemented on the frozen kernel, same draw stream)
+v0.3.1  Structural diagnosis: 4 sever-one-link rulesets → the collapse
+      bottleneck is the soil countdown, not the disease spiral
 v0.4  Statistical observer
 v0.5  Causal query engine
 v0.6  Biography generator

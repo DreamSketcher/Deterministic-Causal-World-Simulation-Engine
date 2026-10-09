@@ -165,6 +165,13 @@ def create_world(
     from causal_world.systems.agents import AgentSystem
     from causal_world.systems.agriculture import AgricultureSystem
     from causal_world.systems.climate import ClimateSystem
+    from causal_world.systems.diagnostic import (
+        IronHealthAgentSystem,
+        IronHealthDiseaseSystem,
+        NoHungerDiseaseSystem,
+        NoHungerErosionAgentSystem,
+        StableSoilAgricultureSystem,
+    )
     from causal_world.systems.disease import DiseaseSystem
     from causal_world.systems.immune_disease import ImmuneDiseaseSystem
     from causal_world.world.generator import generate_genesis
@@ -175,6 +182,11 @@ def create_world(
         "AgricultureSystem": AgricultureSystem,
         "DiseaseSystem": DiseaseSystem,
         "ImmuneDiseaseSystem": ImmuneDiseaseSystem,
+        "IronHealthDiseaseSystem": IronHealthDiseaseSystem,
+        "IronHealthAgentSystem": IronHealthAgentSystem,
+        "StableSoilAgricultureSystem": StableSoilAgricultureSystem,
+        "NoHungerDiseaseSystem": NoHungerDiseaseSystem,
+        "NoHungerErosionAgentSystem": NoHungerErosionAgentSystem,
         "AgentSystem": AgentSystem,
     }
     default_order = [

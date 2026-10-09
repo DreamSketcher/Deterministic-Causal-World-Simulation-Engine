@@ -170,6 +170,106 @@ RULESETS: dict[str, type] = {
 }
 
 
+class IronHealthRules(ImmuneMemoryRules):
+    """v0.3.1 experiment A — "iron health".
+
+    Hypothesis: the collapse needs infection-driven health loss (acute
+    damage + chronic erosion). Law change: infection never lowers health.
+    Memory still gates susceptibility and speeds recovery. If the world
+    still collapses, the bottleneck is NOT the health link.
+    """
+
+    ruleset_version = "0.3.1a"
+    description = (
+        "Experiment A: infection deals no damage (no acute health write, "
+        "no chronic erosion while infected). Memory works as in 0.3.0."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "AgricultureSystem",
+        "IronHealthDiseaseSystem",
+        "IronHealthAgentSystem",
+    ]
+
+
+class StableSoilRules(ImmuneMemoryRules):
+    """v0.3.1 experiment B — "stable soil" (invulnerable harvest).
+
+    Hypothesis: the collapse is sustained by the food side. Law change:
+    soil fertility no longer depletes (the frozen law's unconditional
+    −0.0009/tick countdown is removed; everything else is identical).
+
+    Note on the literal proposal "harvest independent of workers' health":
+    that is already the frozen law — harvest never reads health and
+    ``workers`` is a plain alive-count. The real food-side link is the
+    soil clock, which is what this ruleset tests.
+    """
+
+    ruleset_version = "0.3.1b"
+    description = (
+        "Experiment B: soil fertility never depletes; harvest otherwise "
+        "identical. Tests whether the food clock is the bottleneck."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "StableSoilAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+    ]
+
+
+class NoHungerImmunityRules(ImmuneMemoryRules):
+    """v0.3.1 experiment C — "no hunger→immunity".
+
+    Hypothesis: the spiral self-sustains through hunger raising
+    susceptibility. Law change cuts BOTH hunger→susceptibility links:
+    infection probability at the well-fed constant (no hunger factor) and
+    immunity no longer erodes with hunger. Damage, memory and recovery
+    stay at the 0.3.0 laws.
+    """
+
+    ruleset_version = "0.3.1c"
+    description = (
+        "Experiment C: hunger no longer raises susceptibility — neither "
+        "directly (infection probability) nor via immunity erosion."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "AgricultureSystem",
+        "NoHungerDiseaseSystem",
+        "NoHungerErosionAgentSystem",
+    ]
+
+
+class NoDiseaseControlRules(DefaultWorldRules):
+    """v0.3.1 control — the v0.1 world with no disease system at all.
+
+    Answers the reference question: how far does the food clock alone
+    carry the collapse, with no pathogens present?
+    """
+
+    ruleset_version = "0.3.1-ctrl"
+    description = (
+        "Control: default v0.1 laws, disease system removed entirely. "
+        "Isolates the abiotic (food/soil) dynamics."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "AgricultureSystem",
+        "AgentSystem",
+    ]
+
+
+RULESETS.update(
+    {
+        "iron_health": IronHealthRules,
+        "stable_soil": StableSoilRules,
+        "no_hunger_immunity": NoHungerImmunityRules,
+        "no_disease_control": NoDiseaseControlRules,
+    }
+)
+
+
 def get_ruleset(name: str):
     try:
         return RULESETS[name]()
