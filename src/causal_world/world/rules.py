@@ -345,6 +345,114 @@ class CropRotationRules(ImmuneMemoryRules):
         return fields
 
 
+class CompostRules(ImmuneMemoryRules):
+    """v0.3.3 experiment G — compost: direct fertility return.
+
+    Every agent returns nutrients to the soil of its region:
+    ``recovery = population × 0.000018 × (1 − soil)`` (diminishing
+    returns). The constant is the proposal's 0.0018 rescaled by 1/1000:
+    the frozen degradation is a flat 0.0009 per region per tick, not
+    per worker, so at 100 agents/region the balance point is the
+    intended soil ≈ 0.5. Tests whether a trivial nutrient cycle is
+    enough — i.e. whether the original model's fatal flaw was the
+    absence of any matter cycle.
+    """
+
+    ruleset_version = "0.3.3g"
+    description = (
+        "Experiment G (compost): every agent returns nutrients to its "
+        "region's soil; balance point ≈ soil 0.5 at genesis density."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "CompostAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+    ]
+
+
+class ThreeFieldRules(ImmuneMemoryRules):
+    """v0.3.3 experiment H — forced three-field cycle.
+
+    After 200 ticks of cultivation a region lies fallow for 100 ticks:
+    no harvest, active recovery +0.003/tick. New per-region fields
+    ``cultivation_streak``/``fallow_timer`` (ints, created at genesis,
+    phase-staggered by 20 × region index so the cycles overlap like a
+    real three-field system instead of falling fallow in sync).
+    """
+
+    ruleset_version = "0.3.3h"
+    description = (
+        "Experiment H (three-field): 200 ticks of cultivation force 100 "
+        "ticks of fallow (+0.003 soil/tick), cycles phase-staggered."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "ThreeFieldAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+    ]
+
+    #: Lengths must match ThreeFieldAgricultureSystem's constants.
+    CULTIVATION_LIMIT = 200
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._field_types["cultivation_streak"] = int
+        self._field_types["fallow_timer"] = int
+
+    def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
+        fields = super().extra_genesis_fields(kind, rng, tick, entity, info)
+        if kind == "region":
+            index = int((info or {}).get("index", 0))
+            region_count = max(int((info or {}).get("region_count", 1)), 1)
+            stagger = (index * self.CULTIVATION_LIMIT) // region_count
+            fields.extend([("cultivation_streak", stagger), ("fallow_timer", 0)])
+        return fields
+
+
+class FertileMigrationRules(ImmuneMemoryRules):
+    """v0.3.3 experiment I — migration toward fertility, WITH fallow.
+
+    Soil laws are the v0.3.2-D laws (abandoned regions heal); the change
+    is the agents' information: a migrating agent picks the best other
+    region by ``soil × food_stock / max(population, 1)`` instead of the
+    blind next-region walk. Tests the information hypothesis: was the
+    collapse physics or blindness?
+    """
+
+    ruleset_version = "0.3.3i"
+    description = (
+        "Experiment I (fertile migration + fallow): migration targets "
+        "the most fertile, least crowded region; abandoned soil heals."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "FallowAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "FertileMigrationAgentSystem",
+    ]
+
+
+class FertileMigrationOnlyRules(ImmuneMemoryRules):
+    """v0.3.3 experiment I-attribution control — informed migration on
+    the FROZEN soil laws (no fallow recovery). If I survives and this
+    one does not, survival needed the nutrient side too, not just sight.
+    """
+
+    ruleset_version = "0.3.3i-plain"
+    description = (
+        "Experiment I control: informed migration alone, soil laws "
+        "frozen (no fallow recovery)."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "AgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "FertileMigrationAgentSystem",
+    ]
+
+
 RULESETS.update(
     {
         "iron_health": IronHealthRules,
@@ -354,6 +462,10 @@ RULESETS.update(
         "fallow": FallowRules,
         "storage": StorageRules,
         "crop_rotation": CropRotationRules,
+        "compost": CompostRules,
+        "three_field": ThreeFieldRules,
+        "fertile_migration": FertileMigrationRules,
+        "fertile_migration_only": FertileMigrationOnlyRules,
     }
 )
 

@@ -137,7 +137,13 @@ def generate_genesis(
             ("population", population),
             ("workers", population),
         ]
-        fields.extend(extra_fields("region", entity, {"population": population}))
+        fields.extend(
+            extra_fields(
+                "region",
+                entity,
+                {"population": population, "index": r, "region_count": region_count},
+            )
+        )
         transitions.append(
             _genesis_transition(tick, entity, "genesis.region", fields, draws)
         )

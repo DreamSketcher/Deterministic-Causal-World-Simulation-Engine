@@ -484,6 +484,44 @@ Tests: 87 → **96** (`tests/test_food_rulesets.py` pins each law exactly:
 fallow recovery, spoilage arithmetic, the rotation statistic and penalty,
 plus replay/draw-stream/bit-identity contracts).
 
+## v0.3.3 — closing the nutrient loop: the first surviving world
+
+Three fertility-maintenance rulesets on the frozen kernel, plus an
+attribution control. Full write-up:
+[`experiments/reports/v033_fertility.md`](experiments/reports/v033_fertility.md).
+
+| ruleset | law | outcome |
+|---|---|---|
+| G `compost` | soil gets back `population × 0.000018 × (1 − soil)`/tick | **937/1000 alive at t10000 — stable equilibrium** |
+| H `three_field` | forced 200-tick cultivation / 100-tick fallow cycle, staggered phases | extinct t1382 (mass die-off ≈t170, tiny tail) |
+| I `fertile_migration` | informed destination choice `soil × food / pop` + fallow | extinct t710 (herding relay) |
+| I-plain `fertile_migration_only` | same information, frozen soil laws | extinct t572 (≈ immune baseline) |
+
+- **G is the first self-maintaining world.** Last death at tick 1531,
+  population locked at 937 afterwards; each inhabited region's soil sits
+  at its analytically predicted balance point `1 − 50/population` (agree-
+  ment to three decimals per region);
+  disease persists as a small endemic pool that immune memory holds below
+  the lethal threshold. Same physics, same clock, same seed, agents still
+  blind — the only change is that what is taken out of the soil is
+  returned to it.
+- **H heals the soil but bankrupts the granary**: a 300-tick cycle nets
+  +0.12 soil but ≈ −1000 food (100 fallow ticks of zero harvest at full
+  consumption). Forced synchrony starves every region on schedule.
+- **I proves information is not what was missing.** Perfectly informed,
+  greedy agents converge on the single best region (667/1000 at peak),
+  strip it, and relay booms-and-busts across the map until extinction —
+  the tragedy of the commons in space. With frozen soil laws (I-plain)
+  the same information reproduces the immune collapse almost exactly.
+
+Verdict: the decisive variable was never knowledge — it is whether the
+system returns to the soil what it takes out.
+
+Tests: 96 → **106** (`tests/test_fertility_rulesets.py`: compost balance
+point and floor, three-field flip/fallow/countdown mechanics and phase
+stagger, informed destination choice with tie-break, attribution-control
+parity, replay contracts).
+
 ## Roadmap
 
 ```
@@ -495,6 +533,8 @@ v0.3.1  Structural diagnosis: 4 sever-one-link rulesets → the collapse
       bottleneck is the soil countdown, not the disease spiral
 v0.3.2  Living WITH the clock: fallow / storage / rotation — none saves
       the population; survival is decided by the degradation rate
+v0.3.3  Closing the nutrient loop: compost produces the first surviving
+      world; information (fertile migration) only reshapes the collapse
 v0.4  Statistical observer
 v0.5  Causal query engine
 v0.6  Biography generator
