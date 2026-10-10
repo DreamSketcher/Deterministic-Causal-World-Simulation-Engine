@@ -79,13 +79,18 @@ Layers point strictly downward. The observer layer has no write capability:
 src/causal_world/
 ├── kernel/        state.py snapshot.py transition.py random.py
 │                  validation.py canonical.py errors.py
-├── simulation/    engine.py resolver.py journal.py
+├── simulation/    engine.py resolver.py journal.py archive.py
 ├── systems/       base.py climate.py agriculture.py disease.py agents.py
+│                  immune_disease.py diagnostic.py food.py fertility.py
 ├── causal/        index.py trace.py
 ├── observer/      events.py statistics.py observability.py
+│                  journal.py budget.py series.py deaths.py regime.py
+│                  compare.py compress.py        (v0.4, read-only)
 ├── world/         generator.py rules.py
 ├── cli.py         __main__.py
-tests/             7 test modules + helpers.py (51 tests)
+tests/             12 test modules + helpers.py (121 tests)
+experiments/       survival.py compare_rulesets.py observer_demo.py
+                   reports/   (v0.2 … v0.4 write-ups)
 ```
 
 ## The tick loop
@@ -444,10 +449,10 @@ Three results define the stage:
    "health→labor→harvest" link never existed — harvest already ignores
    health; the real food-side link was the soil clock.
 
-The bottleneck is the soil countdown. The next experiment (v0.4 era) is
-the food side: a *realistic* mechanism (restoration, storage, rationing)
-instead of removing the clock — and the observer now has five genuinely
-different regimes to compare.
+The bottleneck is the soil countdown. The next experiments were the food
+side (v0.3.2) and the fertility side (v0.3.3) — mechanisms *within* the
+laws instead of removing the clock — which produced five genuinely
+different regimes to compare, and with them the need for the observer.
 
 ## v0.3.2 — living WITH the soil clock: three food mechanisms
 
@@ -522,6 +527,46 @@ point and floor, three-field flip/fallow/countdown mechanics and phase
 stagger, informed destination choice with tie-break, attribution-control
 parity, replay contracts).
 
+## v0.4 — the observer: budgets, regimes, causal comparison
+
+The read-only layer that turns the journal into the world's balance
+sheet. No new laws, no new systems, no write capability — `JournalView`
+opens archives `mode=ro`. Full write-up:
+[`experiments/reports/v04_observer.md`](experiments/reports/v04_observer.md).
+
+| layer | question | module |
+|---|---|---|
+| L1 CausalBudget | who put how much into each variable, and took out? | `observer/budget.py` |
+| L2 RegimeClassifier | collapse / equilibrium / oscillation / decline? | `observer/regime.py` |
+| L3 CausalComparator | why does regime A differ from regime B? | `observer/compare.py` |
+| L4 NarrativeCompressor | one causal trace → human text (no LLM yet) | `observer/compress.py` |
+
+- **L2 classifies from derived series only** (population/soil replayed
+  from committed writes; no ruleset knowledge): immune → COLLAPSE t573,
+  fertile_migration → COLLAPSE t710 with *recovering* soil, compost →
+  EQUILIBRIUM — the three regimes distinguished by shape, not by labels.
+- **L1 answers the v0.3.3 verdict in one line**: the immune soil budget
+  has inflows `(none)`, net −0.57 to the 0.05 floor (only 639 of 10 000
+  soil writes change anything — the floor turns the rest into no-ops);
+  the compost budget balances around zero in the equilibrium window.
+- **L3 finds the single structural difference** between 0.3.0 and G:
+  regime G has a fertility inflow that 0.3.0 lacks. Because compost
+  shares the frozen harvest transition, the difference lives at the
+  *system* level (`CompostAgricultureSystem` vs `AgricultureSystem`),
+  which the comparator reports as-is.
+- **Q5 quantified**: in the informed-migration world 939/1000 agents
+  make 18 772 moves with destination entropy 1.70 bits and a 43.7 %
+  share for the top region — herding, measured. The compost world has
+  zero migrations: the hunger gate never opens.
+- **CLI**: `python -m causal_world observe --db runs/x.db --classify
+  --budget region:4 soil_fertility [--compare-db y.db] [--explain-death
+  agent:7]`.
+
+Tests: 106 → **121** (`tests/test_observer.py`: budget arithmetic,
+SQL≡Python parity, read-only file-hash guarantee, synthetic + archived
+regime classification, no-ruleset-knowledge guarantee, comparator,
+migration entropy, template/LLM-hook compression).
+
 ## Roadmap
 
 ```
@@ -535,7 +580,8 @@ v0.3.2  Living WITH the clock: fallow / storage / rotation — none saves
       the population; survival is decided by the degradation rate
 v0.3.3  Closing the nutrient loop: compost produces the first surviving
       world; information (fertile migration) only reshapes the collapse
-v0.4  Statistical observer
+v0.4  Observer: causal budgets, regime classifier, comparator,
+      narrative templates — read-only, no LLM
 v0.5  Causal query engine
 v0.6  Biography generator
 v0.7  LLM as causal-trace interpreter (observer adapter only)
