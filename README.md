@@ -247,7 +247,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 87 tests
+python -m pytest          # 96 tests
 ```
 
 | spec test | where |
@@ -449,6 +449,41 @@ the food side: a *realistic* mechanism (restoration, storage, rationing)
 instead of removing the clock — and the observer now has five genuinely
 different regimes to compare.
 
+## v0.3.2 — living WITH the soil clock: three food mechanisms
+
+The clock stays; three laws-only rulesets (on top of immune memory) test
+whether the population can adapt around it. Full write-up:
+[`experiments/reports/v032_food.md`](experiments/reports/v032_food.md).
+
+| ruleset | law | extinction tick | vs immune (573) |
+|---|---|---|---|
+| D `fallow` | abandoned regions recover +0.0015/tick | **794** | delayed |
+| E `storage` | stock-dependent spoilage (tiny stocks barely rot, surpluses rot at 4 %) | 594 | ≈ same |
+| F `crop_rotation` | stable labor load degrades 50 % faster, fluctuating load rests the soil | **514** | *earlier* |
+
+None survives, and each failure is informative:
+
+1. **D produced the first self-generated spatial pattern** — the
+   population concentrated into 2–3 regions while abandoned regions
+   healed to full fertility (no director), deaths even paused between
+   waves — but migration is a hunger-gated random walk, so the healed
+   land was never recolonized. A delay, not a rescue.
+2. **E proves the collapse is an average deficit, not a peak deficit** —
+   smoothing spoilage changes nothing when the soil no longer produces.
+3. **F shows a feedback that activates only after the crisis is not a
+   stabilizer** — while everyone farms, the load is stable, the penalty
+   sits at maximum, and degradation runs 50 % faster.
+4. **The arithmetic closes the case.** Per-capita harvest < consumption
+   below soil ≈ 0.38 (typical climate); the frozen clock reaches that in
+   ~190 ticks from genesis and floors at 0.05. No mechanism in this
+   family adds fertility *where farming happens*, so survival is decided
+   by the degradation rate itself — the next experiment is a maintenance
+   mechanism there (still a ruleset, kernel untouched).
+
+Tests: 87 → **96** (`tests/test_food_rulesets.py` pins each law exactly:
+fallow recovery, spoilage arithmetic, the rotation statistic and penalty,
+plus replay/draw-stream/bit-identity contracts).
+
 ## Roadmap
 
 ```
@@ -458,6 +493,8 @@ v0.3  Immune-memory ruleset variant          (this branch — laws-only
       proposal implemented on the frozen kernel, same draw stream)
 v0.3.1  Structural diagnosis: 4 sever-one-link rulesets → the collapse
       bottleneck is the soil countdown, not the disease spiral
+v0.3.2  Living WITH the clock: fallow / storage / rotation — none saves
+      the population; survival is decided by the degradation rate
 v0.4  Statistical observer
 v0.5  Causal query engine
 v0.6  Biography generator

@@ -155,7 +155,7 @@ class ImmuneMemoryRules(DefaultWorldRules):
                     )
         return violations
 
-    def extra_genesis_fields(self, kind, rng, tick, entity):
+    def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
         """Duck-typed hook used by the world generator (spec-free)."""
         if kind == "agent":
             # Naive immune system at genesis: no draw consumed, so the
@@ -260,12 +260,100 @@ class NoDiseaseControlRules(DefaultWorldRules):
     ]
 
 
+class FallowRules(ImmuneMemoryRules):
+    """v0.3.2 experiment D — fallow recovery.
+
+    The soil clock keeps ticking WHERE fields are farmed; but abandoned
+    regions (population 0) recover +0.0015/tick instead of degrading.
+    Hypothesis: spatial dynamics (death + migration emptying regions)
+    can produce a self-sustaining oscillation — the first emergent
+    pattern with no director.
+    """
+
+    ruleset_version = "0.3.2d"
+    description = (
+        "Experiment D (fallow): soil of abandoned regions recovers "
+        "+0.0015/tick; farmed regions degrade exactly as in 0.3.0."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "FallowAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+    ]
+
+
+class StorageRules(ImmuneMemoryRules):
+    """v0.3.2 experiment E — stock-dependent spoilage.
+
+    Spoilage is 2 % only for stocks above 50 rations per agent, tends to
+    zero for small stocks (eaten before rotting), and rises to 4 % for a
+    surplus above 10 rations per agent. Soil degrades exactly as in
+    0.3.0. Tests whether the collapse is an AVERAGE deficit or a PEAK
+    deficit (bad seasons hitting an empty buffer).
+    """
+
+    ruleset_version = "0.3.2e"
+    description = (
+        "Experiment E (storage): spoilage depends on stock size — tiny "
+        "stocks barely rot, surpluses above 10 rations/agent rot at 4 %."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "StorageAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+    ]
+
+
+class CropRotationRules(ImmuneMemoryRules):
+    """v0.3.2 experiment F — crop rotation via labor-load fluctuation.
+
+    Degradation = 0.0009 × (workers/population) × stability_penalty,
+    where the penalty grows (up to ×1.5) when the region's workforce is
+    constant (monoculture) and shrinks (down to ×0.5) when the load
+    fluctuates (~10-tick exponential window). A negative feedback: stable
+    exploitation degrades faster, forcing fluctuations that let the soil
+    rest. Adds two per-region fields (labor_ema, labor_ema2) through the
+    genesis hook — kernel untouched.
+    """
+
+    ruleset_version = "0.3.2f"
+    description = (
+        "Experiment F (crop rotation): stable maximal labor load "
+        "degrades soil 50 % faster; a fluctuating load lets it rest."
+    )
+    default_systems = [
+        "ClimateSystem",
+        "RotationAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        # The rotation statistic is part of THIS proposal's schema.
+        self._field_types["labor_ema"] = float
+        self._field_types["labor_ema2"] = float
+
+    def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
+        fields = super().extra_genesis_fields(kind, rng, tick, entity, info)
+        if kind == "region":
+            pop = float((info or {}).get("population", 0))
+            # Born "stable": the field has been monocultured forever.
+            fields.extend([("labor_ema", pop), ("labor_ema2", pop * pop)])
+        return fields
+
+
 RULESETS.update(
     {
         "iron_health": IronHealthRules,
         "stable_soil": StableSoilRules,
         "no_hunger_immunity": NoHungerImmunityRules,
         "no_disease_control": NoDiseaseControlRules,
+        "fallow": FallowRules,
+        "storage": StorageRules,
+        "crop_rotation": CropRotationRules,
     }
 )
 

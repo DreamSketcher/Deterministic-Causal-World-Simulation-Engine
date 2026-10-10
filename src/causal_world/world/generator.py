@@ -82,17 +82,19 @@ def generate_genesis(
     """Genesis transitions for the initial state.
 
     ``rules`` may provide an optional duck-typed hook
-    ``extra_genesis_fields(kind, rng, tick, entity) -> [(field, value)]``
+    ``extra_genesis_fields(kind, rng, tick, entity, info) -> [(field, value)]``
     so that a ruleset variant (e.g. the v0.3 immune-memory world) can add
-    fields without touching the kernel. Rulesets that declare nothing keep
-    the genesis of the default world bit-identical.
+    fields without touching the kernel. ``info`` carries facts the
+    generator already computed (for regions: ``{"population": N}``).
+    Rulesets that declare nothing keep the genesis of the default world
+    bit-identical.
     """
     extra = getattr(rules, "extra_genesis_fields", None)
 
-    def extra_fields(kind: str, entity: str) -> list[tuple[str, object]]:
+    def extra_fields(kind: str, entity: str, info: dict) -> list[tuple[str, object]]:
         if extra is None:
             return []
-        return list(extra(kind, rng, tick, entity))
+        return list(extra(kind, rng, tick, entity, info))
 
     transitions: list[Transition] = []
 
@@ -135,7 +137,7 @@ def generate_genesis(
             ("population", population),
             ("workers", population),
         ]
-        fields.extend(extra_fields("region", entity))
+        fields.extend(extra_fields("region", entity, {"population": population}))
         transitions.append(
             _genesis_transition(tick, entity, "genesis.region", fields, draws)
         )
@@ -158,7 +160,7 @@ def generate_genesis(
             ("immunity", immunity),
             ("risk_tolerance", risk_tolerance),
         ]
-        fields.extend(extra_fields("agent", entity))
+        fields.extend(extra_fields("agent", entity, {}))
         transitions.append(
             _genesis_transition(tick, entity, "genesis.agent", fields, draws)
         )

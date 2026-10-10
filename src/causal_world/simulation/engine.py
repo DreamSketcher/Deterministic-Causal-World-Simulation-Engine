@@ -173,6 +173,11 @@ def create_world(
         StableSoilAgricultureSystem,
     )
     from causal_world.systems.disease import DiseaseSystem
+    from causal_world.systems.food import (
+        FallowAgricultureSystem,
+        RotationAgricultureSystem,
+        StorageAgricultureSystem,
+    )
     from causal_world.systems.immune_disease import ImmuneDiseaseSystem
     from causal_world.world.generator import generate_genesis
     from causal_world.world.rules import DefaultWorldRules
@@ -187,6 +192,9 @@ def create_world(
         "StableSoilAgricultureSystem": StableSoilAgricultureSystem,
         "NoHungerDiseaseSystem": NoHungerDiseaseSystem,
         "NoHungerErosionAgentSystem": NoHungerErosionAgentSystem,
+        "FallowAgricultureSystem": FallowAgricultureSystem,
+        "StorageAgricultureSystem": StorageAgricultureSystem,
+        "RotationAgricultureSystem": RotationAgricultureSystem,
         "AgentSystem": AgentSystem,
     }
     default_order = [
