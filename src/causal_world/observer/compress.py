@@ -65,7 +65,13 @@ class NarrativeCompressor:
         return None
 
     def _trace_back(self, agent_id: str, transition, journal, depth: int):
-        """Backward walk along the agent's own read-provenance chain."""
+        """Backward walk along the agent's own read-provenance chain.
+
+        At each step the freshest source is followed (highest transition
+        id among the agent's read sources), so the narrative tracks the
+        most recent causal ancestor — e.g. the last health update before
+        a death, not the genesis write of ``alive``.
+        """
         trace = [transition]
         seen = {transition.id}
         current = transition
@@ -73,8 +79,8 @@ class NarrativeCompressor:
             source_id = None
             for r in current.reads:
                 if r.entity == agent_id and r.source_transition is not None:
-                    source_id = r.source_transition
-                    break
+                    if source_id is None or r.source_transition > source_id:
+                        source_id = r.source_transition
             if source_id is None or source_id in seen:
                 break
             if not journal.has(source_id):

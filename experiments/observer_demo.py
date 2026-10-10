@@ -111,23 +111,25 @@ def main() -> int:
                               total_agents=int(v.meta("agents")))
         print("  final populations:", dict(sorted(
             series.final_region_population.items())))
-        # find the extinction tick of region:1 via population writes
+        # true final-inhabitation tick of region:1 (last write with pop > 0)
         rows = v.query(
-            "SELECT t.tick, json_extract(w.value,'$[3]') AS pop "
+            "SELECT MAX(t.tick) AS last_tick "
             "FROM transitions t, json_each(t.payload,'$.writes') w "
             "WHERE t.status='COMMITTED' "
             "AND json_extract(w.value,'$[0]')='region:1' "
             "AND json_extract(w.value,'$[1]')='population' "
-            "ORDER BY t.tick")
-        last_nonzero = None
-        first_zero = None
-        for row in rows:
-            if row["pop"] and row["pop"] > 0:
-                last_nonzero = (row["tick"], row["pop"])
-            elif first_zero is None and last_nonzero is not None:
-                first_zero = row["tick"]
-        print(f"  region:1 last inhabited: {last_nonzero}, "
-              f"empty from tick {first_zero}")
+            "AND json_extract(w.value,'$[3]') > 0")
+        print(f"  region:1 last inhabited at tick: {rows[0]['last_tick']}")
+        # final soil of the dead vs the alive region
+        for reg in ("region:1", "region:4"):
+            rows = v.query(
+                "SELECT json_extract(w.value,'$[3]') AS s "
+                "FROM transitions t, json_each(t.payload,'$.writes') w "
+                "WHERE t.status='COMMITTED' "
+                "AND json_extract(w.value,'$[0]')=? "
+                "AND json_extract(w.value,'$[1]')='soil_fertility' "
+                "ORDER BY t.id DESC LIMIT 1", (reg,))
+            print(f"  {reg} final soil: {rows[0]['s']:.4f}")
         show_budget(v, "region:1", "soil_fertility",
                     label="  region:1 soil budget (no composters after "
                           "extinction):")
