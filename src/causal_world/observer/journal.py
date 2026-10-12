@@ -91,6 +91,23 @@ class JournalView:
             raise KeyError(f"no transition T{transition_id} in journal")
         return _transition_from_row(row)
 
+    def get_transition(self, transition_id: int) -> Transition | None:
+        """Point lookup by primary key; None when absent (v0.5 API)."""
+        row = self._conn.execute(
+            "SELECT * FROM transitions WHERE id=?", (transition_id,)
+        ).fetchone()
+        return _transition_from_row(row) if row is not None else None
+
+    def iter_batches(self, batch_size: int = 10000) -> Iterator[list]:
+        """Streaming pass over the journal in id order (never materializes
+        the whole journal; a 16 GB archive iterates in constant memory)."""
+        cursor = self._conn.execute("SELECT * FROM transitions ORDER BY id")
+        while True:
+            rows = cursor.fetchmany(batch_size)
+            if not rows:
+                break
+            yield [_transition_from_row(row) for row in rows]
+
     def has(self, transition_id: int) -> bool:
         row = self._conn.execute(
             "SELECT 1 FROM transitions WHERE id=?", (transition_id,)

@@ -61,6 +61,68 @@ def _build_parser() -> argparse.ArgumentParser:
                            help="second archive: diff causal budgets against --db")
     observe_p.add_argument("--compare-entity", type=str, default=None)
     observe_p.add_argument("--compare-field", type=str, default=None)
+
+    query_p = sub.add_parser(
+        "query", help="indexed causal queries over a recorded archive")
+    query_p.add_argument("--db", type=str, required=True,
+                         help="path to a SqliteArchive produced by --persist")
+    query_p.add_argument("--cache", type=str, default=None,
+                         help="query-index cache path (default: <db>.qidx)")
+    qsub = query_p.add_subparsers(dest="qcmd", required=True)
+
+    qsub.add_parser("build", help="build/extend the persistent index")
+
+    def add_filter_args(p):
+        p.add_argument("--system", type=str, default=None)
+        p.add_argument("--operation", type=str, default=None)
+        p.add_argument("--entity", type=str, default=None)
+        p.add_argument("--field", type=str, default=None)
+        p.add_argument("--ticks", type=int, nargs=2, default=None,
+                       metavar=("START", "END"))
+        p.add_argument("--committed", action="store_true")
+        return p
+
+    add_filter_args(qsub.add_parser("count", help="count matching transitions"))
+
+    p = qsub.add_parser("budget", help="L1-equivalent budget via the index")
+    p.add_argument("entity")
+    p.add_argument("field")
+    p.add_argument("--ticks", type=int, nargs=2, default=None,
+                   metavar=("START", "END"))
+
+    p = qsub.add_parser("profile", help="write-level delta drill-down")
+    p.add_argument("entity", nargs="?")
+    p.add_argument("field")
+    p.add_argument("--ticks", type=int, nargs=2, default=None,
+                   metavar=("START", "END"))
+
+    p = qsub.add_parser("writers", help="list writes of one (entity, field)")
+    p.add_argument("entity")
+    p.add_argument("field")
+    p.add_argument("--ticks", type=int, nargs=2, default=None,
+                   metavar=("START", "END"))
+    p.add_argument("--limit", type=int, default=40)
+
+    p = qsub.add_parser("trace", help="backward/forward causal trace")
+    p.add_argument("tid", type=int)
+    p.add_argument("direction", nargs="?", default="backward",
+                   choices=("backward", "forward"))
+    p.add_argument("depth", type=int, nargs="?", default=10)
+
+    p = qsub.add_parser("readers", help="what depends on one transition")
+    p.add_argument("tid", type=int)
+    p.add_argument("depth", type=int, nargs="?", default=1)
+
+    p = add_filter_args(qsub.add_parser(
+        "entropy", help="Shannon entropy of a distribution"))
+    p.add_argument("--by", type=str, default="system",
+                   help="system | operation | write:<field>")
+    p.add_argument("--changes", action="store_true",
+                   help="for write:<field>: only rows where old != new")
+
+    p = qsub.add_parser("life", help="everything that touched one entity")
+    p.add_argument("entity")
+    p.add_argument("--limit", type=int, default=50)
     return parser
 
 
@@ -222,6 +284,123 @@ def _cmd_observe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_query(args: argparse.Namespace) -> int:
+    from causal_world.observer.journal import JournalView
+    from causal_world.query.index import QueryIndex
+    from causal_world.query.query import CausalQuery
+
+    cache = args.cache or (args.db + ".qidx")
+    with JournalView(args.db) as view, QueryIndex(view, cache) as idx:
+        stats = idx.build()
+        if args.qcmd == "build":
+            print(f"index cache: {cache}")
+            print(f"  transitions: {stats.transitions} "
+                  f"(last tid {stats.last_tid})")
+            print(f"  idx_writes:  {stats.idx_writes}")
+            print(f"  idx_reads:   {stats.idx_reads}")
+            print(f"  idx_entity:  {stats.idx_entity}")
+            print(f"  built in {stats.build_seconds:.1f}s "
+                  f"({'incremental' if stats.incremental else 'full'}), "
+                  f"{stats.cache_bytes/1e6:.1f} MB")
+            return 0
+
+        q = CausalQuery(idx)
+
+        def apply_filters(query):
+            if getattr(args, "system", None):
+                query = query.system(args.system)
+            if getattr(args, "operation", None):
+                query = query.operation(args.operation)
+            if getattr(args, "entity", None):
+                query = query.entity(args.entity)
+            if getattr(args, "field", None):
+                query = query.field(args.field)
+            if getattr(args, "ticks", None):
+                query = query.ticks(*args.ticks)
+            if getattr(args, "committed", False):
+                query = query.committed_only()
+            return query
+
+        if args.qcmd == "count":
+            print(apply_filters(q).count())
+            return 0
+
+        if args.qcmd == "budget":
+            t0, t1 = args.ticks or (0, 2**62)
+            report = q.budget(args.entity, args.field, t0, t1)
+            print(_format_budget(report))
+            return 0
+
+        if args.qcmd == "profile":
+            t0, t1 = args.ticks or (0, 2**62)
+            rows = q.delta_profile(args.entity, args.field, t0, t1)
+            print(f"delta profile: {args.entity or '*'}."
+                  f"{args.field} [t{t0}..{t1}]")
+            for r in rows:
+                print(f"  {r.system}.{r.operation}: {r.writes} writes "
+                      f"(+{r.positive}/-{r.negative}/0:{r.zero_or_nonnumeric})"
+                      f" total {r.total_delta:+.6f}"
+                      + (f" mean {r.mean_delta:+.6f}"
+                         if r.mean_delta is not None else "")
+                      + (f" range [{r.min_delta:+.6f}, {r.max_delta:+.6f}]"
+                         if r.min_delta is not None else ""))
+            return 0
+
+        if args.qcmd == "writers":
+            t0, t1 = args.ticks or (0, 2**62)
+            rows = idx.sql(
+                "SELECT w.tick, w.tid, w.delta, w.old, w.new, "
+                "t.system, t.operation FROM idx_writes w "
+                "JOIN arch.transitions t ON t.id=w.tid "
+                "WHERE w.entity=? AND w.field=? AND t.tick BETWEEN ? AND ? "
+                "AND t.status='COMMITTED' ORDER BY w.tick, w.tid LIMIT ?",
+                (args.entity, args.field, t0, t1, args.limit)).fetchall()
+            for r in rows:
+                print(f"  t{r['tick']} T{r['tid']} {r['system']}."
+                      f"{r['operation']}: {r['old']} -> {r['new']} "
+                      f"(delta {r['delta']})")
+            return 0
+
+        if args.qcmd == "trace":
+            result = q.trace(args.tid, args.direction, args.depth)
+            print(f"trace {args.direction} from T{args.tid} "
+                  f"(depth {args.depth}): {len(result.nodes)} nodes"
+                  + (" [TRUNCATED]" if result.truncated else ""))
+            for t in result.nodes:
+                print(f"  d{result.depths[t.id]} t{t.tick} T{t.id} "
+                      f"{t.system}.{t.operation} ({t.status.value})")
+            return 0
+
+        if args.qcmd == "readers":
+            dependents = q.caused_by(args.tid, args.depth)
+            total = dependents.count()
+            print(f"transitions reading (depth<={args.depth}) what "
+                  f"T{args.tid} wrote: {total}")
+            for t in dependents.list(limit=20):
+                print(f"  t{t.tick} T{t.id} {t.system}.{t.operation}")
+            return 0
+
+        if args.qcmd == "entropy":
+            query = apply_filters(q)
+            result = query.entropy(by=args.by,
+                                   actual_changes_only=args.changes)
+            print(f"entropy by {result.by}: {result.entropy_bits:.4f} bits "
+                  f"over {result.total} rows, "
+                  f"{len(result.distribution)} distinct values")
+            for value, n in result.distribution[:15]:
+                print(f"  {value}: {n}")
+            return 0
+
+        if args.qcmd == "life":
+            for t in q.timeline(args.entity, limit=args.limit):
+                writes = ", ".join(f"{w.field}:{w.old}->{w.new}"
+                                   for w in t.writes if w.entity == args.entity)
+                print(f"  t{t.tick} T{t.id} {t.system}.{t.operation}"
+                      + (f"  {writes}" if writes else ""))
+            return 0
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -231,6 +410,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_trace(args)
     if args.command == "observe":
         return _cmd_observe(args)
+    if args.command == "query":
+        return _cmd_query(args)
     parser.error(f"unknown command {args.command}")
     return 2
 

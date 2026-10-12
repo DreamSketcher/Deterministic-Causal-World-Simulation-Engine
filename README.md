@@ -4,7 +4,8 @@
 > not extended silently; anything considered redundant goes through an
 > explicit proposal first. v0.2 added observability and scale around the
 > frozen kernel; v0.3 adds a **ruleset variant** (immune memory) — a change
-> of laws, never of kernel. See the [roadmap](#roadmap).
+> of laws, never of kernel; v0.4–v0.5 add a strictly **read-only** observer
+> and query engine over the recorded journal. See the [roadmap](#roadmap).
 
 A minimal **executable kernel** for an artificial world in which every
 change is a recorded, atomic, causally-explainable **Transition**.
@@ -86,11 +87,13 @@ src/causal_world/
 ├── observer/      events.py statistics.py observability.py
 │                  journal.py budget.py series.py deaths.py regime.py
 │                  compare.py compress.py        (v0.4, read-only)
+├── query/         index.py query.py             (v0.5, read-only cache)
 ├── world/         generator.py rules.py
 ├── cli.py         __main__.py
-tests/             12 test modules + helpers.py (121 tests)
+tests/             13 test modules + helpers.py (142 tests)
 experiments/       survival.py compare_rulesets.py observer_demo.py
-                   reports/   (v0.2 … v0.4 write-ups)
+                   query_demo.py _regen_archive.py
+                   reports/   (v0.2 … v0.5 write-ups)
 ```
 
 ## The tick loop
@@ -252,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 96 tests
+python -m pytest          # 142 tests
 ```
 
 | spec test | where |
@@ -567,6 +570,64 @@ SQL≡Python parity, read-only file-hash guarantee, synthetic + archived
 regime classification, no-ruleset-knowledge guarantee, comparator,
 migration entropy, template/LLM-hook compression).
 
+## v0.5 — CausalQuery: from five answers to any question
+
+v0.4 hard-coded five questions. v0.5 turns the journal into an indexed,
+composable, **streaming** query API so the *next* question is a one-liner,
+not a new module. Still read-only: the archive stays `mode=ro` and its
+SHA-256 is unchanged by indexing + every query
+(`test_archive_untouched_by_indexing`); the index lives in a separate
+derived cache DB. Full write-up:
+[`experiments/reports/v05_query_engine.md`](experiments/reports/v05_query_engine.md).
+
+```
+JournalView (mode=ro) -> QueryIndex (lazy cache) -> CausalQuery (builder) -> generators
+```
+
+- **Reuse + add.** The archive already persists `history`,
+  `dependents`, and `(operation,status)`; QueryIndex ATTACHes them
+  read-only and adds only `idx_writes` (entity,field→delta),
+  `idx_reads` (source→reader, refined by entity+field), `idx_entity`
+  (entity→timeline). Build is a **single SQL pass** (`INSERT..SELECT` +
+  `json_each`), incremental by `last_tid`, keyed on *world identity*
+  (seed/sizes/ruleset, not file name) — a longer re-run of the same
+  world extends the cache, never rebuilds.
+- **Lazy indexes.** `idx_reads` is ~50× the transition count and only
+  needed for causal closures; `build(include_reads=False)` gives a
+  writes-only cache (compost: 1.4 GB vs 5 GB full) that still answers
+  budget / profile / entropy / writers.
+- **Five primitives.** filters (`system`/`operation`/`entity`/`field`/
+  `writes_to`/`ticks`/`committed_only`), closures (`caused_by` =
+  downstream, `caused` = upstream), `trace(tid, direction, depth)`,
+  aggregations (`budget`/`count`/`entropy`/`delta_profile`), and
+  `execute()` — a generator that keyset-paginates and hydrates one page
+  at a time, so a 19 GB journal is never a Python list.
+- **The three v0.4 mandates, met.** (1) *Drill to the write level*:
+  `delta_profile` separates `CompostAgricultureSystem.harvest`
+  (equilibrium mean **+8.1e-6**, all-positive — soil recovery) from
+  `AgricultureSystem.harvest` (**−0.5745** net, depletion) by delta
+  sign, not name. (2) *L1 to 4 decimals through the query path*:
+  `budget()` == observer L1 to 1e-12, full and windowed. (3) *Emergent
+  comparisons made trivial*: migration entropy **3.105** bits (blind,
+  10 destinations) vs **1.699** bits (informed, 5 destinations, 43.7 %
+  top region) — the v0.4 numbers, now one line each.
+- **Speed.** On the 7.7 M-transition compost archive: `budget(region:4,
+  soil_fertility)` in **22.8 ms** where L1 `CausalBudget.analyze()` did
+  **not finish in 120 s**; first page of `committed_only().execute()`
+  (10 of 1,072,067) in **13 ms**. Removing a needless `SELECT DISTINCT`
+  on the unique PK cut the first page from 5,671 ms → 13 ms (~436×).
+- **CLI**: `python -m causal_world query --db runs/x.db
+  <build|count|budget|profile|writers|trace|readers|entropy|life>`;
+  demo `python3 experiments/query_demo.py {immune|ecology}`.
+
+Tests: 121 → **142** (`tests/test_query_engine.py`: build correctness +
+determinism (content-hash) + incremental≡full + identity-mismatch
+rebuild, filter parity vs raw-journal scan, budget≡L1 and
+entropy≡migration_stats to 1e-12, `caused_by`/`caused` vs manual read
+sources, backward/forward trace causality + depth/`max_nodes` caps +
+no-loops, `execute()` is a lazy id-ordered generator, delta_profile
+drill-down, archive-untouched hash).
+
 ## Roadmap
 
 ```
@@ -582,7 +643,8 @@ v0.3.3  Closing the nutrient loop: compost produces the first surviving
       world; information (fertile migration) only reshapes the collapse
 v0.4  Observer: causal budgets, regime classifier, comparator,
       narrative templates — read-only, no LLM
-v0.5  Causal query engine
+v0.5  Causal query engine: indexed, streaming, composable queries over
+      the frozen journal — read-only, cache is derived (this branch)
 v0.6  Biography generator
 v0.7  LLM as causal-trace interpreter (observer adapter only)
 v0.8  100k+ agents: memory layout, sparse state, batching,
