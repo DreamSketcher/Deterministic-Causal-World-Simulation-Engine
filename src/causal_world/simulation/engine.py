@@ -184,6 +184,12 @@ def create_world(
         StorageAgricultureSystem,
     )
     from causal_world.systems.immune_disease import ImmuneDiseaseSystem
+    # v0.6 step 2 (heredity + world memory); additive registration only —
+    # the resolver/step logic and the kernel are untouched.
+    from causal_world.systems.birth import BirthSystem
+    from causal_world.systems.ruin import RuinSystem
+    from causal_world.systems.exploration import ExplorationSystem
+    from causal_world.systems.senescence import SenescenceSystem
     from causal_world.world.generator import generate_genesis
     from causal_world.world.rules import DefaultWorldRules
 
@@ -204,6 +210,12 @@ def create_world(
         "ThreeFieldAgricultureSystem": ThreeFieldAgricultureSystem,
         "FertileMigrationAgentSystem": FertileMigrationAgentSystem,
         "AgentSystem": AgentSystem,
+        # v0.6 step 2: heredity + world memory (game ruleset opts in via
+        # default_systems; research worlds never name them).
+        "BirthSystem": BirthSystem,
+        "RuinSystem": RuinSystem,
+        "ExplorationSystem": ExplorationSystem,
+        "SenescenceSystem": SenescenceSystem,
     }
     default_order = [
         "ClimateSystem",

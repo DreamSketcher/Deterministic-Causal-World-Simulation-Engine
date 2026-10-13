@@ -171,4 +171,54 @@ def generate_genesis(
             _genesis_transition(tick, entity, "genesis.agent", fields, draws)
         )
 
+    # ---- dormant agent pool (v0.6 heredity, opt-in) ---------------------
+    # A ruleset may pre-allocate inactive agent slots that a BirthSystem
+    # later ACTIVATES by writes (the resolver forbids creating fields mid-run
+    # — allow_creation is False in step() — so every future field must exist
+    # at genesis). Duck-typed ``dormant_pool_ratio`` (pool = ratio x
+    # agent_count); absent -> 0 -> the default/research worlds are unchanged
+    # and stay bit-identical. Dormant slots consume NO genesis draws (blank
+    # slates: their real attributes come from inheritance at birth), and
+    # because draws are addressable per entity (I8) adding agent:{N}.. never
+    # shifts the genesis of agent:0..{N-1}.
+    dormant_pool = int(
+        round(agent_count * float(getattr(rules, "dormant_pool_ratio", 0.0)))
+    )
+    for j in range(dormant_pool):
+        entity = f"agent:{agent_count + j}"
+        fields = [
+            ("region", "none"),
+            ("alive", False),
+            ("infected", False),
+            ("health", 0.0),
+            ("hunger", 0.0),
+            ("immunity", 0.0),
+            ("risk_tolerance", 0.0),
+        ]
+        # ``{"dormant": True}`` lets the ruleset hook give blank placeholders
+        # (e.g. max_health 0.0) instead of live genesis values.
+        fields.extend(extra_fields("agent", entity, {"dormant": True}))
+        transitions.append(
+            _genesis_transition(tick, entity, "genesis.agent.dormant", fields, [])
+        )
+
+    # ---- ruin slots (v0.6 world-memory, opt-in) -------------------------
+    # One dormant ruin slot per region (x ``ruin_slots_per_region``). A
+    # RuinSystem activates the slot when its region goes extinct; the slot is
+    # reused (updated, never duplicated) on re-extinction. All ruin fields
+    # come from the ruleset hook, so the generator stays schema-agnostic.
+    ruin_slots = int(getattr(rules, "ruin_slots_per_region", 0))
+    for r in range(region_count):
+        for s in range(ruin_slots):
+            entity = f"ruin:{r}:{s}"
+            fields = extra_fields(
+                "ruin",
+                entity,
+                {"region": f"region:{r}", "index": s, "region_index": r},
+            )
+            if fields:
+                transitions.append(
+                    _genesis_transition(tick, entity, "genesis.ruin", fields, [])
+                )
+
     return transitions

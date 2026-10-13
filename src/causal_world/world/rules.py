@@ -454,41 +454,192 @@ class FertileMigrationOnlyRules(ImmuneMemoryRules):
 
 
 class PlayerLifeRules(CompostRules):
-    """v0.6 game ruleset SEED — the LIFE-phase world (proposal v06-01).
+    """v0.6 game ruleset — the LIFE-phase world (proposal v06-01, step 2).
 
-    A playable world: the compost survival base (agents persist; disease
-    and ``immune_memory`` present, which heredity will build on) plus one
-    declared purpose for player-supplied decisions. This is a seed —
-    heredity + ``RuinSystem`` (step 2), ``PlayerAgentSystem`` + the input
-    channel (step 3), and epoch-gated systems (v0.6.1) compose into it by
-    extending ``default_systems`` / the schema. The kernel stays frozen.
+    A playable, *living* world: the compost survival base (O6 — agents
+    persist; disease and ``immune_memory`` present) extended with HEREDITY
+    and WORLD-MEMORY, composed entirely as rules over the frozen kernel:
 
-    A world WITH a player is a different ruleset (``0.6.0``) and therefore
-    a different fingerprint from the NPC research worlds — the intended
-    separation of research and game over one kernel.
+    * **Heredity (``BirthSystem``).** A dormant pool of inactive agents is
+      pre-allocated at genesis (``dormant_pool_ratio``); births ACTIVATE a
+      dormant slot by writes (the resolver forbids mid-run field creation —
+      ``allow_creation=False`` in ``step()`` — so every future field exists
+      at genesis as a placeholder). A newborn inherits ``immune_memory``,
+      ``immunity``, ``max_health`` and ``risk_tolerance`` from a random MATURE
+      alive parent of its region, plus addressable mutation. Because
+      survivors accumulate ``immune_memory`` and pass it on, the average
+      memory of newborns RISES with generation depth — emergent evolution,
+      not a programmed trend. Generation is a state field (U2), so drift is
+      one ``avg(immune_memory) GROUP BY generation`` query.
+    * **World memory (``RuinSystem`` + ``ExplorationSystem``).** One dormant
+      ruin slot per region (``ruin_slots_per_region``) activates when the
+      region goes extinct (``population == 0``), recording a ``type`` derived
+      from the region's state and a food reserve; it degrades with age and
+      collapses past a threshold, and is UPDATED (never duplicated) on
+      re-extinction. Alive agents may explore an active ruin for a food bonus
+      that lands in their causal trace.
 
-    ``player.decision`` draws carry a SUPPLIED value (the chosen action
-    index as a float), never a seed-derived roll, so dice cannot veto an
-    explicit choice; outcomes (infection en route, harvest variance) still
-    use the ordinary addressable draws. See
-    ``experiments/proposals/v06_player_input_draw.md``.
+    A world WITH a player is a different ruleset (``0.6.0``) and therefore a
+    different fingerprint from the NPC research worlds — research and game
+    over one frozen kernel. ``player.decision`` draws carry a SUPPLIED value
+    (the chosen action index as a float), never a seed-derived roll, so dice
+    cannot veto an explicit choice (step 1, ``v06_player_input_draw.md``);
+    exploration is its OWN action (U3), wired to the decision card in step 3.
+
+    The default/research worlds define none of ``dormant_pool_ratio`` /
+    ``ruin_slots_per_region`` and run none of the four new systems, so their
+    genesis and journals stay bit-identical (the freeze we proved at
+    ``0960a67``). See ``v06_heredity_ruins_design.md``.
     """
 
     ruleset_version = "0.6.0"
     description = (
-        "v0.6 game ruleset seed: compost survival world + player.decision "
-        "purpose for player-supplied choices (LIFE phase)."
+        "v0.6 game ruleset: compost survival world + heredity (dormant pool, "
+        "BirthSystem) + world memory (RuinSystem, ExplorationSystem) + "
+        "player.decision purpose for player-supplied choices (LIFE phase)."
     )
+
+    #: Genesis capacity of a newborn's health (BirthSystem mean-reverts
+    #: max_health toward this baseline; keep in sync with BirthSystem).
+    MAX_HEALTH_BASE = 100.0
+
+    #: Opt-in dormant pool + ruin slots (duck-typed by the generator).
+    #: O5: pool == live count (2N total); one ruin slot per region (nuance 4).
+    dormant_pool_ratio = 1.0
+    ruin_slots_per_region = 1
+
+    #: Which systems the world runs (duck-typed by create_world). Compost
+    #: base (O6) + the four v0.6 systems; execution order is by priority
+    #: (AgentSystem census 1 → Senescence 25 → Birth 30 → Ruin 31 →
+    #: Exploration 40), so Birth/Ruin see the census and Exploration sees
+    #: this tick's ruin activation.
+    default_systems = [
+        "ClimateSystem",
+        "CompostAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+        "SenescenceSystem",  # game-only: generational turnover (Decision 1)
+        "BirthSystem",
+        "RuinSystem",
+        "ExplorationSystem",
+    ]
+
     purposes = {
         **PURPOSES,
         "player.decision": (
             "player-supplied action for the controlled agent; value is the "
             "chosen action index (float), not a probability"
         ),
+        "birth.occurrence": (
+            "per-region birth-occasion roll; threshold is the food-driven "
+            "birth rate (U1), so a region yields ~1 birth per 20-50 ticks"
+        ),
+        "birth.select": (
+            "which dormant pool slot is activated: index into the SORTED free "
+            "list (nuance 2 — addressable, not pool[0], not random.choice)"
+        ),
+        "birth.parent": (
+            "which mature alive agent of the region is the parent: index into "
+            "the SORTED list (nuance 3 — random alive for v0.6)"
+        ),
+        "birth.mutation": (
+            "heredity draws for one newborn, keyed by the child entity: "
+            "0=immune_memory mutation, 1=immunity mutation, 2=max_health "
+            "mutation, 3=risk_tolerance re-roll, 4=risk_tolerance mutation"
+        ),
+        "agent.explore": (
+            "per-agent ruin-exploration roll, gated by risk_tolerance (the "
+            "player's explore is a player.decision action — U3, step 3)"
+        ),
+        "agent.senescence": (
+            "age-based death roll for agents past SENESCENCE_ONSET (game "
+            "ruleset only — Decision 1); threshold rises linearly to "
+            "MAX_DEATH_PROB at MAX_LIFESPAN"
+        ),
     }
-    # default_systems inherited from compost for now; PlayerAgentSystem is
-    # added in step 3. Declaring an unused purpose is harmless: require()
-    # fires only when a draw actually uses it.
+
+    #: Game-only fields that must stay >= 0 (checked in validate_transition).
+    _NON_NEGATIVE_GAME = frozenset(
+        {
+            "max_health",
+            "generation",
+            "birth_tick",
+            "pop_base",
+            "age",
+            "resource_food",
+            "resource_knowledge",
+        }
+    )
+
+    def __init__(self) -> None:
+        super().__init__()  # ImmuneMemoryRules adds ``immune_memory`` (float)
+        # Schema extension for heredity + world memory (kernel untouched).
+        self._field_types.update(
+            {
+                # agent heredity
+                "parent_id": str,
+                "max_health": float,
+                "generation": int,
+                "birth_tick": int,
+                # region: genesis population, fixed (carrying-capacity base)
+                "pop_base": int,
+                # ruin slot (``region`` is already a str field)
+                "active": bool,
+                "was_alive": bool,
+                "type": str,
+                "age": int,
+                "resource_food": float,
+                "resource_knowledge": float,
+            }
+        )
+
+    def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
+        """Genesis hook: heredity fields for agents (live + dormant), the
+        fixed ``pop_base`` for regions, and the full ruin-slot schema."""
+        fields = super().extra_genesis_fields(kind, rng, tick, entity, info)
+        info = info or {}
+        if kind == "agent":
+            dormant = bool(info.get("dormant", False))
+            fields.extend(
+                [
+                    ("parent_id", "none"),  # gen 0 has no parent
+                    # live agents start at full capacity; dormant are blank
+                    # placeholders (overwritten by inheritance at birth)
+                    ("max_health", 0.0 if dormant else self.MAX_HEALTH_BASE),
+                    ("generation", 0),
+                    ("birth_tick", 0),
+                ]
+            )
+        elif kind == "region":
+            fields.append(("pop_base", int(info.get("population", 0))))
+        elif kind == "ruin":
+            fields.extend(
+                [
+                    ("active", False),
+                    ("was_alive", False),
+                    ("region", info.get("region", "")),
+                    ("type", ""),
+                    ("age", 0),
+                    ("resource_food", 0.0),
+                    ("resource_knowledge", 0.0),
+                ]
+            )
+        return fields
+
+    def validate_transition(
+        self, transition: Transition, snapshot: Snapshot
+    ) -> list[str]:
+        violations = super().validate_transition(transition, snapshot)
+        for w in transition.writes:
+            if (
+                w.field in self._NON_NEGATIVE_GAME
+                and isinstance(w.new, (int, float))
+                and w.new < 0
+            ):
+                violations.append(
+                    f"invariant_violation:{w.entity}.{w.field}_must_be_>=_0"
+                )
+        return violations
 
 
 RULESETS.update(
