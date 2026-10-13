@@ -453,6 +453,44 @@ class FertileMigrationOnlyRules(ImmuneMemoryRules):
     ]
 
 
+class PlayerLifeRules(CompostRules):
+    """v0.6 game ruleset SEED — the LIFE-phase world (proposal v06-01).
+
+    A playable world: the compost survival base (agents persist; disease
+    and ``immune_memory`` present, which heredity will build on) plus one
+    declared purpose for player-supplied decisions. This is a seed —
+    heredity + ``RuinSystem`` (step 2), ``PlayerAgentSystem`` + the input
+    channel (step 3), and epoch-gated systems (v0.6.1) compose into it by
+    extending ``default_systems`` / the schema. The kernel stays frozen.
+
+    A world WITH a player is a different ruleset (``0.6.0``) and therefore
+    a different fingerprint from the NPC research worlds — the intended
+    separation of research and game over one kernel.
+
+    ``player.decision`` draws carry a SUPPLIED value (the chosen action
+    index as a float), never a seed-derived roll, so dice cannot veto an
+    explicit choice; outcomes (infection en route, harvest variance) still
+    use the ordinary addressable draws. See
+    ``experiments/proposals/v06_player_input_draw.md``.
+    """
+
+    ruleset_version = "0.6.0"
+    description = (
+        "v0.6 game ruleset seed: compost survival world + player.decision "
+        "purpose for player-supplied choices (LIFE phase)."
+    )
+    purposes = {
+        **PURPOSES,
+        "player.decision": (
+            "player-supplied action for the controlled agent; value is the "
+            "chosen action index (float), not a probability"
+        ),
+    }
+    # default_systems inherited from compost for now; PlayerAgentSystem is
+    # added in step 3. Declaring an unused purpose is harmless: require()
+    # fires only when a draw actually uses it.
+
+
 RULESETS.update(
     {
         "iron_health": IronHealthRules,
@@ -466,6 +504,7 @@ RULESETS.update(
         "three_field": ThreeFieldRules,
         "fertile_migration": FertileMigrationRules,
         "fertile_migration_only": FertileMigrationOnlyRules,
+        "player_life": PlayerLifeRules,
     }
 )
 

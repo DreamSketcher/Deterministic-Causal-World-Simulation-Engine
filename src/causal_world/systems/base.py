@@ -89,14 +89,30 @@ class TransitionBuilder:
         entity: str,
         index: int = 0,
         threshold: float | None = None,
+        value: float | None = None,
     ) -> RandomDraw:
         """Addressable deterministic draw (spec §8).
 
         With ``threshold`` this models a probability event
         (outcome = roll < threshold); without it the draw is a continuous
         multiplier and outcome is the value itself (spec §10).
+
+        ``value`` (v0.6, proposal v06-01): when supplied, the recorded
+        draw takes THIS value instead of the seed-derived ``rng.draw()``.
+        This is how a player decision enters the world — the choice is an
+        external input, not a roll, so dice can never veto it (the game
+        contract). The purpose must still be declared in the ruleset.
+        Determinism becomes "given the decision stream": same seed + same
+        supplied values -> bit-identical journal. The kernel is untouched;
+        this only bypasses ``rng.draw`` for the supplied case.
         """
-        value = self._rng.draw(self._tick, entity, purpose, index)
+        if value is None:
+            value = self._rng.draw(self._tick, entity, purpose, index)
+        elif self._rng.purposes is not None:
+            # Supplied (player) value: do not touch the RNG, but keep the
+            # invariant that every purpose appearing in the journal is
+            # declared by the ruleset.
+            self._rng.purposes.require(purpose)
         if threshold is None:
             outcome: Any = value
         else:
