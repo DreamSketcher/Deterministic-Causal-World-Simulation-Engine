@@ -123,6 +123,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p = qsub.add_parser("life", help="everything that touched one entity")
     p.add_argument("entity")
     p.add_argument("--limit", type=int, default=50)
+
+    p = sub.add_parser(
+        "bio", help="BiographyCard — one life from one archive"
+    )
+    p.add_argument("--db", required=True, help="path to journal.db")
+    p.add_argument("--agent", default="agent:0")
+    p.add_argument("--md", action="store_true", help="print the readable card")
     return parser
 
 
@@ -401,6 +408,29 @@ def _cmd_query(args: argparse.Namespace) -> int:
     return 2
 
 
+def _cmd_bio(args: argparse.Namespace) -> int:
+    from causal_world.observer.biography import build_biography
+
+    card = build_biography(args.db, args.agent)
+    if args.md:
+        print(card.to_markdown())
+        return 0
+    m = card.meta
+    print(f"Biography of {m.agent} — seed={m.seed} ruleset={m.ruleset_version}")
+    print(f"  ticks {m.birth_tick}..{m.final_tick} "
+          f"({m.committed} committed, {m.rejected} rejected)")
+    if card.death is not None:
+        d = card.death
+        die = f" | die roll {d.die[1]:.6f} < {d.die[2]:.6f}" if d.die else ""
+        print(f"  died T{d.tick} via {d.operation}{die}")
+    else:
+        print("  alive at end of archive")
+    print(f"  decisions: {sum(g.count for g in card.decisions)} "
+          f"in {len(card.decisions)} run(s)")
+    print(f"  fingerprint: {card.fingerprint()}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -412,6 +442,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_observe(args)
     if args.command == "query":
         return _cmd_query(args)
+    if args.command == "bio":
+        return _cmd_bio(args)
     parser.error(f"unknown command {args.command}")
     return 2
 
