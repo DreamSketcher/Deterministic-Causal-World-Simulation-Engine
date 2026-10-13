@@ -318,6 +318,22 @@ What v0.2 adds **around** the frozen kernel:
   (acute infection / epidemic disease / starvation).
 * 61 tests, including memory↔archive parity and scale-invariance tests.
 
+> **Kernel footnote (added v0.6 — freeze honesty).** v0.2 made exactly
+> two edits inside `src/causal_world/kernel/`, both *hash-neutral*,
+> neither architectural: an **added** `parse_canonical_token()` helper in
+> `canonical.py` (inverse of `canonical_token`, for archive payload
+> round-trips; currently zero callers) and `slots=True` on the four
+> transition dataclasses in `transition.py` (memory optimization for the
+> 1000-agent scale-up). The hashing path (`canonical_token`,
+> `state_payload`, `sha256_hex`, journal hashing) is byte-unchanged.
+> **Empirically verified (v0.6):** the default world (seeds 42 and 7,
+> 2×10, 100 ticks) run on a checked-out `v0.1.0` kernel and on HEAD
+> produces **bit-identical** `state_hash` *and* `journal_hash` (seed 42
+> equals the pinned `DEFAULT_*_HASH` in `tests/test_immune_ruleset.py`).
+> Reproduce: `git diff v0.1.0 HEAD -- src/causal_world/kernel/`. So the
+> precise claim is *architecturally frozen and behaviorally identical to
+> v0.1.0* — not literally byte-identical.
+
 Read the results: [`experiments/reports/`](experiments/reports/).
 
 ### First results (seed 7, 10 regions × 1000 agents × 10 000 ticks)
@@ -359,9 +375,12 @@ is proposed, not silently introduced: the v0.1 laws are frozen.
 
 Implemented as a **separate ruleset** (`"0.3.0"`, selectable via
 `--ruleset immune` in the CLI and the experiment runner), not as a kernel
-change. `src/causal_world/kernel/` is byte-identical to tag `v0.1.0`, and
-the default world stays **bit-identical** to v0.2 (same state hash *and*
-journal hash — pinned in `tests/test_immune_ruleset.py`).
+change. `src/causal_world/kernel/` is architecturally frozen —
+*behaviorally identical* to tag `v0.1.0` (its only two diffs are the
+hash-neutral v0.2 edits, see the kernel footnote in the v0.2 section) —
+and the default world stays **bit-identical** to v0.2 (same state hash
+*and* journal hash — pinned in `tests/test_immune_ruleset.py`, and
+re-verified in v0.6 against a checked-out `v0.1.0` kernel).
 
 The new law, in full:
 
