@@ -80,8 +80,8 @@ def test_ws_life_is_bit_identical_to_local(tmp_path, url):
         assert f["type"] == "frame"
         n = seq
         if not f["alive"]:
-            ev = client.next_event(timeout=5.0)
-            assert ev and ev["type"] == "finished" and ev["death_tick"] == 51
+            ev = f.get("finished")  # strict request/response: verdict in frame
+            assert ev and ev["reason"] == "death" and ev["death_tick"] == 51
             break
 
     card = client.bio()

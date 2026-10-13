@@ -1,7 +1,8 @@
-"""Game session: the authoritative loop behind the step-5 protocol.
+"""Game session: the authoritative loop behind the step-5/6 protocols.
 
-Contract: experiments/proposals/v06_step5_protocol_contract.md. The five
-ratified rules, in code:
+Contract: v06_step5_protocol_contract.md (§1-§5) and the continuity
+amendments of v06_step6_continuity_contract.md §9. The five ratified rules,
+in code:
 
 1. execution order — ``decide`` runs validate → deliver → step → commit →
    frame; the decision is ACCEPTED at ``journal.commit()`` (§1).
@@ -9,22 +10,27 @@ ratified rules, in code:
    seq replays the stored frame and never re-steps; same seq, different
    action, is ``conflict``; a gap is ``seq_gap`` with resync info (§2).
 3. server authority — the client sends actions, never state; world config
-   is read once at creation and reported back in ``welcome`` (§3).
-4. lifecycle — death pauses decision intake but NOT access: bio/autopsy
-   build from the archive (JournalView, read-only) while the writer is
-   live (every step commits) and identically after ``close()``; close is
-   idempotent; only the process dying destroys the session (§4).
-5. transport-invariance — nothing here imports websockets; the WS layer
-   adds no semantics, and the acceptance test proves hash + fingerprint
-   equality against a local run.
+   is read once at creation (or from the archive meta on takeover) (§3).
+4. lifecycle — death ends the LIFE: the session flushes, registers the life
+   row (end/to_tick/decisions + final_state_hash) and finalizes the writer
+   itself (Q2 — a finalized writer releases the world for the next life),
+   but the session object REMAINS for results: bio/autopsy build from the
+   archive (JournalView) live and after finalize; close is idempotent.
+   Agent death ≠ world extinction: the world may simply have no heir left
+   (no_heir, terminal — see continuity.py).
+5. transport-invariance — nothing here imports websockets.
+
+Continuity: a Session is either a fresh world (registers life 1 in the
+identity meta) or a TAKEOVER: the archive alone replays every previous
+life's stream with its pointer schedule (verified — TakeoverError before
+any write), the heir is chosen by the deterministic rule, and the new life
+registers itself. No journal-format change; ids/ticks continue by
+construction.
 
 The channel is fed EXACTLY one action per live tick by ``decide`` — the
 session blocks on the client (transport), never the channel on a timeout
 (Q1: a disconnect is not an in-world action, so no idle fallback is ever
 reachable in a WS session).
-
-Autopsy reads death facts from the archive and classifies through
-``DeathClassifier`` (the v0.2+ algorithm, Q3 filter unchanged).
 """
 
 from __future__ import annotations
@@ -39,6 +45,7 @@ from causal_world.observer.biography import build_biography
 from causal_world.observer.deaths import DeathClassifier
 from causal_world.observer.journal import JournalView
 from causal_world.player import DecisionChannel, attach_player_channel
+from causal_world.server import continuity
 from causal_world.systems.player import ACTION_NAMES, N_ACTIONS
 from causal_world.world.rules import get_ruleset
 
@@ -63,9 +70,9 @@ class ProtocolError(Exception):
 
 
 class Session:
-    #: states: "awaiting" (a decision may be delivered) → "finished"
-    #: (life over: bio/autopsy open, decide refused) → "finalized"
-    #: (writer closed: results read from the file alone)
+    #: states: "awaiting" (a decision may be delivered) → "finalized"
+    #: (life ended — death, tick_limit or close — writer flushed and closed,
+    #: results read from the file; decide refused)
     def __init__(
         self,
         seed: int,
@@ -114,13 +121,93 @@ class Session:
         self.frames: dict[int, dict] = {}
         self.last_seq = 0
         self.state = "awaiting"
+        # step 6: a world REGISTERS its lives in the identity meta — one
+        # JSON row per life; the journal format is untouched, and the
+        # replayed stream is verified against the rows, never replaced by
+        # hidden session state (Check A).
+        self.life_n = 1
+        self.succession = "genesis"
+        self._from = self.sim.state.tick
+        self._write_life(end=None, to_tick=None)
         self.death_tick: int | None = None
         self.finish_reason: str | None = None
         self.final_hash: str | None = None
-        self._finished_event_pending = False
-        self._card = None  # cached BiographyCard, keyed by last_seq at build
-        self._card_at_seq: int | None = None
+        self._finished_payload: dict | None = None
         self._lock = threading.RLock()
+
+    # ------------------------------------------------------------- takeover
+    @classmethod
+    def takeover(cls, db_path: str, *, max_ticks: int = 4000,
+                 tail_ticks: int = 0, session_id: str | None = None) -> "Session":
+        """Open the NEXT life on an existing world archive.
+
+        Reproduction first (read-only replay verified against the archive),
+        heir selection second (pure function of the reproduced head),
+        registration last — a refused takeover never writes: no heir means
+        no new archive, no pool refill, no restart (§9, terminal).
+        """
+        try:
+            sim, archive, lives = continuity.replay_head(db_path)
+        except continuity.TakeoverError as e:
+            raise ProtocolError(e.code, e.msg, None, dict(e.extra)) from e
+        prev = lives[-1]
+        heir = continuity.choose_heir(prev["agent"], continuity.agents_map(sim.state))
+        if heir is None:
+            archive.close()  # nothing was written; the file stays as it was
+            alive = sum(
+                1
+                for a in sim.state.entities_with_prefix("agent:")
+                if sim.state.get(a, "alive")
+            )
+            raise ProtocolError(
+                "no_heir",
+                "the world has no living descendant and no living agent: "
+                "the dynasty is terminal — results remain readable",
+                None,
+                {"alive_agents": alive, "world": str(db_path)},
+            )
+        agent, succession = heir
+        self = cls.__new__(cls)
+        self.session_id = session_id or uuid.uuid4().hex[:8]
+        self.config = {
+            "seed": int(archive.get_meta("seed") or 0),
+            "ruleset": continuity.ruleset_name_for_version(
+                archive.get_meta("ruleset_version") or ""
+            ),
+            "regions": int(archive.get_meta("regions") or 0),
+            "agents": int(archive.get_meta("agents") or 0),
+            "max_ticks": int(max_ticks),
+            "tail_ticks": int(tail_ticks),
+            "controlled": agent,
+        }
+        self.db_path = str(db_path)
+        self.sim = sim  # journal/index already handed over by replay_head
+        self.channel = DecisionChannel()
+        attach_player_channel(sim, self.channel, agent)
+        self.controlled = agent
+        self.life_n = prev["n"] + 1
+        self.succession = succession
+        self._from = sim.state.tick
+        self.decisions, self.frames = {}, {}
+        self.last_seq = 0
+        self.state = "awaiting"
+        self.death_tick, self.finish_reason = None, None
+        self.final_hash, self._finished_payload = None, None
+        self._lock = threading.RLock()
+        self._write_life(end=None, to_tick=None)
+        archive.commit()
+        if sim.state.tick >= max_ticks:
+            self._finish("tick_limit")
+        return self
+
+    # ---------------------------------------------------------- life rows
+    def _write_life(self, end, to_tick) -> None:
+        key, value = continuity.life_record(
+            self.life_n, self.controlled, self._from, self.succession,
+            end=end, to_tick=to_tick, decisions=self.last_seq,
+            session=self.session_id,
+        )
+        self.sim.journal.set_meta(key, value)
 
     # ------------------------------------------------------------- views ---
     def welcome(self) -> dict:
@@ -134,29 +221,24 @@ class Session:
             "config": dict(self.config),  # server authority: echoed, not set
             "db_path": self.db_path,
             "action_card": dict(ACTION_NAMES),
+            "life": {
+                "n": self.life_n,
+                "agent": self.controlled,
+                "succession": self.succession,
+            },
         }
 
     def take_finished_event(self) -> dict | None:
-        """One-shot: the transport sends `finished` right after the last
-        frame and never repeats it (a reconnect sees state in welcome)."""
-        if self._finished_event_pending:
-            self._finished_event_pending = False
-            return {
-                "type": "finished",
-                "reason": self.finish_reason,
-                "death_tick": self.death_tick,
-            }
-        return None
+        """One-shot; carries the life verdict (§9: finished must be
+        informative without a live writer — death auto-finalizes)."""
+        out, self._finished_payload = self._finished_payload, None
+        return out
 
     # ------------------------------------------------------------ decide ---
     def decide(self, seq: int, action: int) -> dict:
         with self._lock:
             if self.state == "finalized":
-                raise ProtocolError("finalized", "session is finalized", seq)
-            if self.state == "finished":
-                raise ProtocolError(
-                    "dead", "life is over — bio/autopsy remain open", seq
-                )
+                raise ProtocolError("finalized", "life is over and finalized", seq)
             prior = self.decisions.get(seq)
             if prior is not None:  # already applied: replay, never re-step
                 if prior == action:
@@ -224,9 +306,33 @@ class Session:
         self._finish("death")
 
     def _finish(self, reason: str) -> None:
-        self.state = "finished"
         self.finish_reason = reason
-        self._finished_event_pending = True
+        payload = {
+            "type": "finished",
+            "reason": reason,
+            "death_tick": self.death_tick,
+            "life": {
+                "n": self.life_n,
+                "agent": self.controlled,
+                "succession": self.succession,
+            },
+        }
+        if reason == "death":  # one card build per life end (P3 profiling)
+            try:
+                card = build_biography(self.db_path, self.controlled)
+                payload["bio_fingerprint"] = card.fingerprint()
+                if card.death is not None:
+                    with self._journal_view() as view:
+                        payload["autopsy"] = {
+                            "operation": card.death.operation,
+                            "label": DeathClassifier(view).classify(
+                                self.controlled, card.death.tid
+                            ),
+                        }
+            except Exception as e:  # a refused autopsy never loses the frame
+                payload["autopsy_error"] = str(e)
+        self._finished_payload = payload
+        self.close()  # Q2 ratified: the life finalizes its own writer
 
     # ------------------------------------------------- results from disk ---
     def _journal_view(self) -> JournalView:
@@ -237,11 +343,12 @@ class Session:
     def bio(self, md: bool = False, agent: str | None = None) -> dict:
         agent = agent or self.controlled
         card = build_biography(self.db_path, agent)
-        self._card, self._card_at_seq = card, self.last_seq
         out = {
             "type": "biography",
             "agent": agent,
             "fingerprint": card.fingerprint(),
+            "life": {"n": self.life_n, "succession": self.succession}
+            if agent == self.controlled else None,
             "meta": {
                 "birth_tick": card.meta.birth_tick,
                 "final_tick": card.meta.final_tick,
@@ -268,8 +375,9 @@ class Session:
             raise ProtocolError("alive", "the agent is alive: nothing to autopsy")
         card = build_biography(self.db_path, self.controlled)
         death = card.death
-        if death is None:  # finished by tick_limit while alive
+        if death is None:  # ended while alive (tick_limit / abdicate)
             return {"type": "autopsy", "alive": True, "death_tick": None,
+                    "life_end": self.finish_reason,
                     "bio_fingerprint": card.fingerprint()}
         with self._journal_view() as view:
             label = DeathClassifier(view).classify(self.controlled, death.tid)
@@ -297,12 +405,28 @@ class Session:
     def close(self) -> dict:
         with self._lock:
             if self.state == "finalized":
-                return {"type": "closed", "session_id": self.session_id,
-                        "hash": self.final_hash, "note": "already finalized"}
+                return self._closed_payload(note="already finalized")
+            self._write_life(end=self.finish_reason or "abdicate",
+                             to_tick=self.sim.state.tick)
+            self.sim.journal.set_meta(
+                continuity.FINAL_STATE_KEY, self.sim.state.hash()
+            )
             self.sim.journal.commit()
             self.final_hash = self.sim.journal.hash()
             self.sim.journal.close()
             self.state = "finalized"
-            return {"type": "closed", "session_id": self.session_id,
-                    "hash": self.final_hash,
-                    "reason": self.finish_reason, "db_path": self.db_path}
+            return self._closed_payload()
+
+    def _closed_payload(self, note: str | None = None) -> dict:
+        out = {
+            "type": "closed",
+            "session_id": self.session_id,
+            "hash": self.final_hash,
+            "reason": self.finish_reason or "abdicate",
+            "db_path": self.db_path,
+            "life": {"n": self.life_n, "agent": self.controlled,
+                     "succession": self.succession},
+        }
+        if note:
+            out["note"] = note
+        return out

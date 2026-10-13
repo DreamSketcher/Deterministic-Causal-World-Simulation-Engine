@@ -79,26 +79,31 @@ def test_life_to_death_and_results_survive_close(tmp_path):
         if not last["alive"]:
             break
     assert (last["tick"], s.death_tick, seq) == (51, 51, 52)
+    # step 6 (Q2): death auto-finalizes; the finished event carries the
+    # verdict so the client needs no live writer to know how it ended
     ev = s.take_finished_event()
-    assert ev == {"type": "finished", "reason": "death", "death_tick": 51}
+    assert ev["reason"] == "death" and ev["death_tick"] == 51
+    assert ev["life"] == {"n": 1, "agent": "agent:0", "succession": "genesis"}
+    assert ev["autopsy"]["label"] == "acute_infection"
+    assert len(ev["bio_fingerprint"]) == 64
     assert s.take_finished_event() is None  # one-shot
+    assert s.state == "finalized"
 
     with pytest.raises(ProtocolError) as d:
         s.decide(seq + 1, 0)
-    assert d.value.code == "dead"  # decisions refused…
+    assert d.value.code == "finalized"  # decisions refused…
 
-    au = s.autopsy()  # …results are not
+    au = s.autopsy()  # …results are not (same file, same reader)
     assert au["death_tick"] == 51 and au["operation"] == "disease.infect"
     assert au["label"] == "acute_infection"  # DeathClassifier over the archive
     assert au["die"]["roll"] < au["die"]["threshold"]
     assert au["causes"]["depth_limit"] == 24
     card_fp = s.bio()["fingerprint"]
-    assert au["bio_fingerprint"] == card_fp
+    assert au["bio_fingerprint"] == card_fp == ev["bio_fingerprint"]
 
-    closed = s.close()
-    assert closed["type"] == "closed" and len(closed["hash"]) == 64
-    again = s.close()  # idempotent: the recorded hash, never a re-close
-    assert again["hash"] == closed["hash"] and again["note"] == "already finalized"
+    again = s.close()  # the auto-close already finalized: idempotent replay
+    assert again["note"] == "already finalized"
+    assert again["hash"] == s.final_hash and len(again["hash"]) == 64
 
     # finalized: reader path is the file alone; results identical
     after = s.bio(md=True)
@@ -110,12 +115,14 @@ def test_tick_limit_finishes_a_life_still_alive(tmp_path):
     s = _sess(tmp_path, max_ticks=3)
     for seq in (1, 2, 3):
         s.decide(seq, 6)
-    assert s.state == "finished" and s.finish_reason == "tick_limit"
+    # ended while alive: auto-finalized with reason, life row says tick_limit
+    assert s.state == "finalized" and s.finish_reason == "tick_limit"
     au = s.autopsy()
     assert au["alive"] is True and au["death_tick"] is None
+    assert au["life_end"] == "tick_limit"
     with pytest.raises(ProtocolError) as e:
         s.decide(4, 0)
-    assert e.value.code == "dead"
+    assert e.value.code == "finalized"
 
 
 def test_tail_ticks_run_epilogue_without_decisions(tmp_path):
@@ -127,7 +134,7 @@ def test_tail_ticks_run_epilogue_without_decisions(tmp_path):
         f = s.decide(seq, script[seq - 1])
         if not f["alive"]:
             break
-    assert s.state == "finished" and s.finish_reason == "death"
+    assert s.state == "finalized" and s.finish_reason == "death"
     # death at tick d → d+1 steps consumed it, then exactly tail more
     assert s.sim.state.tick == s.death_tick + 1 + 3
 

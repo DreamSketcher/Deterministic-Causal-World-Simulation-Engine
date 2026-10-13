@@ -142,6 +142,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--regions", type=int, default=2)
     p.add_argument("--agents", type=int, default=60)
     p.add_argument("--max-ticks", type=int, default=4000)
+    p.add_argument("--world", default="demo",
+                   help="world identifier: existing <db_dir>/<name>.db → next "
+                        "life by the succession rule, absent → new world")
     p.add_argument("--script", default=None,
                    help="comma-separated action indices, no REPL (demo/tests)")
     return parser
@@ -458,15 +461,21 @@ def _cmd_play(args: argparse.Namespace) -> int:
 
     names = {v: int(k) for k, v in ACTION_NAMES.items()}
     client = LifeClient(args.url)
-    welcome = client.hello_new(
-        seed=args.seed, regions=args.regions, agents=args.agents,
-        max_ticks=args.max_ticks,
-    )
+
+    def _hello() -> dict:
+        return client.hello_new(
+            world=args.world, seed=args.seed, regions=args.regions,
+            agents=args.agents, max_ticks=args.max_ticks,
+        )
+
+    welcome = _hello()
     if welcome.get("type") != "welcome":
         print(f"server refused: {welcome}")
         return 1
     sid = welcome["session_id"]
-    print(f"session {sid} | seed {welcome['config']['seed']} | alive: "
+    life = welcome.get("life") or {}
+    print(f"session {sid} | world {args.world} | life {life.get('n')} "
+          f"({life.get('agent')}, {life.get('succession')}) | alive: "
           f"{welcome['alive']} | actions: {', '.join(names)}")
 
     def show(f: dict) -> None:
@@ -482,10 +491,15 @@ def _cmd_play(args: argparse.Namespace) -> int:
                 print(f"  seq {seq}: error {f['code']}: {f['msg']}")
                 continue
             show(f)
+            ev = f.get("finished")
             if not f["alive"]:
-                ev = client.next_event(timeout=2.0)
                 if ev:
-                    print(f"  {ev['type']}: {ev.get('reason')} @T{ev.get('death_tick')}")
+                    au = ev.get("autopsy") or {}
+                    print(f"  finished: {ev.get('reason')} "
+                          f"@T{ev.get('death_tick')} | {au.get('label', '—')} | "
+                          f"bio {str(ev.get('bio_fingerprint'))[:16]}…")
+                print("  next life: run play --world "
+                      f"{args.world} again (heir per the succession rule)")
                 break
     else:
         seq = welcome["last_seq"]
@@ -498,6 +512,16 @@ def _cmd_play(args: argparse.Namespace) -> int:
                 continue
             if line in ("quit", "exit"):
                 break
+            if line == "new-life":
+                welcome = _hello()
+                if welcome.get("type") != "welcome":
+                    print(f"  refused: {welcome.get('code')}: {welcome.get('msg')}")
+                    break
+                life = welcome.get("life") or {}
+                seq = welcome["last_seq"]
+                print(f"  life {life.get('n')}: {life.get('agent')} "
+                      f"({life.get('succession')}) from t{welcome['tick']}")
+                continue
             if line == "bio":
                 print(client.bio()["md"])
                 continue

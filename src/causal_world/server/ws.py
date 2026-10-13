@@ -59,9 +59,12 @@ def make_handler(
                         if session is None:
                             conn.send(_error("unknown_session", str(sid)))
                             continue
+                    elif msg.get("world") is not None:
+                        session = _open_world(msg, registry, db_dir)
                     else:
                         session = _create(msg, registry, db_dir)
                     conn.send(_dumps(session.welcome()))
+                    _release_if_finalized(registry, session)
                     continue
                 if session is None:
                     conn.send(_error("not_awaiting", "send hello first"))
@@ -80,10 +83,15 @@ def make_handler(
                                    seq if isinstance(seq, int) else None)
                         )
                         continue
-                    conn.send(_dumps(session.decide(seq, act)))
+                    reply = session.decide(seq, act)
                     fin = session.take_finished_event()
                     if fin is not None:
-                        conn.send(_dumps(fin))
+                        # strict request/response: the life verdict rides as
+                        # a FIELD of the last frame — one reply per request,
+                        # no unsolicited-message race with close (step 6)
+                        reply["finished"] = fin
+                    conn.send(_dumps(reply))
+                    _release_if_finalized(registry, session)
                 elif kind == "bio":
                     conn.send(
                         _dumps(session.bio(md=bool(msg.get("md")), agent=msg.get("agent")))
@@ -92,6 +100,7 @@ def make_handler(
                     conn.send(_dumps(session.autopsy()))
                 elif kind == "close":
                     conn.send(_dumps(session.close()))
+                    _release_if_finalized(registry, session)
                 else:
                     conn.send(_error("unknown_type", kind))
             except ProtocolError as e:
@@ -100,7 +109,53 @@ def make_handler(
                 return  # client vanished: session survives in the registry
         # stream ended (clean or not): the session stays resumable (§4)
 
-    def _create(msg: dict, registry: dict, db_dir: str) -> Session:
+    def _open_world(msg: dict, registry: dict, db_dir: str) -> Session:
+        """Step 6: `hello {world}` alone decides — no file → new world
+        (life 1); file present → next life by the succession rule. The
+        world name is a strict identifier, never a path (§9/Q4)."""
+        from pathlib import Path
+
+        from causal_world.server import continuity
+
+        name = msg.get("world")
+        if not continuity.world_name_ok(name):
+            raise ProtocolError(
+                "malformed",
+                "world name must match ^[a-z0-9][a-z0-9_-]{{0,31}}$ "
+                "(identifier, not a path)".replace("{{", "{").replace("}}", "}"),
+            )
+        path = Path(db_dir) / f"{name}.db"
+        holder = registry.get("busy:" + str(path))
+        if (
+            holder is not None
+            and str(holder) in registry
+            and registry[str(holder)].state != "finalized"
+        ):
+            raise ProtocolError(
+                "world_busy",
+                f"world '{name}' has an active session — resume+close it "
+                "to release, or wait",
+                None,
+                {"session": str(holder), "world": str(name)},
+            )
+        if path.exists():
+            s = Session.takeover(str(path))
+        else:
+            s = _create(msg, registry, db_dir, db_path=str(path))
+        registry["busy:" + str(path)] = s.session_id
+        registry[s.session_id] = s
+        if log:
+            log(f"session {s.session_id} life {s.life_n} on {s.db_path}")
+        return s
+
+    def _release_if_finalized(registry: dict, session: Session | None) -> None:
+        if session is not None and session.state == "finalized":
+            key = "busy:" + str(session.db_path)
+            if registry.get(key) == session.session_id:
+                registry.pop(key, None)
+
+    def _create(msg: dict, registry: dict, db_dir: str,
+                db_path: str | None = None) -> Session:
         cfg = {}
         for key in ("seed", "ruleset", "regions", "agents", "max_ticks",
                     "tail_ticks", "controlled"):
@@ -108,7 +163,7 @@ def make_handler(
                 cfg[key] = msg[key]
         if "seed" not in cfg:
             raise ProtocolError("malformed", "new session needs a seed")
-        s = Session(db_dir=db_dir, **cfg)
+        s = Session(db_dir=db_dir, db_path=db_path, **cfg)
         registry[s.session_id] = s
         if log:
             log(f"session {s.session_id} on {s.db_path}")

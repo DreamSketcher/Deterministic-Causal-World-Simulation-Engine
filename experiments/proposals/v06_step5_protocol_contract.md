@@ -81,10 +81,13 @@ client→server:
 server→client:
 `welcome {session_id, tick, alive, last_seq, config, db_path, action_card}`
 `frame {seq, tick, applied, reject?, you{hunger,health,region,last_action},
-        journal{total,committed,rejected,hash}}`
+        journal{total,committed,rejected,hash}, finished?}`
+  — строгий request/response: ОДИН ответ на запрос; вердикт жизни
+    (reason/death_tick/life/bio_fingerprint/autopsy) едет ПОЛЕМ последнего
+    кадра, отдельным `finished`-сообщением не является (мёртвая гонка
+    unsolicited-сообщений с `close`; зафиксировано на шаге 6)
 `biography {fingerprint, card{...summary...}, md?}`
 `autopsy {death_tick, operation, die?, label, cause_chain{depth,truncated}}`
-`finished {reason, death_tick?, bio_fingerprint?}`
 `error {code, msg, seq?}`; коды: `malformed unknown_type not_awaiting dead
 finalized conflict seq_gap alive`
 

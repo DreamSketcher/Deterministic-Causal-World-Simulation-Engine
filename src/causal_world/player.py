@@ -72,7 +72,10 @@ class DecisionStreamReader:
     @staticmethod
     def actions_from(journal, controlled: str = "agent:0") -> list[int]:
         out: list[int] = []
-        for t in journal.all():
+        # iterate the plain id-ordered stream: works over an open archive,
+        # a reopened one, or a read-only JournalView (step 6's takeover
+        # reads finalized worlds through the view)
+        for t in journal:
             if t.operation != "player.act":
                 continue
             # the player system writes only the controlled agent, so the
