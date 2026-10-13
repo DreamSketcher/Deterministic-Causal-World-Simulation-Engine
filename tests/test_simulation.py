@@ -143,10 +143,18 @@ def test_observability_is_read_only_spec11():
 
 def test_llm_independence_spec47():
     """The simulation must run with zero LLM/agent-framework dependencies:
-    every import in the package is either stdlib or causal_world itself."""
+    every import in the package is either stdlib or causal_world itself.
+
+    v0.6 step 5 amendment: the game transport layer (causal_world/server)
+    may import the optional `websockets` extra — the one non-stdlib
+    exception, and the reverse check pins it: no engine module outside
+    server/ may. The engine core keeps the zero-dependency property the
+    spec is about."""
     stdlib = set(sys.stdlib_module_names)
+    TRANSPORT_EXEMPT = {"websockets"}
     offenders = []
     for path in SRC.rglob("*.py"):
+        in_server = path.parent.name == "server"
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -156,8 +164,11 @@ def test_llm_independence_spec47():
             else:
                 continue
             for name in names:
-                if name not in stdlib and name != "causal_world":
-                    offenders.append(f"{path.name}: {name}")
+                if name in stdlib or name == "causal_world":
+                    continue
+                if in_server and name in TRANSPORT_EXEMPT:
+                    continue
+                offenders.append(f"{path.name}: {name}")
     assert not offenders, f"external dependencies found: {offenders}"
     assert not any("llm" in p.name.lower() for p in SRC.rglob("*.py"))
 

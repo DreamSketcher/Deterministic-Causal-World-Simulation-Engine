@@ -21,6 +21,7 @@ causal-world = "causal_world.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+server = ["websockets>=13"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

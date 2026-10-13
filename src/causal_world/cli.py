@@ -130,6 +130,20 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db", required=True, help="path to journal.db")
     p.add_argument("--agent", default="agent:0")
     p.add_argument("--md", action="store_true", help="print the readable card")
+
+    p = sub.add_parser("serve", help="step 5: WebSocket life server")
+    p.add_argument("--host", default="0.0.0.0")
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--db-dir", default=".", help="where life-<session>.db live")
+
+    p = sub.add_parser("play", help="step 5: interactive life client")
+    p.add_argument("--url", default="ws://127.0.0.1:8765")
+    p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--regions", type=int, default=2)
+    p.add_argument("--agents", type=int, default=60)
+    p.add_argument("--max-ticks", type=int, default=4000)
+    p.add_argument("--script", default=None,
+                   help="comma-separated action indices, no REPL (demo/tests)")
     return parser
 
 
@@ -431,6 +445,88 @@ def _cmd_bio(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from causal_world.server.ws import serve
+
+    serve(host=args.host, port=args.port, db_dir=args.db_dir)
+    return 0
+
+
+def _cmd_play(args: argparse.Namespace) -> int:
+    from causal_world.server.client import LifeClient
+    from causal_world.systems.player import ACTION_NAMES
+
+    names = {v: int(k) for k, v in ACTION_NAMES.items()}
+    client = LifeClient(args.url)
+    welcome = client.hello_new(
+        seed=args.seed, regions=args.regions, agents=args.agents,
+        max_ticks=args.max_ticks,
+    )
+    if welcome.get("type") != "welcome":
+        print(f"server refused: {welcome}")
+        return 1
+    sid = welcome["session_id"]
+    print(f"session {sid} | seed {welcome['config']['seed']} | alive: "
+          f"{welcome['alive']} | actions: {', '.join(names)}")
+
+    def show(f: dict) -> None:
+        y = f["you"]
+        print(f"  t{f['tick']:>3} {'' if f['applied'] else 'REJECTED '}"
+              f"hunger {float(y['hunger']):.3f} health {float(y['health']):.3f} "
+              f"region {y['region']} alive {f['alive']}")
+
+    if args.script is not None:  # non-interactive demo drive
+        for seq, a in enumerate((int(x) for x in args.script.split(",")), 1):
+            f = client.decide(seq, a)
+            if f.get("type") == "error":
+                print(f"  seq {seq}: error {f['code']}: {f['msg']}")
+                continue
+            show(f)
+            if not f["alive"]:
+                ev = client.next_event(timeout=2.0)
+                if ev:
+                    print(f"  {ev['type']}: {ev.get('reason')} @T{ev.get('death_tick')}")
+                break
+    else:
+        seq = welcome["last_seq"]
+        while True:
+            try:
+                line = input("action> ").strip().lower()
+            except EOFError:
+                break
+            if not line:
+                continue
+            if line in ("quit", "exit"):
+                break
+            if line == "bio":
+                print(client.bio()["md"])
+                continue
+            if line in ("autopsy", "close"):
+                print(json.dumps(client.autopsy() if line == "autopsy"
+                                 else client.close(), indent=2, sort_keys=True))
+                continue
+            act = names.get(line, None)
+            if act is None:
+                try:
+                    act = int(line)  # raw ints (incl. out-of-range) go to the world
+                except ValueError:
+                    print(f"unknown: {line} (names: {', '.join(names)}, or bio/autopsy/close)")
+                    continue
+            seq += 1
+            f = client.decide(seq, act)
+            if f.get("type") == "error":
+                print(f"  error {f['code']}: {f['msg']}")
+                seq -= 1
+                continue
+            show(f)
+            if not f["alive"]:
+                print("  the life ended — 'autopsy', 'bio', 'close' still work")
+    print(json.dumps(client.bio(), indent=2, sort_keys=True))
+    print(json.dumps(client.close(), indent=2, sort_keys=True))
+    client.terminate()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -444,6 +540,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_query(args)
     if args.command == "bio":
         return _cmd_bio(args)
+    if args.command == "serve":
+        return _cmd_serve(args)
+    if args.command == "play":
+        return _cmd_play(args)
     parser.error(f"unknown command {args.command}")
     return 2
 

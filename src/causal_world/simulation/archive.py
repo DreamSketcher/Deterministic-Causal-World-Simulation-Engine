@@ -126,7 +126,13 @@ class SqliteArchive:
 
     def __init__(self, path: str) -> None:
         self.path = path
-        self._conn = sqlite3.connect(path, isolation_level=None)
+        # check_same_thread=False (v0.6 step 5): a live session may be
+        # served from different per-connection threads after a reconnect.
+        # Safe because there is still ONE writer — serialization is the
+        # Session's lock, not sqlite's thread heuristic.
+        self._conn = sqlite3.connect(
+            path, isolation_level=None, check_same_thread=False
+        )
         self._conn.row_factory = sqlite3.Row
         # Crash-safe WAL mode: a killed run leaves a VALID database that
         # rolls back to the last periodic commit (journal_mode=OFF would
@@ -198,6 +204,17 @@ class SqliteArchive:
             self._rejected += 1
         self._since_commit += 1
         if self._since_commit >= COMMIT_EVERY:
+            self._conn.execute("COMMIT")
+            self._conn.execute("BEGIN")
+            self._since_commit = 0
+
+    def commit(self) -> None:
+        """Public flush (v0.6 step 5, G1): make everything recorded so far
+        durable and visible to readers. The live server calls this after
+        each decided step, so a decision is ACCEPTED exactly when its
+        transition survives a process kill; batch-commit remains the
+        optimization, never the semantic boundary."""
+        if self._since_commit:
             self._conn.execute("COMMIT")
             self._conn.execute("BEGIN")
             self._since_commit = 0
