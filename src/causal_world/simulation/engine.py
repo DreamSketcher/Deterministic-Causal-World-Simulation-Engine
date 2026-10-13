@@ -190,6 +190,7 @@ def create_world(
     from causal_world.systems.ruin import RuinSystem
     from causal_world.systems.exploration import ExplorationSystem
     from causal_world.systems.senescence import SenescenceSystem
+    from causal_world.systems.player import PlayerAgentSystem
     from causal_world.world.generator import generate_genesis
     from causal_world.world.rules import DefaultWorldRules
 
@@ -216,6 +217,7 @@ def create_world(
         "RuinSystem": RuinSystem,
         "ExplorationSystem": ExplorationSystem,
         "SenescenceSystem": SenescenceSystem,
+        "PlayerAgentSystem": PlayerAgentSystem,
     }
     default_order = [
         "ClimateSystem",

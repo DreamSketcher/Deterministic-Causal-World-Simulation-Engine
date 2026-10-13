@@ -73,6 +73,11 @@ class ExplorationSystem(System):
                 continue
             risk = float(snapshot.get(agent, "risk_tolerance"))
             p = clamp(self.EXPLORE_BASE + self.EXPLORE_RISK * risk, 0.0, self.EXPLORE_MAX)
+            # A player's explore is NOT rolled here — it is executed on the
+            # PlayerAgentSystem's own transition (U3, immediate). This loop is
+            # the NPC foraging path only; the two reserve writes conflict-
+            # resolve with the player winning (priority 45 > 40), so a ruin
+            # keeps one feeding queue per tick and both paths are journaled.
             roll = rng.draw(tick, agent, "agent.explore", 0)
             if roll < p:
                 explorers.setdefault(ruin, []).append((agent, p, roll))

@@ -522,6 +522,7 @@ class PlayerLifeRules(CompostRules):
         "BirthSystem",
         "RuinSystem",
         "ExplorationSystem",
+        "PlayerAgentSystem",  # game-only: one agent answers to a human (step 3)
     ]
 
     purposes = {
@@ -590,6 +591,9 @@ class PlayerLifeRules(CompostRules):
                 "age": int,
                 "resource_food": float,
                 "resource_knowledge": float,
+                # player control (step 3): the per-tick decision record that
+                # makes the journal a lossless replay stream
+                "last_action": int,
             }
         )
 
@@ -608,6 +612,10 @@ class PlayerLifeRules(CompostRules):
                     ("max_health", 0.0 if dormant else self.MAX_HEALTH_BASE),
                     ("generation", 0),
                     ("birth_tick", 0),
+                    # step 3: -1 sentinel = "no decision recorded yet"; the
+                    # per-tick record makes the journal a lossless replay
+                    # stream (DecisionStreamReader)
+                    ("last_action", -1),
                 ]
             )
         elif kind == "region":
