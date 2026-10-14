@@ -276,3 +276,46 @@ def test_long_run_and_takeover_identity_via_engine(tmp_path):
     b = SqliteArchive(path)  # reopen = what takeover verification does
     assert b.hash() == live
     b.close()
+
+
+# ---------------------------------------------------------------------------
+# P3 boundary audit: the single-writer contract is structural, not convention
+
+
+def test_escape_hatch_cannot_write(archive):
+    for i in range(1, 4):
+        archive.record(make_transition(i))
+    archive.commit()
+    before = archive.hash()
+    with pytest.raises(ValueError):
+        archive.query("INSERT INTO meta VALUES ('x', 'y')")
+    with pytest.raises(ValueError):
+        archive.query("UPDATE transitions SET payload='{}' WHERE id=1")
+    with pytest.raises(ValueError):
+        archive.query("DELETE FROM transitions")
+    with pytest.raises(ValueError):
+        archive.query("PRAGMA journal_mode=OFF")
+    # read paths stay open
+    assert archive.query("SELECT COUNT(*) FROM transitions")[0][0] == 3
+    assert archive.query("WITH t AS (SELECT 1 AS x) SELECT x FROM t")[0][0] == 1
+    assert archive.hash() == before
+
+
+def test_second_writer_is_locked_out_by_sqlite(tmp_path):
+    """Cross-process/cross-connection contention: it is SQLite's own write
+    lock (single writer per file), not the hash chain, that stops a second
+    writer mid-transaction; the first archive stays canonical throughout."""
+    path = str(tmp_path / "dual.db")
+    a = SqliteArchive(path)
+    for i in range(1, 6):
+        a.record(make_transition(i))
+    a.commit()
+    a.record(make_transition(6))  # a now holds the write txn, uncommitted
+    b = SqliteArchive(path)
+    with pytest.raises(sqlite3.OperationalError):
+        b.record(make_transition(7))  # "database is locked" — writer #2 dies
+    a.commit()
+    # a's chain matches the committed archive; b never poisoned anything
+    assert a.hash() == reference_hash(path)
+    b.close()
+    a.close()

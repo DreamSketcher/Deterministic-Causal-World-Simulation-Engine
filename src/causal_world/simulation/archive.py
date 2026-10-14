@@ -28,6 +28,21 @@ Seeding a reopened archive and recovering from an uncertain transaction
 outcome recompute from the archive — rare emergency paths, never a
 per-frame rescan. The canonical definition itself is untouched: sha256
 over newline-joined canonical records in id order.
+
+Single-writer contract (P3 boundary audit). Every write to the archive
+goes through ONE SqliteArchive instance: engine-side it is record()/
+add()/set_meta(); the observer escape hatch query() is read-only ENFORCED,
+the query index builds in its own cache file, and takeover verification
+opens the file only to read and hash it. The MAX(id) sentinel detects a
+journal whose row COUNT or id frontier moved (foreign append, rolled-back
+transaction, uncertain COMMIT); it does NOT detect an external rewrite of
+existing row content, and cannot — that mutation is outside the contract,
+the same way editing the bytes of any artifact file is. A second OS-process
+writer is stopped by SQLite's own write lock (its statements fail, and an
+uncertain COMMIT on our side triggers the recompute path), not by the
+hash chain. In other words: the chain is self-healing against transaction
+boundaries, and the SINGLE-WRITER property is what keeps it authoritative
+against content edits.
 """
 
 from __future__ import annotations
@@ -446,7 +461,16 @@ class SqliteArchive:
 
         The simulation itself never uses this; it exists so observers can
         aggregate over the journal without reconstructing every object.
+        Read-only is enforced in code (P3 boundary audit): the single-writer
+        contract of the archive must not rest on convention. Multi-statement
+        SQL is rejected by sqlite3 itself.
         """
+        head = sql.lstrip().split(None, 1)[0].lower() if sql.strip() else ""
+        if head not in ("select", "with"):
+            raise ValueError(
+                f"archive query() is read-only: statement must start with "
+                f"SELECT or WITH (got {head!r})"
+            )
         return self._conn.execute(sql, params).fetchall()
 
     def close(self) -> None:
