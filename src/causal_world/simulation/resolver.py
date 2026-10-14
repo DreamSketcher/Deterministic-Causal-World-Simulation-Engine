@@ -59,36 +59,54 @@ class Resolver:
                 t.status = TransitionStatus.VALIDATED
                 validated.append(t)
 
-        # Phase 2: deterministic conflict resolution among VALIDATED writes.
-        # A transition is atomic: once it loses ANY field conflict it is
-        # rejected wholesale and all of its other writes are withdrawn too.
-        writers: dict[tuple[str, str], list[Transition]] = {}
-        for t in validated:
-            for w in t.writes:
-                writers.setdefault((w.entity, w.field), []).append(t)
+        # Phase 2: global deterministic selection of atomic transitions.
+        #
+        # A transition is accepted only if none of its writes conflict with
+        # an already accepted transition. Candidates are considered in the
+        # documented global priority order, not field-by-field: this avoids
+        # eliminating a transition because of a candidate that is itself
+        # rejected later on another field.
+        validated.sort(key=self._rank_key)
+        accepted: list[Transition] = []
+        accepted_writers: dict[tuple[str, str], Transition] = {}
 
-        eliminated: set[int] = set()
-        for key in sorted(writers):
-            contenders = [
-                t for t in writers[key] if (t.id or 0) not in eliminated
-            ]
-            if len(contenders) <= 1:
+        for candidate in validated:
+            conflicts = sorted(
+                {
+                    (w.entity, w.field)
+                    for w in candidate.writes
+                    if (w.entity, w.field) in accepted_writers
+                }
+            )
+            if not conflicts:
+                accepted.append(candidate)
+                for write in candidate.writes:
+                    accepted_writers[(write.entity, write.field)] = candidate
                 continue
-            winner = self._winner(contenders)
-            for loser in contenders:
-                if loser is winner:
-                    continue
-                loser.status = TransitionStatus.REJECTED
-                loser.reject_reason = (
-                    f"conflict:{key[0]}.{key[1]}:lost_to:T{winner.id}"
-                )
-                eliminated.add(loser.id or 0)
-                result.rejected.append(loser)
 
-        committed = [t for t in validated if (t.id or 0) not in eliminated]
-        result.committed = sorted(committed, key=lambda t: t.id or 0)
-        result.rejected.sort(key=lambda t: (t.id is None, t.id if t.id is not None else 0))
+            entity, field_name = conflicts[0]
+            winner = accepted_writers[(entity, field_name)]
+            candidate.status = TransitionStatus.REJECTED
+            candidate.reject_reason = (
+                f"conflict:{entity}.{field_name}:lost_to:T{winner.id}"
+            )
+            result.rejected.append(candidate)
+
+        result.committed = sorted(accepted, key=lambda t: t.id or 0)
+        result.rejected.sort(
+            key=lambda t: (t.id is None, t.id if t.id is not None else 0)
+        )
         return result
+
+    # ------------------------------------------------------------------
+    def _rank_key(self, t: Transition) -> tuple[int, int, int]:
+        """Best candidate first: transition priority, system priority, then id."""
+        tid = t.id if t.id is not None else 1 << 62
+        return (
+            -t.priority,
+            -self.system_priorities.get(t.system, 0),
+            tid,
+        )
 
     # ------------------------------------------------------------------
     def _winner(self, contenders: list[Transition]) -> Transition:
