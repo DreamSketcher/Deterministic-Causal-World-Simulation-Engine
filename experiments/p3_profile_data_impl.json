@@ -1,0 +1,262 @@
+{
+ "IDENTITY": {
+  "final_archive_rows": 66738,
+  "fingerprints": [
+   "0442772339c3f0d9",
+   "54a8058f42e0b3bc",
+   "ef0259f0b7525255",
+   "715afe5682ac14dc",
+   "9abb3d328b77da29",
+   "90200f954e19e035",
+   "04a2d6508ac6dc81",
+   "352ce2c416d5c29b"
+  ]
+ },
+ "M1_M2": {
+  "hash_reopened": {
+   "append_ms": 1124.282,
+   "cached_equal": true,
+   "cached_ms": 0.0708,
+   "changed_after_append": true,
+   "first_ms": 1076.3,
+   "hash_after_append_ms": 0.0,
+   "rows": 38324
+  },
+  "memory": {
+   "incremental_hash_per_call_us": 0.49,
+   "rows_per_tick": 127.74,
+   "step_mean_ms": 8.606,
+   "step_median_ms": 7.53,
+   "step_p95_ms": 11.829,
+   "ticks": 300
+  },
+  "persist": {
+   "archive_bytes": 28598272,
+   "rows_per_tick": 127.74,
+   "sqlite_share_of_step_pct": 40.7,
+   "step_mean_ms": 13.279,
+   "step_median_ms": 12.694,
+   "step_p95_ms": 20.072,
+   "ticks": 300
+  }
+ },
+ "M3": {
+  "extinction_tick": 601,
+  "head_ticks_replayed": 5000,
+  "identity": {
+   "archive_hash_eq_live": true,
+   "replay_hash_eq_archive": false,
+   "replay_state_eq_live": false
+  },
+  "play_ticks_per_s": 314.4,
+  "play_wall_s": 15.9,
+  "replay_stages_s": {
+   "archive_reopen_full_hash": 3.12,
+   "create_world": 0.006,
+   "replay_memory_hash": 0.0008,
+   "steps": 11.05,
+   "steps_under_tracemalloc": 50.79,
+   "view_read_stream": 1.711
+  },
+  "rows": {
+   "committed": 64233,
+   "rejected": 168,
+   "total": 64401
+  },
+  "rows_growth": [
+   {
+    "after_ticks": 100,
+    "rows_delta": 6977
+   },
+   {
+    "after_ticks": 1000,
+    "rows_delta": 23821
+   },
+   {
+    "after_ticks": 5000,
+    "rows_delta": 33603
+   }
+  ],
+  "tracemalloc_peak_replay_mb": 218.2,
+  "world": "seed5, 2x30, player_life, 5000 raw ticks"
+ },
+ "M4_M5": {
+  "counts": {
+   "committed": 65553,
+   "rejected": 1185,
+   "total": 66738
+  },
+  "lives": [
+   {
+    "agent": "agent:0",
+    "bio_after_finalize_s": 0.92,
+    "decisions": 150,
+    "end": null,
+    "fingerprint16": "0442772339c3f0d9",
+    "from_tick": 0,
+    "n": 1,
+    "next_takeover_s": 2.11,
+    "play_wall_s": 2.21,
+    "rss_mb": 716.9,
+    "succession": "genesis",
+    "to_tick": 150
+   },
+   {
+    "agent": "agent:0",
+    "bio_after_finalize_s": 0.17,
+    "decisions": 54,
+    "end": "death",
+    "fingerprint16": "54a8058f42e0b3bc",
+    "from_tick": 150,
+    "n": 2,
+    "next_takeover_s": 2.88,
+    "play_wall_s": 1.59,
+    "rss_mb": 716.9,
+    "succession": "elder",
+    "to_tick": 204
+   },
+   {
+    "agent": "agent:10",
+    "bio_after_finalize_s": 0.21,
+    "decisions": 129,
+    "end": "death",
+    "fingerprint16": "ef0259f0b7525255",
+    "from_tick": 204,
+    "n": 3,
+    "next_takeover_s": 4.87,
+    "play_wall_s": 3.14,
+    "rss_mb": 716.9,
+    "succession": "elder",
+    "to_tick": 333
+   },
+   {
+    "agent": "agent:87",
+    "bio_after_finalize_s": 0.69,
+    "decisions": 150,
+    "end": null,
+    "fingerprint16": "715afe5682ac14dc",
+    "from_tick": 333,
+    "n": 4,
+    "next_takeover_s": 6.37,
+    "play_wall_s": 1.63,
+    "rss_mb": 716.9,
+    "succession": "lineage",
+    "to_tick": 483
+   },
+   {
+    "agent": "agent:70",
+    "bio_after_finalize_s": 0.8,
+    "decisions": 150,
+    "end": null,
+    "fingerprint16": "9abb3d328b77da29",
+    "from_tick": 483,
+    "n": 5,
+    "next_takeover_s": 7.61,
+    "play_wall_s": 1.94,
+    "rss_mb": 716.9,
+    "succession": "lineage",
+    "to_tick": 633
+   },
+   {
+    "agent": "agent:87",
+    "bio_after_finalize_s": 0.23,
+    "decisions": 13,
+    "end": "death",
+    "fingerprint16": "90200f954e19e035",
+    "from_tick": 633,
+    "n": 6,
+    "next_takeover_s": 7.81,
+    "play_wall_s": 0.62,
+    "rss_mb": 716.9,
+    "succession": "elder",
+    "to_tick": 646
+   },
+   {
+    "agent": "agent:55",
+    "bio_after_finalize_s": 0.86,
+    "decisions": 150,
+    "end": null,
+    "fingerprint16": "04a2d6508ac6dc81",
+    "from_tick": 646,
+    "n": 7,
+    "next_takeover_s": 9.5,
+    "play_wall_s": 1.94,
+    "rss_mb": 716.9,
+    "succession": "lineage",
+    "to_tick": 796
+   },
+   {
+    "agent": "agent:85",
+    "bio_after_finalize_s": 0.26,
+    "decisions": 105,
+    "end": "death",
+    "fingerprint16": "352ce2c416d5c29b",
+    "from_tick": 796,
+    "n": 8,
+    "play_wall_s": 1.82,
+    "rss_mb": 716.9,
+    "succession": "elder",
+    "to_tick": 901
+   }
+  ],
+  "reached_ticks": 900,
+  "rss_mb_end": 716.9,
+  "scenario": "seed21, 4x50, chain, cap 8 lives x 150 decisions",
+  "stopped_by": null,
+  "wall_s": 60.2
+ },
+ "M6": {
+  "50_lives_note": "a 50-life chain is INFEASIBLE under current rules (extinction after 8 lives at T=900); the 50-life replay bill is the EXTRAPOLATED sum of a*T_i+b for uniform 400-tick lives, not a faked run",
+  "extrapolated_50_lives_takeover_total_s": 5702.3,
+  "fit": {
+   "a_s_per_head_tick": 0.01111,
+   "b_s": 0.728
+  },
+  "points_head_ticks_vs_takeover_s": [
+   [
+    150,
+    2.11
+   ],
+   [
+    204,
+    2.88
+   ],
+   [
+    333,
+    4.87
+   ],
+   [
+    483,
+    6.37
+   ],
+   [
+    633,
+    7.61
+   ],
+   [
+    646,
+    7.81
+   ],
+   [
+    796,
+    9.5
+   ]
+  ],
+  "snapshot_breakeven": {
+   "note": "snapshot pays off when replay+verification exceeds the re-play it replaces \u2014 see table; M8 alone removes most of verification at ZERO format change",
+   "play_s_per_tick": 0.0032,
+   "replay_equals_play_pct": 69.0,
+   "replay_s_per_tick": 0.0022,
+   "verification_overhead_s_per_takeover_at_5000t": 4.83
+  },
+  "takeover_cost_s_at_head_ticks": {
+   "1000": 11.84,
+   "2000": 22.95,
+   "20000": 222.92,
+   "5000": 56.28
+  }
+ },
+ "optimize_variant": false,
+ "rss_mb_final": 716.9,
+ "wall_total_s": 161.5
+}

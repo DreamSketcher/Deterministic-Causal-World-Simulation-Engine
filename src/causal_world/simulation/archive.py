@@ -15,6 +15,19 @@ with NO semantic change:
 Writes stay inside one transaction for the lifetime of the archive —
 experiment artifacts are reproducible by rerunning, so durability of a
 crashed run is not the point.
+
+Hash chain (v0.6 P3): the incremental digest is the ONLY source for
+``hash()``. ``record()`` appends canonical bytes to a pending tail and
+does NOT touch the committed hasher; the hasher advances exactly when a
+batch COMMITs, so a rolled-back or failed transaction can never leave the
+chain describing rows the database does not have. ``hash()`` is O(1) always:
+a projection hasher (the committed chain plus the pending tail) is fed in
+record order, exactly as before — but it can be rebuilt from the committed
+hasher at any commit boundary, so it is a convenience, never an authority.
+Seeding a reopened archive and recovering from an uncertain transaction
+outcome recompute from the archive — rare emergency paths, never a
+per-frame rescan. The canonical definition itself is untouched: sha256
+over newline-joined canonical records in id order.
 """
 
 from __future__ import annotations
@@ -142,16 +155,27 @@ class SqliteArchive:
         self._conn.execute("BEGIN")
         for statement in _SCHEMA:
             self._conn.execute(statement)
+        # --- hash chain state (P3): see module docstring for the contract.
         self._hasher = hashlib.sha256()
+        # _branch is a pure projection: hasher-at-last-commit + the pending
+        # tail, maintained incrementally so hash() stays O(1) even inside a
+        # long open transaction. It is rebuilt from _hasher at every flush
+        # and from the archive on every reseed — it is never an authority.
+        self._branch = self._hasher.copy()
+        self._pending: list[bytes] = []
         self._since_commit = 0
-        self._new_records = 0
-        self._hash_cache: str | None = None
         # Reopening an existing archive restores counters from the DB, so
         # len/counts/by_id work on a persisted world without re-running it.
+        self._restore_counters()
+        # A non-empty archive at open time must seed its hasher on first
+        # use (restore-from-archive); an empty one starts from zero bytes,
+        # which is already correct.
+        self._needs_seed = self._total > 0
+
+    def _restore_counters(self) -> None:
         row = self._conn.execute(
             "SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS last_id FROM transitions"
         ).fetchone()
-        self._total_at_open = int(row["n"])
         self._total = int(row["n"])
         self._last_id = int(row["last_id"]) or None
         committed_row = self._conn.execute(
@@ -168,6 +192,12 @@ class SqliteArchive:
     # ------------------------------------------------------------------
     # Journal interface
     # ------------------------------------------------------------------
+    @staticmethod
+    def _canonical_bytes(transition: Transition) -> bytes:
+        # Journal hash: the SAME canonical definition as the in-memory
+        # journal — sha256 over newline-joined canonical records, id order.
+        return (canonical_json(transition_record(transition)) + "\n").encode("utf-8")
+
     def record(self, transition: Transition) -> None:
         if transition.id is None:
             raise ValueError("cannot record a transition without an id")
@@ -190,13 +220,14 @@ class SqliteArchive:
                 _payload_of(transition),
             ),
         )
-        # Journal hash: the SAME canonical definition as the in-memory
-        # journal — sha256 over newline-joined canonical records, id order.
-        self._hasher.update(
-            (canonical_json(transition_record(transition)) + "\n").encode("utf-8")
-        )
+        # The INSERT above is in the open transaction; the canonical bytes
+        # join the pending tail only after it succeeded. The committed
+        # hasher is NOT advanced here — only _flush() may do that, at the
+        # commit boundary (P3 contract).
+        chunk = self._canonical_bytes(transition)
+        self._pending.append(chunk)
+        self._branch.update(chunk)
         self._total += 1
-        self._new_records += 1
         if transition.status is TransitionStatus.COMMITTED:
             self._committed += 1
             self._last_committed_id = transition.id
@@ -204,41 +235,70 @@ class SqliteArchive:
             self._rejected += 1
         self._since_commit += 1
         if self._since_commit >= COMMIT_EVERY:
-            self._conn.execute("COMMIT")
-            self._conn.execute("BEGIN")
-            self._since_commit = 0
+            self._flush()
+
+    def _commit_tx(self) -> None:
+        self._conn.execute("COMMIT")
+        self._conn.execute("BEGIN")
+
+    def _flush(self) -> None:
+        """Advance the committed hash chain AT the commit boundary: the
+        hasher ingests the pending tail only after COMMIT returned without
+        error. A failed/uncertain COMMIT marks the chain stale; the next
+        hash() restores it from the archive."""
+        if not self._since_commit:
+            return
+        try:
+            self._commit_tx()
+        except sqlite3.Error:
+            self._needs_seed = True
+            raise
+        for chunk in self._pending:
+            self._hasher.update(chunk)
+        self._pending = []
+        self._since_commit = 0
+        # after a successful flush the projection IS the committed chain
+        self._branch = self._hasher.copy()
 
     def commit(self) -> None:
         """Public flush (v0.6 step 5, G1): make everything recorded so far
         durable and visible to readers. The live server calls this after
         each decided step, so a decision is ACCEPTED exactly when its
         transition survives a process kill; batch-commit remains the
-        optimization, never the semantic boundary."""
-        if self._since_commit:
-            self._conn.execute("COMMIT")
-            self._conn.execute("BEGIN")
-            self._since_commit = 0
+        optimization, never the semantic boundary. Since P3 this is also
+        the exact point where the hash chain advances."""
+        self._flush()
+
+    def _reseed_from_disk(self) -> None:
+        """Restore/recover the chain: rebuild the hasher from the archive
+        itself (canonical scan, id order). Runs on the first hash() of a
+        reopened archive and after an uncertain transaction outcome —
+        never as a per-frame operation."""
+        hasher = hashlib.sha256()
+        for transition in self:
+            hasher.update(self._canonical_bytes(transition))
+        self._hasher = hasher
+        self._branch = hasher.copy()
+        self._pending = []
+        self._restore_counters()
+        self._needs_seed = False
+
+    def _ensure_synced(self) -> None:
+        if not self._needs_seed:
+            # O(log n) sentinel (B-tree seek on the INTEGER PRIMARY KEY):
+            # if the table's id frontier no longer matches what the chain
+            # describes — rolled-back rows, a foreign writer — recompute.
+            row = self._conn.execute(
+                "SELECT COALESCE(MAX(id), 0) FROM transitions"
+            ).fetchone()
+            if int(row[0]) != (self._last_id or 0):
+                self._needs_seed = True
+        if self._needs_seed:
+            self._reseed_from_disk()
 
     def hash(self) -> str:
-        if self._total_at_open:
-            # Reopened archive: the incremental hasher only saw records
-            # added after reopening, so recompute from disk (canonical
-            # definition unchanged). Cached until new records arrive.
-            if self._hash_cache is None:
-                hasher = hashlib.sha256()
-                for transition in self:
-                    hasher.update(
-                        (canonical_json(transition_record(transition)) + "\n").encode(
-                            "utf-8"
-                        )
-                    )
-                self._hash_cache = hasher.hexdigest()
-                self._cached_at_new_records = self._new_records
-            elif getattr(self, "_cached_at_new_records", 0) != self._new_records:
-                self._hash_cache = None
-                return self.hash()
-            return self._hash_cache
-        return self._hasher.copy().hexdigest()
+        self._ensure_synced()
+        return self._branch.copy().hexdigest()
 
     def __len__(self) -> int:
         return self._total

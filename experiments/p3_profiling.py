@@ -69,9 +69,14 @@ def script_actions(n, source=99):
 
 # ============================================================ M8 variant ==
 def install_incremental_hash_variant():
-    """O(N) once at first hash after reopen, O(1) forever after. The
-    canonical definition is UNCHANGED (sha256 over newline-joined canonical
-    records in id order) — the guard in M7 proves identity."""
+    """Historical: the P3 experiment monkey-patched this in. Since the
+    follow-up commit the SOURCE itself is the optimized implementation
+    (commit-synced hash chain), so the variant run is a plain passthrough —
+    kept so the --optimize invocation stays reproducible on old tags."""
+    if hasattr(SqliteArchive, "_reseed_from_disk"):
+        print("note: source already implements the incremental chain; "
+              "--optimize is a passthrough", flush=True)
+        return
 
     def fast_hash(self):
         if self._total_at_open:
@@ -376,6 +381,8 @@ def main():
     DATA["wall_total_s"] = round(time.perf_counter() - t0, 1)
     DATA["rss_mb_final"] = round(rss_mb(), 1)
     suffix = "opt" if OPTIMIZE else "base"
+    if hasattr(SqliteArchive, "_reseed_from_disk"):
+        suffix = "impl"  # source itself is the optimized chain
     out = Path(__file__).parent / f"p3_profile_data_{suffix}.json"
     out.write_text(json.dumps(DATA, indent=1, sort_keys=True))
     print(f"written: {out}", flush=True)
