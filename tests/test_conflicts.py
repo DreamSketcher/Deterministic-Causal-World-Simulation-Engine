@@ -178,3 +178,59 @@ def test_resolver_is_pure_with_shuffled_inputs():
         )
         outcomes.add(outcome)
     assert len(outcomes) == 1, f"conflict resolution must be order-independent: {outcomes}"
+
+def test_atomic_conflicts_are_resolved_globally_not_field_by_field():
+    """A losing multi-field proposal must not suppress an unrelated valid writer."""
+    from causal_world.kernel.transition import StateChange, Transition
+    from causal_world.simulation.resolver import Resolver
+
+    rules = RulesForTest({"x": float, "y": float})
+    sim = make_sim(
+        rules,
+        [],
+        seed=0,
+        genesis_fields={("region:0", "x"): 0.0, ("region:0", "y"): 0.0},
+    )
+    snapshot = sim.snapshot()
+
+    # A conflicts with B on x and C on y. C outranks A; A outranks B.
+    # The globally consistent result is C + B, not C alone.
+    proposals = [
+        Transition(
+            id=1, tick=snapshot.tick, system="A", operation="multi",
+            writes=[
+                StateChange("region:0", "x", 0.0, 1.0),
+                StateChange("region:0", "y", 0.0, 1.0),
+            ],
+            priority=5,
+        ),
+        Transition(
+            id=2, tick=snapshot.tick, system="B", operation="x-only",
+            writes=[StateChange("region:0", "x", 0.0, 2.0)],
+            priority=1,
+        ),
+        Transition(
+            id=3, tick=snapshot.tick, system="C", operation="y-only",
+            writes=[StateChange("region:0", "y", 0.0, 3.0)],
+            priority=10,
+        ),
+    ]
+
+    outcomes = set()
+    for permutation in itertools.permutations(proposals):
+        # Resolver mutates status, so recreate pristine proposal objects per run.
+        fresh = []
+        for t in permutation:
+            fresh.append(
+                Transition(
+                    id=t.id, tick=t.tick, system=t.system, operation=t.operation,
+                    reads=list(t.reads), writes=list(t.writes),
+                    random_draws=list(t.random_draws), priority=t.priority,
+                )
+            )
+        resolution = Resolver(rules, {"A": 0, "B": 0, "C": 0}).resolve(
+            snapshot, fresh
+        )
+        outcomes.add(tuple(sorted(t.system for t in resolution.committed)))
+    assert outcomes == {("B", "C")}
+
