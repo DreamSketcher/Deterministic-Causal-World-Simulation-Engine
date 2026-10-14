@@ -350,3 +350,17 @@ def test_attach_requires_player_roster():
     assert ch is not None
     names = {s.name for s in game.systems}
     assert "PlayerAgentSystem" in names
+
+
+def test_channel_from_helper_replays_the_recorded_stream():
+    # regression for P3: channel_from once called cls(...) on the reader
+    # itself (TypeError, silently dead because no test used the helper)
+    game = create_world(seed=3, ruleset=get_ruleset("player_life"), ticks=0,
+                        regions=2, agents=8)
+    attach_player_channel(game, DecisionChannel(actions=[0, 6, 99, 2]))
+    for _ in range(4):
+        game.step()
+    ch = DecisionStreamReader.channel_from(game.journal)
+    actions = [ch.next_action() for _ in range(4)]
+    assert actions == DecisionStreamReader.actions_from(game.journal)
+    assert actions == [0, 6, 99, 2]  # rejects verbatim, aligned per live tick

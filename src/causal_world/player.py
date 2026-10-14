@@ -90,7 +90,7 @@ class DecisionStreamReader:
     ) -> DecisionChannel:
         """A preloaded non-blocking channel that replays exactly the live
         stream (then idles forever, matching a run of the same length)."""
-        return cls(actions=cls.actions_from(journal, controlled))
+        return DecisionChannel(actions=cls.actions_from(journal, controlled))
 
 
 def attach_player_channel(
