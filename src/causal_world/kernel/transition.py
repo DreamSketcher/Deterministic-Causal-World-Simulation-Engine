@@ -74,22 +74,39 @@ class Transition:
 def proposal_sort_key(t: Transition) -> tuple[str, str, str]:
     """Content-based key used to assign transition ids.
 
-    Ids are assigned from the SORTED set of all proposals of a tick, never
-    from the order in which systems happened to run (spec §19, §30). This
-    keeps ids — and every tie-break that uses them — independent of the
-    system execution order.
+    Include every value that can affect conflict resolution or the recorded
+    transition. Semantically distinct proposals must not inherit their ids
+    from the order in which systems happened to emit them.
     """
     writes = sorted(
         (w.entity, w.field, canonical_token(w.old), canonical_token(w.new))
         for w in t.writes
     )
     reads = sorted(
-        (r.entity, r.field, canonical_token(r.value), r.source_transition)
+        (
+            r.entity,
+            r.field,
+            canonical_token(r.value),
+            canonical_token(r.source_transition),
+        )
         for r in t.reads
     )
-    draws = sorted((d.purpose, d.entity, d.index) for d in t.random_draws)
-    return (t.system, t.operation, canonical_json([writes, reads, draws]))
-
+    draws = sorted(
+        (
+            d.purpose,
+            d.entity,
+            d.index,
+            canonical_token(d.value),
+            canonical_token(d.threshold),
+            canonical_token(d.outcome),
+        )
+        for d in t.random_draws
+    )
+    return (
+        t.system,
+        t.operation,
+        canonical_json([t.tick, t.priority, writes, reads, draws]),
+    )
 
 def transition_record(t: Transition) -> list[Any]:
     """Full canonical record of a transition, used for the journal hash."""
