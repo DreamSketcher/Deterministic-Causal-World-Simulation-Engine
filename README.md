@@ -90,7 +90,7 @@ src/causal_world/
 ├── query/         index.py query.py             (v0.5, read-only cache)
 ├── world/         generator.py rules.py
 ├── cli.py         __main__.py
-tests/             33 test modules + helpers.py
+tests/             34 test modules + helpers.py
 experiments/       survival.py compare_rulesets.py observer_demo.py
                    query_demo.py _regen_archive.py
                    reports/   (v0.2 … v0.5 write-ups)
@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 359 tests
+python -m pytest          # 369 tests
 ```
 
 | spec test | where |
@@ -1330,6 +1330,70 @@ cheaper: the index advance pays for deserialising the tick's transitions
 from the archive, which is stage 2d's problem, not a reason to bring the
 full view back.
 
+## v0.12 — stage 2c: the state keeps its own index
+
+The profile's largest single line was `entities_with_prefix`: 14 calls
+per tick, each walking all 1.57M `(entity, field)` pairs at 16k living —
+48% of a tick. The systems ask the SNAPSHOT, so the fix is split in two:
+
+* `WorldState` keeps entities grouped by their id prefix (`agent:`,
+  `cell:`, `region:`). A group is added when the first pair of an entity
+  is written. It is derived data: excluded from equality, from
+  `state.hash()` and from the canonical payload. Only `engine.py` builds
+  a state; a hand-made one builds its groups once in the constructor.
+* `Snapshot.from_state` copies those groups instead of rescanning the
+  pairs. The copy is O(entities), and it is a copy: a later commit can
+  never leak into a frozen snapshot. An arbitrary (non-group) prefix
+  still scans the entities, never the pairs.
+
+The answers are exactly the lists a full scan produces. That is not an
+opinion: `tests/golden/v012_reference.json` records `state_hash`,
+`journal_hash` and the transition count AFTER EVERY TICK of a reference
+run (seed 7, `player_resettle`, 2 regions, 54 agents, 40 ticks — 41
+rows, 6052 transitions), written BEFORE the change by
+`experiments/v012_reference.py` (`--check` recomputes and compares).
+
+`tests/test_v012_equivalence.py` (10) pins the four invariants of the
+stage plus the recovery case the project has already lived through:
+
+| invariant | what the test does |
+|---|---|
+| state identity | `state.hash()` matches the golden after every tick |
+| journal identity | `journal.hash()` and the transition id sequence do not move |
+| deterministic replay | two runs agree tick by tick, not only at the end |
+| derived index | full rebuild and `advance` through COMMITTED writes agree after every tick, for `player_resettle` and `player_civic` |
+| restart | `replay_head` restores state and journal; rebuild equals advance |
+| continuation | 4 ticks after a restart equal 4 ticks of a world that never stopped |
+| entity groups | state groups answer like a scan, a snapshot's groups are a copy, groups are outside identity |
+
+Cost of the same protocol, 2 CPU / 4.1 GB:
+
+| living | tick, s | commit, s | peak RSS, MB | journal, MB/tick |
+|---:|---:|---:|---:|---:|
+| 500 | 0.118 | 0.015 | 57 | 0.4 |
+| 1000 | 0.209 | 0.026 | 88 | 0.7 |
+| 2000 | 0.459 | 0.050 | 145 | 1.5 |
+| 4000 | 0.952 | 0.103 | 262 | 2.9 |
+| 8000 | 2.074 | 0.146 | 461 | 5.9 |
+| 16000 | 4.121 | 0.271 | 873 | 12.0 |
+
+Against stage 2a the tick is 68% cheaper at 16k (6.101 → 4.121 s), and
+the prefix reads themselves are 400–700× cheaper (14 scans, 0.500 s →
+0.001 s at 4000) because the answer is built once per state, not once
+per tick. The index rebuild is still O(pairs) and `advance` O(writes):
+0.244 s vs 0.010 s at 4000, equality checked after each tick. After a
+restart the index rebuilds in 0.003 s from the saved state and journal.
+
+What this stage does NOT do: it does not change the memory model of the
+state. Pairs stay pairs; the snapshot still copies data and provenance
+(the 2.6% line of the profile) because the contract "a snapshot never
+reads the live state" is worth more than those 2.6%. 100k was still not
+run — that is the checkpoint after 2d.
+
+Reports: `experiments/reports/v012_state.md` (prefix scan vs index,
+rebuild vs advance, restart) and `experiments/reports/v012_profile_stage2.md`
+(the same protocol after the change).
+
 ## Roadmap
 
 ```
@@ -1373,7 +1437,8 @@ v0.11.1 Pre-scaling checks: the +600 settlement horizon, the mover
       (this branch)
 v0.12 Scaling, measured: stage 1 profile (done) → 2a observer one-pass
       (done) → 2b cell slice (done: frame 118× cheaper, 6 criteria in
-      tests) → 2c state/snapshot → 2d journal → 2e long archive → 2f
+      tests) → 2c state/snapshot (done: golden per tick, tick 32%
+      cheaper, groups derived and checked) → 2d journal → 2e long archive → 2f
       pool as a ruleset question → 100k × 20. Checkpoint: 100k living
       pass a fixed horizon with tick time, peak RSS and journal growth
       published; analytics ≤ 250 ms/frame

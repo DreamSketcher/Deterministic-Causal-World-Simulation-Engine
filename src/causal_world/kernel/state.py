@@ -27,6 +27,25 @@ class WorldState:
 
     # Invariant I1 guard. Not part of the logical state.
     _sealed: bool = field(default=True, repr=False, compare=False)
+    # Derived index: entities grouped by their id prefix ("agent:",
+    # "cell:", ...). It is a CACHE of what `data` already says — a new
+    # entity is added when its first pair is written — and it is never
+    # part of equality or hashing. v0.12/2c: a snapshot used to rebuild
+    # this by scanning every pair (1.57M at 16k living); now it copies
+    # the groups, which are O(entities).
+    _groups: dict[str, set[str]] = field(
+        default_factory=dict, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        if self.data and not self._groups:
+            for entity, _field_name in self.data:
+                self._remember(entity)
+
+    def _remember(self, entity: str) -> None:
+        head, sep, _rest = entity.partition(":")
+        key = f"{head}:" if sep else entity
+        self._groups.setdefault(key, set()).add(entity)
 
     # ------------------------------------------------------------------
     # Read API (safe everywhere)
@@ -41,10 +60,20 @@ class WorldState:
         return self.provenance.get((entity, field_name))
 
     def entities(self) -> list[str]:
-        return sorted({entity for entity, _ in self.data})
+        return sorted({entity for group in self._groups.values()
+                       for entity in group})
 
     def entities_with_prefix(self, prefix: str) -> list[str]:
-        return sorted({entity for entity, _ in self.data if entity.startswith(prefix)})
+        """Entities whose id starts with ``prefix``.
+
+        A group prefix (``"agent:"``) is answered from the derived index;
+        an arbitrary prefix falls back to a scan over the entities, never
+        over the pairs.
+        """
+        if prefix.endswith(":"):
+            return sorted(self._groups.get(prefix, ()))
+        return sorted({entity for group in self._groups.values()
+                       for entity in group if entity.startswith(prefix)})
 
     def fields_of(self, entity: str) -> list[str]:
         return sorted(f for (e, f) in self.data if e == entity)
@@ -59,6 +88,8 @@ class WorldState:
                 "(invariant I1). Direct state.set() is forbidden."
             )
         key = (entity, field_name)
+        if key not in self.data:
+            self._remember(entity)
         self.data[key] = value
         # Provenance is updated simultaneously with the value (spec §16).
         self.provenance[key] = transition_id

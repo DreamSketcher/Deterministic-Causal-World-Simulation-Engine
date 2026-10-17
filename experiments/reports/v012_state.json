@@ -1,0 +1,93 @@
+{
+ "invariant_tests": 7,
+ "prefix": [
+  {
+   "agents": 500,
+   "pairs": 49374,
+   "scan_s": 0.0523,
+   "indexed_s": 0.0001,
+   "first_call_s": 0.0,
+   "speedup": 694.2
+  },
+  {
+   "agents": 1000,
+   "pairs": 98374,
+   "scan_s": 0.1038,
+   "indexed_s": 0.0002,
+   "first_call_s": 0.0,
+   "speedup": 624.6
+  },
+  {
+   "agents": 2000,
+   "pairs": 196374,
+   "scan_s": 0.2487,
+   "indexed_s": 0.0004,
+   "first_call_s": 0.0001,
+   "speedup": 553.6
+  },
+  {
+   "agents": 4000,
+   "pairs": 392374,
+   "scan_s": 0.5004,
+   "indexed_s": 0.0012,
+   "first_call_s": 0.0004,
+   "speedup": 406.4
+  }
+ ],
+ "index": [
+  {
+   "agents": 500,
+   "rebuild_s": 0.027,
+   "advance_s": 0.0012,
+   "equal_after_advance": true,
+   "rebuilt_cells": 12
+  },
+  {
+   "agents": 1000,
+   "rebuild_s": 0.055,
+   "advance_s": 0.002,
+   "equal_after_advance": true,
+   "rebuilt_cells": 12
+  },
+  {
+   "agents": 2000,
+   "rebuild_s": 0.135,
+   "advance_s": 0.0048,
+   "equal_after_advance": true,
+   "rebuilt_cells": 12
+  },
+  {
+   "agents": 4000,
+   "rebuild_s": 0.244,
+   "advance_s": 0.0103,
+   "equal_after_advance": true,
+   "rebuilt_cells": 12
+  }
+ ],
+ "restart": {
+  "state_hash_equal": true,
+  "journal_hash_equal": true,
+  "close_s": 0.01,
+  "replay_s": 0.311,
+  "index_rebuild_s": 0.003,
+  "cells": 12,
+  "alive": 54,
+  "lives": 1
+ },
+ "tick_before": {
+  "500": 0.145,
+  "1000": 0.305,
+  "2000": 0.656,
+  "4000": 1.485,
+  "8000": 2.989,
+  "16000": 6.101
+ },
+ "tick_after": {
+  "500": 0.118,
+  "1000": 0.209,
+  "2000": 0.459,
+  "4000": 0.952,
+  "8000": 2.074,
+  "16000": 4.121
+ }
+}

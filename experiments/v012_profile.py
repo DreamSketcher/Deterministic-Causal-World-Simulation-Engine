@@ -222,7 +222,7 @@ def render(report: dict) -> str:
     runs = report["runs"]
     lines: list[str] = []
     a = lines.append
-    a("# v0.12, шаг 1 — профиль движка до масштабирования")
+    a(f"# v0.12 — {report['config'].get('label', 'шаг 1 — профиль движка до масштабирования')}")
     a("")
     a(f"Машина: {report['machine']['cpu']} CPU, "
       f"{report['machine']['ram_gb']:.1f} ГБ RAM; Python "
@@ -290,11 +290,12 @@ def render(report: dict) -> str:
              if r["name"].startswith("entities_with_prefix")), None
         )
         if scan:
-            a(f"Главная строка — `entities_with_prefix`: {scan['cum_s']:.1f} с "
-              f"({scan['cum_s'] / total:.0%}) на сканирование состояния по "
-              f"префиксу. Это не «медленный закон», а повторяющийся проход "
-              f"по всем парам (сущность, поле) в каждом из "
-              f"{scan['calls']} вызовов за тик.")
+            a(f"Строка `entities_with_prefix`: {scan['cum_s']:.1f} с "
+              f"({scan['cum_s'] / total:.0%}) на {scan['calls']} вызовов за "
+              f"тик. Это не «медленный закон»: снимок строит индекс "
+              f"префиксов один раз (первый вызов), дальше чтения — O(1); до "
+              f"шага 2c каждый из этих вызовов сканировал все пары. "
+              f"Сравнение до/после — `reports/v012_state.md`.")
             a("")
     a("## 3. Наблюдатель и чтение архива")
     a("")
@@ -428,6 +429,8 @@ def main() -> int:
     parser.add_argument("--ticks", type=int, default=3)
     parser.add_argument("--child", type=int, default=0)
     parser.add_argument("--workdir", default="")
+    parser.add_argument("--label",
+                        default="шаг 1 — профиль движка до масштабирования")
     parser.add_argument("--out", default="experiments/reports/v012_profile.md")
     parser.add_argument("--json", default="experiments/reports/v012_profile.json")
     args = parser.parse_args()
@@ -461,7 +464,8 @@ def main() -> int:
     except Exception:
         cpu, ram_gb, disk_gb = 0, 0.0, 0.0
     report = {
-        "config": {"ticks": args.ticks, "sizes": sizes},
+        "config": {"ticks": args.ticks, "sizes": sizes,
+                   "label": args.label},
         "machine": {
             "cpu": cpu, "ram_gb": round(ram_gb, 1),
             "ram_mb": round(ram_gb * 1000),
