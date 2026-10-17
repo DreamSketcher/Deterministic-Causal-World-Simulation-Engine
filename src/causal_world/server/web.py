@@ -30,7 +30,8 @@ from causal_world.observer.budget import CausalBudget
 from causal_world.observer.hypothesis import confirmed_links, facts_of
 from causal_world.observer.journal import JournalView
 from causal_world.observer.series import build_series
-from causal_world.observer.situation import situations
+from causal_world.observer.goal import goals as goal_verdicts
+from causal_world.observer.situation import StateView, history_from_journal, situations
 from causal_world.query.index import QueryIndex
 
 #: The static client, shipped inside the package.
@@ -98,6 +99,20 @@ def analyze(db_path: str, entity: str, field: str,
         # The world speaks about itself (v0.8): the situation feed is
         # computed from the same archive, with the same evidence.
         alerts = situations(view)
+        # The GOALS (v0.9): the same archive answers not only what is
+        # wrong, but whether the problems were actually solved — the
+        # verdict takes the people and the land into account.
+        state = StateView.from_journal(view)
+        cells = state.entities_with_prefix("cell:")
+        regions = state.entities_with_prefix("region:")
+        history = history_from_journal(
+            view, cells or regions,
+            ["food_stock", "population", "soil_fertility"],
+        )
+        verdicts = goal_verdicts(
+            history, state, alerts, tick=state.max_tick(),
+            window=state.max_tick(),
+        )
 
         return {
             "entity": entity,
@@ -123,6 +138,7 @@ def analyze(db_path: str, entity: str, field: str,
             "links": links[:60],
             "hypotheses": [],
             "situations": [a.to_dict() for a in alerts],
+            "goals": [v.to_dict() for v in verdicts],
             "series": entity_series or soil_series[-60:],
             "world_soil": soil_series[-60:],
             "population": series.population[-60:],

@@ -44,13 +44,19 @@ from causal_world import create_world
 from causal_world.observer.biography import build_biography
 from causal_world.observer.deaths import DeathClassifier
 from causal_world.observer.journal import JournalView
-from causal_world.observer.situation import StateView, situations
+from causal_world.observer.goal import goals as goal_verdicts
+from causal_world.observer.situation import (
+    FieldHistory,
+    StateView,
+    situations,
+)
 from causal_world.player import DecisionChannel, attach_player_channel
 from causal_world.server import continuity
 from causal_world.systems.directive import (
     Directive,
     DirectiveChannel,
     DirectiveSystem,
+    ScheduleResult,
 )
 from causal_world.systems.player import ACTION_NAMES, N_ACTIONS
 from causal_world.world.rules import get_ruleset
@@ -126,6 +132,12 @@ class Session:
         # the player may also enact laws. A world without it simply has
         # no decree channel — the ruleset, not the transport, decides.
         self.decrees = DirectiveChannel()
+        self._last_decree: ScheduleResult | None = None
+        # The live memory of the situation layer (v0.9): the fields the
+        # goal layer needs to say WHEN a problem began and what it cost.
+        # It is a READ-ONLY projection: nothing here is ever written back
+        # into the world.
+        self._history = FieldHistory()
         for system in self.sim.systems:
             if isinstance(system, DirectiveSystem):
                 system.channel = self.decrees
@@ -197,6 +209,15 @@ class Session:
         self.sim = sim  # journal/index already handed over by replay_head
         self.channel = DecisionChannel()
         attach_player_channel(sim, self.channel, agent)
+        # A takeover gets its own (empty) order channel and its own live
+        # history: the laws of the previous life stay in the archive, and
+        # the new life's goal feed starts at the moment it takes over.
+        self.decrees = DirectiveChannel()
+        self._last_decree = None
+        self._history = FieldHistory()
+        for system in sim.systems:
+            if isinstance(system, DirectiveSystem):
+                system.channel = self.decrees
         self.controlled = agent
         self.life_n = prev["n"] + 1
         self.succession = succession
@@ -297,18 +318,23 @@ class Session:
             # message would otherwise be answered as a replay of a
             # decision that never happened).
             if decree is not None:
-                self._schedule_decree(decree)
+                self._last_decree = self._schedule_decree(decree)
             self.channel.deliver(action)
             self.decisions[seq] = action
             self.sim.step()
             self.sim.journal.commit()  # ← the acceptance point
+            self._sample_history()
             frame = self._render(seq)
+            # The answer rides ONE frame: the frame that carries the
+            # decision which gave the order. Replays keep it (the frame
+            # is stored); later frames do not repeat a stale banner.
+            self._last_decree = None
             self.frames[seq] = frame
             self.last_seq = seq
             self._advance()
             return frame
 
-    def _schedule_decree(self, decree: dict) -> None:
+    def _schedule_decree(self, decree: dict) -> ScheduleResult:
         """Schedule a civic decree for the next tick (validated first).
 
         A world without the civic layer refuses the decree instead of
@@ -320,6 +346,11 @@ class Session:
         region in the v0.7 world, a cell in the v0.8 spatial world. The
         target must exist — a decree addressed to nothing is refused,
         not silently ignored.
+
+        The RESULT is explicit (v0.9): accepted / queued / rejected. An
+        order is never lost silently — the client is told which of the
+        three happened, and the journal records the tick the order was
+        actually enacted at.
         """
         directive_system = next(
             (s for s in self.sim.systems if isinstance(s, DirectiveSystem)), None
@@ -354,13 +385,37 @@ class Session:
                     "rule": "the target must exist in the world",
                 },
             )
-        self.decrees.schedule(self.sim.state.tick + 1, Directive(kind, target, param))
+        return self.decrees.schedule(
+            self.sim.state.tick + 1, Directive(kind, target, param)
+        )
 
     def _decree_targets(self, directive_system) -> set:
         """The entities this world's law can be written upon."""
         return set(
             self.sim.state.entities_with_prefix(directive_system.TARGET_PREFIX)
         )
+
+    def _orders_view(self) -> dict:
+        """The order ledger: the orders waiting and the ones on the calendar.
+
+        The tick of an order is the tick it will be ENACTED at; for a
+        queued order the tick is the one it was asked for, and the real
+        tick is in the journal (``player.directive``).
+        """
+        pending = [
+            {"requested_tick": tick, "kind": d.kind, "name": d.name,
+             "target": d.region, "param": d.param}
+            for tick, d in self.decrees.pending()
+        ]
+        return {
+            "pending": pending,
+            "scheduled": [
+                {"tick": tick, "kind": d.kind, "name": d.name,
+                 "target": d.region, "param": d.param}
+                for tick, d in sorted(self.decrees.scheduled().items())
+                if tick >= self.sim.state.tick
+            ],
+        }
 
     def _render(self, seq: int) -> dict:
         st = self.sim.state
@@ -383,6 +438,14 @@ class Session:
             # the live state — never a write — and it is what lets a
             # client draw the living map without a second protocol.
             "world": self._world_view(),
+            # The order ledger, as the client sees it (v0.9): what
+            # happened to the order of this message, and what is still
+            # waiting for a free tick. Nothing here is hidden state —
+            # the journal is the truth about what was ENACTED.
+            "decree": (
+                self._last_decree.to_dict() if self._last_decree else None
+            ),
+            "orders": self._orders_view(),
             "journal": {
                 "total": total,
                 "committed": committed,
@@ -453,14 +516,49 @@ class Session:
             1 for a in st.entities_with_prefix("agent:")
             if st.get(a, "alive")
         )
+        _, alerts = self._situation_alerts()
         return {
             "tick": st.tick,
             "regions": regions,
             "cells": cells,
             "alive_agents": alive,
             "total_agents": len(st.entities_with_prefix("agent:")),
-            "situations": self._situations(),
+            "situations": [a.to_dict() for a in alerts],
+            "goals": self._goals(alerts),
         }
+
+    def _sample_history(self) -> None:
+        """Remember the few fields the goal layer reads — one sample a tick.
+
+        Appending the CURRENT values (instead of re-reading the journal)
+        keeps the live path O(cells) per tick and makes it read exactly
+        what the world was at that tick: the same snapshot the frame is
+        drawn from.
+        """
+        st = self.sim.state
+        tick = st.tick - 1  # the step that just ran (state.tick is next)
+        scopes = (st.entities_with_prefix("cell:")
+                  or st.entities_with_prefix("region:"))
+        for scope in scopes:
+            for field_name in ("population", "food_stock", "soil_fertility"):
+                if st.has(scope, field_name):
+                    self._history.add(scope, field_name, tick,
+                                      st.get(scope, field_name))
+
+    def _situation_alerts(self):
+        """The current alerts as objects (shared by the feed and the goals)."""
+        try:
+            view = StateView.from_state(
+                self.sim.state,
+                tick_of=lambda tid: self._tick_of(tid),
+            )
+            return view, situations(
+                view,
+                current_tick=self.sim.state.tick,
+                history=self._history,
+            )
+        except Exception:
+            return None, []
 
     def _situations(self) -> list:
         """The problem feed of the world (v0.8), computed from the state.
@@ -472,13 +570,27 @@ class Session:
         pass over the journal is affordable.
         """
         try:
+            _, alerts = self._situation_alerts()
+            return [a.to_dict() for a in alerts]
+        except Exception:
+            return []  # a failed feed never breaks the frame
+
+    def _goals(self, alerts) -> list:
+        """Goal verdicts of the live world (v0.9) — read-only."""
+        try:
             view = StateView.from_state(
                 self.sim.state,
                 tick_of=lambda tid: self._tick_of(tid),
             )
-            return [a.to_dict() for a in situations(view, current_tick=self.sim.state.tick)]
+            return [
+                v.to_dict()
+                for v in goal_verdicts(
+                    self._history, view, alerts,
+                    tick=self.sim.state.tick - 1,
+                )
+            ]
         except Exception:
-            return []  # a failed feed never breaks the frame
+            return []
 
     def _tick_of(self, tid: int | None) -> int | None:
         if tid is None:

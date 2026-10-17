@@ -800,6 +800,100 @@ threshold, one-cell decrees in force on T+1, informed migration, the
 situation layer with real evidence, the server frame, the frozen v0.6
 world).
 
+## v0.9 — The verifiable loop: orders, goals, reproducibility, the ceiling
+
+v0.8 showed that a player CAN change a world. v0.9 asks the harder
+question: is the change *checkable*, is it *reproducible*, and does the
+game know when a problem is actually solved? The kernel is untouched;
+everything below is observer, protocol and model policy.
+
+### 1. An order is never lost silently
+
+`DirectiveChannel.schedule` now returns an explicit answer:
+
+| status | meaning |
+|---|---|
+| `accepted` | the tick is free; the order enters force on it |
+| `queued` | the tick is taken; the order waits for the first free tick |
+| `rejected` | the queue is full (`MAX_PENDING = 8`) — nothing was enacted |
+
+The frame carries `decree` (the answer to the order of this message) and
+`orders` (what waits / what is on the calendar). The journal remains the
+truth about WHEN an order was enacted: `player.directive` is written on
+the tick it actually took effect. The web client shows the answer in
+plain words; a refusal still does not consume the decision slot.
+
+### 2. A goal is solved only if the system survived it
+
+`observer/goal.py` turns an episode of a problem into a goal and gives it
+one of six verdicts: `active`, `settling`, `resolved`,
+`resolved_with_cost`, `collapsed`, `transferred`. The verdict reads the
+signal, the affected system (population and soil at opening vs closing)
+and the neighbouring problems that appeared after the goal opened.
+
+The case from the review is a test of its own: a famine whose signal
+disappears because the people died is `collapsed`, never `resolved`. A
+closed goal is watched for `SETTLE_TICKS = 20` before it may be called
+solved — a famine that ends today can still kill this week.
+
+The layer runs on the live world (the server keeps a `FieldHistory` of
+population / food / soil per cell) and on archives (`/analyze` builds the
+same history from the journal), so the game and the lab cannot disagree.
+
+### 3. The effect survives other starting conditions — but not everywhere
+
+`experiments/v09_reproducibility.py`: seeds 7/11/23 × 36/54/72 agents ×
+{no orders, one fixed order protocol}, 600 ticks, no per-seed tuning.
+
+| measure | Δ>0 | Δ=0 | Δ<0 | mean Δ |
+|---|---:|---:|---:|---:|
+| alive | 8 | 1 | 0 | +24.6 |
+| births | 9 | 0 | 0 | +37.4 |
+| deaths | 0 | 3 | 6 | −12.4 |
+| mean soil | 9 | 0 | 0 | +0.066 |
+| extinct cells | 0 | 3 | 6 | −2.4 |
+
+No trade-off pair in the grid: the protocol never improved one measure at
+the cost of another. But the honest part is where it does nothing: seed
+11 at 54 agents is 74 alive with and without orders (the baseline is
+already at 93% of the world's capacity), and the intervention cannot
+create room that the law does not have.
+
+### 4. The ceiling is measured, not assumed
+
+Capacity of a cell is `pop_base × (1 + soil)`, and the birth law refuses
+conception at the line. In a saturated world (88% full) a nursery in
+every cell bought **+1 birth in 100 ticks** (60 → 61). The lever is real;
+the ceiling makes it inert. This is why v0.9 does **not** ship resettlement
+or long-term charters: redistributing people between full cells cannot
+change the outcome, and adding levers whose effect cannot be measured is
+the opposite of the repo's method. The next policy must change capacity
+itself.
+
+### 5. One situation, the whole loop
+
+`experiments/v09_scenario.py` walks the loop on two archives: the world
+names the first event (`hunger` at tick 57 with its transition ids), the
+causal budget says what drained the store (−165.6 net, agriculture
+−172.3), eight orders are accepted, the goal layer returns 6 `resolved` /
+0 `collapsed`, the archives diverge at tick 58 (T9413), and the success
+creates the next problem — 77 alive against 38 in the control, 93% of the
+world's capacity occupied, and `birth_stall` in the cell that has no room
+left.
+
+Commands:
+
+```
+python3 experiments/v09_reproducibility.py --ticks 600
+python3 experiments/v09_scenario.py --ticks 600
+python3 -m causal_world serve --host 0.0.0.0 --port 8811
+```
+
+Tests: **297** — the new `tests/test_v09_orders.py` (9: the queue, the
+bounds, both orders in the journal, the frame answer) and
+`tests/test_v09_goals.py` (15: episodes, the collapse-by-extinction case,
+settling, transfer, cost). The v0.6 frozen world still hashes bit-for-bit.
+
 ## Roadmap
 
 ```
@@ -825,7 +919,14 @@ v0.8  Spatial living world: cells with their own soil, food, people
       and law; soil per worker (no death spiral); births per adult;
       the nursery policy; the situation feed — the world that says what
       is wrong (this branch)
-v0.9  100k+ agents: memory layout, sparse state, batching,
+v0.9  Verifiable loop: explicit order contract (accepted / queued /
+      rejected), goals with honest completion (collapse ≠ resolution),
+      reproducibility grid over seeds and starting populations, measured
+      capacity ceiling; the success creates the next problem (this branch)
+v0.10 Capacity policy: raise `pop_base` with a cost (new land, terraces),
+      long-term charters with expiry, resettlement — measured BEFORE
+      shipping, since the ceiling decides whether they can matter
+v0.11 100k+ agents: memory layout, sparse state, batching,
       spatial partitioning, parallel execution, compressed provenance
 v1.0  Large artificial world
 ```

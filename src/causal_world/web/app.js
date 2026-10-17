@@ -80,16 +80,22 @@ function handle(msg) {
     renderCards();
     renderDecrees();
     renderSituations();
+    renderGoals();
     setStatus(`сессия ${msg.session_id} · тик ${msg.tick}`);
     if (state.autoplay) scheduleStep();
   } else if (msg.type === "frame") {
     state.seq = msg.seq;
     state.tick = msg.tick;
     state.world = msg.world;
+    state.orders = msg.orders || state.orders;
+    // What happened to the order sent with this message: accepted,
+    // queued (a free tick will come) or rejected. Never silent.
+    if (msg.decree) fadeOrder(msg.decree);
     setStatus(`тик ${msg.tick} · живых ${msg.world ? msg.world.alive_agents : "?"} ` +
               `· ${msg.journal.committed} переходов`);
     renderMap();
     renderSituations();
+    renderGoals();
     if (msg.finished) {
       setStatus(`жизнь окончена: ${msg.finished.reason}`);
       if (state.timer) { clearInterval(state.timer); state.timer = null; }
@@ -108,6 +114,20 @@ function handle(msg) {
   } else if (msg.type === "analysis") {
     renderAnalysis(msg);
   }
+}
+
+// The order banner: the last answer of the civic layer, in plain words.
+function fadeOrder(result) {
+  const box = $("order-status");
+  if (!box) return;
+  const cls = result.status === "accepted" ? "confirmed" :
+              (result.status === "queued" ? "hypothesis" : "refuted");
+  const label = result.status === "accepted" ? "принят" :
+                (result.status === "queued" ? "в очереди" : "отклонён");
+  box.innerHTML = `<span class="badge ${cls}">приказ ${label}</span> ` +
+    `${result.name} → ${result.target} ` +
+    (result.tick ? `· в силе с тика ${result.tick} ` : "") +
+    `<span class="hint">${result.message}</span>`;
 }
 
 function scheduleStep() {
@@ -193,6 +213,18 @@ function renderDecrees() {
   row.className = "row";
   row.append(kindSel, targetSel, paramInput, apply);
   box.appendChild(row);
+  const status = document.createElement("div");
+  status.id = "order-status";
+  status.className = "order-status";
+  box.appendChild(status);
+  const pending = (state.orders && state.orders.pending) || [];
+  if (pending.length) {
+    const q = document.createElement("div");
+    q.className = "hint";
+    q.textContent = "В очереди: " + pending.map(p =>
+      `${p.name} → ${p.target} (просили тик ${p.requested_tick})`).join("; ");
+    box.appendChild(q);
+  }
   if (state.world) {
     const law = document.createElement("div");
     law.className = "row";
@@ -233,6 +265,45 @@ function renderSituations() {
     e.innerHTML = `<span class="badge ${a.severity > 0.75 ? "refuted" :
                      (a.severity > 0.4 ? "confirmed" : "hypothesis")}">` +
       `${a.kind}</span> ${a.message} <span class="tid">с тика ${a.since_tick}</span> ${ev}`;
+    box.appendChild(e);
+  }
+}
+
+// ------------------------------------------------------------------- goals
+
+// A goal is a problem with a verdict: the world says not only whether the
+// signal disappeared, but whether the PEOPLE and the LAND survived it.
+const GOAL_STATUS = {
+  active: ["confirmed", "идёт"],
+  settling: ["hypothesis", "проверяем"],
+  resolved: ["resolved", "решено"],
+  resolved_with_cost: ["hypothesis", "решено с ценой"],
+  collapsed: ["refuted", "катастрофа"],
+  transferred: ["refuted", "переехало"],
+};
+
+function renderGoals() {
+  const box = $("goals");
+  if (!box) return;
+  const list = (state.world && state.world.goals) || [];
+  if (!list.length) {
+    box.innerHTML = "<h3>Цели</h3><p class='hint'>Пока нечего решать: " +
+      "у мира нет открытых проблем.</p>";
+    return;
+  }
+  box.innerHTML = "<h3>Цели <span class='hint'>(вердикт учитывает людей и землю, " +
+    "а не только исчезнувший сигнал)</span></h3>";
+  for (const g of list.slice(0, 10)) {
+    const [cls, label] = GOAL_STATUS[g.status] || ["hypothesis", g.status];
+    const e = document.createElement("div");
+    e.className = "problem sev-" + (g.status === "collapsed" ? "high" : "low");
+    e.innerHTML = `<span class="badge ${cls}">${label}</span> ` +
+      `<b>${g.kind}</b> ${g.scope} · с тика ${g.opened_tick}` +
+      (g.closed_tick !== null && g.closed_tick !== undefined
+        ? `, закрыт ${g.closed_tick}` : "") +
+      ` · люди ${g.population_open}→${g.population_close}` +
+      ` · почва ${g.soil_open}→${g.soil_close}` +
+      `<div class="hint">${g.reason}</div>`;
     box.appendChild(e);
   }
 }
@@ -462,6 +533,19 @@ function renderAnalysis(data) {
         (s.severity > 0.4 ? "confirmed" : "hypothesis")}">${s.kind}</span> ` +
         `${s.message} <span class="tid">${(s.evidence || []).slice(0, 3)
           .map(x => "T" + x.tid).join(" ")}</span>`;
+      body.appendChild(e);
+    }
+  }
+
+  if (data.goals && data.goals.length) {
+    h("Цели и их исход");
+    for (const g of data.goals.slice(0, 12)) {
+      const [cls, label] = GOAL_STATUS[g.status] || ["hypothesis", g.status];
+      const e = document.createElement("p");
+      e.innerHTML = `<span class="badge ${cls}">${label}</span> ` +
+        `${g.kind} <b>${g.scope}</b> · люди ${g.population_open}→` +
+        `${g.population_close} · почва ${g.soil_open}→${g.soil_close} ` +
+        `<span class="tid">${g.reason}</span>`;
       body.appendChild(e);
     }
   }

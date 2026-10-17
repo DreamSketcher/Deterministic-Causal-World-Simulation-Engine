@@ -113,6 +113,52 @@ class Directive:
                 "region": self.region, "param": self.param}
 
 
+@dataclass(frozen=True)
+class ScheduleResult:
+    """What happened to an order the player gave.
+
+    The contract of the civic layer: **an order is never lost silently.**
+    Before v0.9 the channel simply overwrote the order of a tick that
+    already had one, and the player never learned that their second
+    decree had replaced the first. Now every order gets one of three
+    explicit answers:
+
+    * ``accepted`` — the order will be enacted at the tick it asked for;
+    * ``queued``   — that tick already carries an order, so this one
+      waits in the queue and is enacted at the first free tick after it
+      (the journal, not this object, is the truth about WHEN);
+    * ``rejected`` — the order cannot be taken at all (the queue is
+      full), and the player is told so.
+    """
+    status: str                 # "accepted" | "queued" | "rejected"
+    directive: "Directive"
+    tick: int | None = None     # the tick of entry into force (accepted)
+    message: str = ""
+
+    @property
+    def accepted(self) -> bool:
+        return self.status == "accepted"
+
+    @property
+    def queued(self) -> bool:
+        return self.status == "queued"
+
+    @property
+    def rejected(self) -> bool:
+        return self.status == "rejected"
+
+    def to_dict(self) -> dict:
+        return {
+            "status": self.status,
+            "kind": self.directive.kind,
+            "name": self.directive.name,
+            "target": self.directive.region,
+            "param": self.directive.param,
+            "tick": self.tick,
+            "message": self.message,
+        }
+
+
 class DirectiveChannel:
     """Tick-indexed directives for one world.
 
@@ -121,19 +167,72 @@ class DirectiveChannel:
     a tick is unambiguous (no transition is written). That makes the
     ledger losslessly readable back from the journal — the same discipline
     the v0.6 decision stream follows.
+
+    Since v0.9 the channel also keeps a QUEUE: one order per tick is the
+    law of the layer (a tick has one snapshot, one decree, one law
+    change), and a second order for an occupied tick is not dropped but
+    **deferred to the first free tick after it**. The player is told
+    which of the three happened (see :class:`ScheduleResult`), and the
+    journal records the tick the order was actually enacted at.
     """
 
-    def __init__(self, directives: dict[int, Directive] | None = None) -> None:
-        self._by_tick: dict[int, Directive] = dict(directives or {})
+    #: How many orders may wait in the queue before new ones are
+    #: refused. A queue without a bound is a way to lose orders.
+    MAX_PENDING = 8
 
-    def schedule(self, tick: int, directive: Directive) -> None:
-        self._by_tick[int(tick)] = directive
+    def __init__(self, directives: dict[int, Directive] | None = None) -> None:
+        self._by_tick: dict[int, Directive] = {}
+        self._pending: list[tuple[int, Directive]] = []
+        for tick, directive in (directives or {}).items():
+            self._by_tick[int(tick)] = directive
+
+    # ------------------------------------------------------------------
+    def schedule(self, tick: int, directive: Directive) -> ScheduleResult:
+        """Put an order on the calendar; report what happened to it."""
+        tick = int(tick)
+        if tick not in self._by_tick:
+            self._by_tick[tick] = directive
+            return ScheduleResult(
+                "accepted", directive, tick,
+                f"приказ принят: в силу с тика {tick}",
+            )
+        if len(self._pending) >= self.MAX_PENDING:
+            return ScheduleResult(
+                "rejected", directive, None,
+                f"тик {tick} занят, а очередь приказов переполнена "
+                f"({self.MAX_PENDING}) — приказ отклонён",
+            )
+        self._pending.append((tick, directive))
+        return ScheduleResult(
+            "queued", directive, None,
+            f"тик {tick} уже несёт другой приказ — этот поставлен в "
+            f"очередь и вступит в силу на первом свободном тике после {tick}",
+        )
 
     def at(self, tick: int) -> Directive | None:
-        return self._by_tick.get(int(tick))
+        """The order of this tick (promoting a deferred one if need be)."""
+        tick = int(tick)
+        directive = self._by_tick.get(tick)
+        if directive is not None:
+            return directive
+        for index, (requested, pending) in enumerate(self._pending):
+            if requested < tick:
+                del self._pending[index]
+                self._by_tick[tick] = pending
+                return pending
+        return None
+
+    # ------------------------------------------------------------------
+    def pending(self) -> list[tuple[int, Directive]]:
+        """The orders waiting for a free tick (requested tick, order)."""
+        return list(self._pending)
+
+    def scheduled(self) -> dict[int, Directive]:
+        """The orders on the calendar, by the tick they enter force at."""
+        return dict(self._by_tick)
 
     def __len__(self) -> int:
-        return len(self._by_tick)
+        return len(self._by_tick) + len(self._pending)
 
     def scheduled_ticks(self) -> list[int]:
         return sorted(self._by_tick)

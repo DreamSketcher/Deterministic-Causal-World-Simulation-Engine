@@ -80,9 +80,14 @@ class GameWorld:
         self.decisions.deliver(action)
         self.sim.step()
 
-    def decree(self, tick: int, kind: int, region: str, param: float = 0.25) -> None:
-        """One civic law for a region, effective from ``tick + 1``."""
-        self.decrees.schedule(tick, Directive(kind, region, param))
+    def decree(self, tick: int, kind: int, region: str,
+               param: float = 0.25):
+        """One civic law for a region, effective from ``tick + 1``.
+
+        Returns the channel's answer (accepted / queued / rejected): an
+        order the player gave is never dropped without a word (v0.9).
+        """
+        return self.decrees.schedule(tick, Directive(kind, region, param))
 
     def run(self, ticks: int | None = None) -> None:
         n = self.ticks if ticks is None else ticks

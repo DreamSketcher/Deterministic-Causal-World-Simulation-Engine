@@ -99,3 +99,12 @@ select { background: #10151a; color: var(--fg); border: 1px solid var(--line); b
 .problem.sev-mid { border-left-color: var(--warn); }
 .problem.sev-low { border-left-color: var(--pop-hi); }
 .problem .tid { color: var(--dim); font-size: 12px; }
+
+/* v0.9: the explicit answer of the civic layer to an order. */
+.order-status { margin-top: 8px; min-height: 20px; }
+.order-status .hint { display: inline; }
+
+/* v0.9: goals — the verdict, not just the alert. */
+.goals { margin-top: 16px; }
+.goals .problem { margin: 4px 0; }
+.badge.resolved { background: #1f6f43; color: #eafff2; }

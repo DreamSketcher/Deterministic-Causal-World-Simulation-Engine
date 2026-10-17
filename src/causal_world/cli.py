@@ -609,7 +609,10 @@ def _cmd_civic(args: argparse.Namespace) -> int:
         seed=args.seed, ruleset=args.ruleset, regions=args.regions,
         agents=args.agents, db_path=db_path,
     )
-    decrees = {}
+    # A list, not a dict keyed by tick: two orders for one tick must
+    # reach the channel and get an explicit answer (accepted / queued /
+    # rejected), never silently overwrite each other in the CLI (v0.9).
+    decrees = []
     for spec in args.decree:
         # TICK:KIND:TARGET[:PARAM] — the target may itself contain colons
         # ("cell:1:0"), so it is parsed from the middle: the first field
@@ -626,12 +629,15 @@ def _cmd_civic(args: argparse.Namespace) -> int:
             print(f"error: unknown decree kind {kind!r} "
                   f"(have {', '.join(sorted(kinds))})", file=sys.stderr)
             return 2
-        decrees[tick] = Directive(kinds[kind], target, param)
+        decrees.append((tick, Directive(kinds[kind], target, param)))
+
+    for tick, directive in sorted(decrees, key=lambda x: x[0]):
+        answer = world.decree(tick, directive.kind, directive.region,
+                              directive.param)
+        print(f"decree {directive.name} -> {directive.region} "
+              f"(param {directive.param}): {answer.message}")
 
     for tick in range(args.ticks):
-        if tick in decrees:
-            world.decree(tick, decrees[tick].kind, decrees[tick].region,
-                         decrees[tick].param)
         world.act(6)  # idle: the personal card is the v0.6 one
     world.close()
 
