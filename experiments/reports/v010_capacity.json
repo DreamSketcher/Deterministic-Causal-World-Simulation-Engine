@@ -1,0 +1,266 @@
+{
+  "config": {
+    "seed": 7,
+    "ticks": 600,
+    "tmp": "/tmp/v010_capacity",
+    "out": "experiments/reports/v010_capacity.md",
+    "json": "experiments/reports/v010_capacity.json"
+  },
+  "arms": {
+    "control": {
+      "name": "control",
+      "alive_start": 81,
+      "alive": 73,
+      "births": 13,
+      "deaths": 23,
+      "starvation_deaths": 1,
+      "capacity_start": 82.95780651199422,
+      "capacity": 82.95780543233317,
+      "saturation": 0.8799654188000967,
+      "mean_soil": 0.5362556561556231,
+      "food": 2350.7888721179957,
+      "paid_food": 0.0,
+      "claims": 0,
+      "terraces": 0,
+      "refusals": 0,
+      "limits_at_start": {
+        "capacity": 5,
+        "none": 3
+      },
+      "goals": {
+        "active": 2,
+        "settling": 1,
+        "resolved": 5,
+        "resolved_with_cost": 2,
+        "collapsed": 0,
+        "transferred": 0,
+        "total": 10
+      },
+      "stalls": 2,
+      "cells": {
+        "cell:0:0": {
+          "population": 8,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:1": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:2": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:3": {
+          "population": 7,
+          "capacity": 8.82,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:1:0": {
+          "population": 9,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:1": {
+          "population": 11,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:2": {
+          "population": 10,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:3": {
+          "population": 8,
+          "capacity": 9.61,
+          "soil": 0.6019,
+          "terraces": 0
+        }
+      }
+    },
+    "claim": {
+      "name": "claim",
+      "alive_start": 81,
+      "alive": 73,
+      "births": 13,
+      "deaths": 23,
+      "starvation_deaths": 1,
+      "capacity_start": 82.95780651199422,
+      "capacity": 91.53962992263556,
+      "saturation": 0.7974688128157797,
+      "mean_soil": 0.5150653412666297,
+      "food": 2348.2776114302665,
+      "paid_food": 180.0,
+      "claims": 2,
+      "terraces": 0,
+      "refusals": 0,
+      "limits_at_start": {
+        "capacity": 5,
+        "none": 3
+      },
+      "goals": {
+        "active": 4,
+        "settling": 1,
+        "resolved": 5,
+        "resolved_with_cost": 2,
+        "collapsed": 0,
+        "transferred": 0,
+        "total": 12
+      },
+      "stalls": 2,
+      "cells": {
+        "cell:0:0": {
+          "population": 8,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:1": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:2": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:3": {
+          "population": 7,
+          "capacity": 8.82,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:4": {
+          "population": 0,
+          "capacity": 4.44,
+          "soil": 0.4786,
+          "terraces": 0
+        },
+        "cell:1:0": {
+          "population": 9,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:1": {
+          "population": 11,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:2": {
+          "population": 10,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:3": {
+          "population": 8,
+          "capacity": 9.61,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:4": {
+          "population": 0,
+          "capacity": 4.15,
+          "soil": 0.382,
+          "terraces": 0
+        }
+      }
+    },
+    "terrace": {
+      "name": "terrace",
+      "alive_start": 81,
+      "alive": 84,
+      "births": 24,
+      "deaths": 23,
+      "starvation_deaths": 1,
+      "capacity_start": 82.95780651199422,
+      "capacity": 95.24769793323165,
+      "saturation": 0.8819110784061548,
+      "mean_soil": 0.5362533740703715,
+      "food": 2643.089930968585,
+      "paid_food": 240.0,
+      "claims": 0,
+      "terraces": 4,
+      "refusals": 0,
+      "limits_at_start": {
+        "capacity": 5,
+        "none": 3
+      },
+      "goals": {
+        "active": 2,
+        "settling": 1,
+        "resolved": 7,
+        "resolved_with_cost": 1,
+        "collapsed": 0,
+        "transferred": 0,
+        "total": 11
+      },
+      "stalls": 2,
+      "cells": {
+        "cell:0:0": {
+          "population": 8,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:1": {
+          "population": 13,
+          "capacity": 13.24,
+          "soil": 0.4706,
+          "terraces": 1
+        },
+        "cell:0:2": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "terraces": 0
+        },
+        "cell:0:3": {
+          "population": 9,
+          "capacity": 11.76,
+          "soil": 0.4706,
+          "terraces": 1
+        },
+        "cell:1:0": {
+          "population": 9,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "terraces": 0
+        },
+        "cell:1:1": {
+          "population": 14,
+          "capacity": 14.42,
+          "soil": 0.6019,
+          "terraces": 1
+        },
+        "cell:1:2": {
+          "population": 13,
+          "capacity": 14.42,
+          "soil": 0.6019,
+          "terraces": 1
+        },
+        "cell:1:3": {
+          "population": 8,
+          "capacity": 9.61,
+          "soil": 0.6019,
+          "terraces": 0
+        }
+      }
+    }
+  }
+}

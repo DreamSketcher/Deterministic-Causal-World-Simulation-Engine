@@ -221,6 +221,8 @@ def create_world(
         SpatialDirectiveSystem,
         SpatialPlayerAgentSystem,
     )
+    # v0.10 capacity policy: claimable wild land and terraces.
+    from causal_world.systems.capacity import CapacityDirectiveSystem
     from causal_world.world.generator import generate_genesis
     from causal_world.world.rules import DefaultWorldRules
 
@@ -257,6 +259,7 @@ def create_world(
         "SpatialBirthSystem": SpatialBirthSystem,
         "SpatialDirectiveSystem": SpatialDirectiveSystem,
         "SpatialPlayerAgentSystem": SpatialPlayerAgentSystem,
+        "CapacityDirectiveSystem": CapacityDirectiveSystem,
     }
     default_order = [
         "ClimateSystem",
@@ -298,6 +301,16 @@ def create_world(
         archive.set_meta("ruleset_name", _ruleset_name_of(rules))
 
     systems = [registry[name]() for name in names]
+    # A ruleset may carry the parameters of a system it opts into (the
+    # v0.10 capacity prices live in the ruleset, so an experiment can
+    # vary the price without editing the system). Only declared
+    # constants are copied: no hidden wiring.
+    for system in systems:
+        for attr in getattr(rules, "system_parameters", {}).get(
+            system.name, {}
+        ):
+            if hasattr(system, attr):
+                setattr(system, attr, rules.system_parameters[system.name][attr])
     simulation = Simulation(seed, systems, rules, rng, journal=journal, index=index)
     simulation.initialize(
         generate_genesis(rng, region_count=regions, agent_count=agents, rules=rules)

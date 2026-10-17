@@ -84,6 +84,24 @@ SPATIAL_DIRECTIVE_NAMES = dict(DIRECTIVE_ALL_NAMES)
 CELL_PREFIX = "cell:"
 
 
+def is_active(snapshot, cell: str) -> bool:
+    """Is this parcel part of the working world?
+
+    A v0.10 capacity world pre-creates WILD parcels (``land_active = 0``):
+    they are land, not cells — the ecology, the census, births,
+    migration and the situation feed must ignore them until a claim
+    activates them. Every earlier spatial world has no such field, and
+    a parcel without it is an ordinary cell.
+    """
+    try:
+        value = snapshot.get(cell, "land_active")
+    except Exception:
+        return True
+    if value is None:
+        return True
+    return bool(int(value))
+
+
 # ----------------------------------------------------------------------
 # 1. The spatial law of a cell
 # ----------------------------------------------------------------------
@@ -148,7 +166,10 @@ class SpatialAgricultureSystem(CompostAgricultureSystem):
         self, snapshot: Snapshot, rng: RandomSource, context
     ) -> list[Transition]:
         out: list[Transition] = []
-        cells = context.entities(CELL_PREFIX)
+        cells = [
+            c for c in context.entities(CELL_PREFIX)
+            if is_active(snapshot, c)
+        ]
         for cell in cells:
             b = context.builder("agriculture.harvest")
             region = b.read(cell, "region")
@@ -290,15 +311,17 @@ class SpatialAgentSystem(System):
     def _census(self, context, agents: list[str]) -> list[Transition]:
         out: list[Transition] = []
         snapshot = context.snapshot
-        members: dict[str, list[str]] = {
-            cell: [] for cell in context.entities(CELL_PREFIX)
-        }
+        active = [
+            c for c in context.entities(CELL_PREFIX)
+            if is_active(snapshot, c)
+        ]
+        members: dict[str, list[str]] = {cell: [] for cell in active}
         for agent in agents:
             cell = snapshot.get(agent, "cell")
             if cell in members:
                 members[cell].append(agent)
 
-        for cell in context.entities(CELL_PREFIX):
+        for cell in active:
             b = context.builder("agents.census", priority=1)
             alive_count = 0
             for agent in members[cell]:
@@ -319,7 +342,7 @@ class SpatialAgentSystem(System):
 
         # Region aggregate: the sum over the region's cells.
         by_region: dict[str, list[str]] = {}
-        for cell in context.entities(CELL_PREFIX):
+        for cell in active:
             by_region.setdefault(snapshot.get(cell, "region"), []).append(cell)
         for region in context.entities("region:"):
             b = context.builder("agents.aggregate", priority=1)
@@ -437,6 +460,8 @@ class SpatialAgentSystem(System):
         region = snapshot.get(cell, "region")
         by_xy: dict[tuple[int, int], str] = {}
         for other in context.entities(CELL_PREFIX):
+            if not is_active(snapshot, other):
+                continue  # wild land is not walkable
             if snapshot.get(other, "region") != region:
                 continue
             by_xy[(int(snapshot.get(other, "cell_x")),
@@ -523,6 +548,8 @@ class SpatialBirthSystem(System):
 
         claimed: set[str] = set()
         for cell in context.entities(CELL_PREFIX):
+            if not is_active(snapshot, cell):
+                continue
             parents = mature_by_cell.get(cell)
             if not parents:
                 continue
@@ -661,7 +688,7 @@ class SpatialPlayerAgentSystem(PlayerAgentSystem):
         cells = [
             c
             for c in context.entities(CELL_PREFIX)
-            if snapshot.get(c, "region") == nxt
+            if snapshot.get(c, "region") == nxt and is_active(snapshot, c)
         ]
         if cells:
             b.write(agent, "cell", cells[0])

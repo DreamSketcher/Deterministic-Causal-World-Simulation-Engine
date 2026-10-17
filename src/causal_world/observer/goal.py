@@ -46,6 +46,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from causal_world.observer.situation import (
+    BIRTH_STALL_TICKS,
     FOOD_EMPTY,
     THIN_SOIL,
     Alert,
@@ -80,6 +81,9 @@ GOAL_OF_SIGNAL = {
     "abandoned": "resettle",
     "birth_stall": "renew",
 }
+#: Episodes the history can reconstruct on its own (the birth stall is a
+#: property of the cell's OWN counter ``births_total``, so it can).
+HISTORY_GOALS = ("feed", "restore_soil", "resettle", "renew")
 #: Which signals are "the same problem" when it moves to a neighbour.
 SIGNAL_FAMILY = {
     "feed": {"famine", "hunger"},
@@ -130,6 +134,13 @@ class Verdict:
     soil_close: float = 0.0
     related: tuple[str, ...] = ()
     evidence: tuple = field(default_factory=tuple)
+    births_open: int = 0
+    births_close: int = 0
+    #: ``established`` — the verdict is a rule over recorded numbers;
+    #: ``hypothesis`` — the verdict is a plausible reading that the
+    #: records do NOT prove (``transferred``: proximity and time order
+    #: are not causality). The client must not draw them alike.
+    confidence: str = "established"
 
     @property
     def solved(self) -> bool:
@@ -145,8 +156,11 @@ class Verdict:
             "population_close": self.population_close,
             "soil_open": round(float(self.soil_open), 4),
             "soil_close": round(float(self.soil_close), 4),
+            "births_open": self.births_open,
+            "births_close": self.births_close,
             "related": list(self.related),
             "evidence": [dict(e) for e in self.evidence],
+            "confidence": self.confidence,
         }
 
 
@@ -155,12 +169,14 @@ class Verdict:
 # ----------------------------------------------------------------------
 def _bad_signal(kind: str, population: int, food_pc: float, soil: float) -> bool:
     if kind == "feed":
-        return food_pc <= FOOD_EMPTY
+        # An empty cell cannot starve: "no people" is the abandoned
+        # goal, and a famine episode there would be noise.
+        return population > 0 and food_pc <= FOOD_EMPTY
     if kind == "restore_soil":
         return soil < THIN_SOIL
     if kind == "resettle":
         return population == 0
-    return False  # "renew" needs birth timestamps: served by the live alerts
+    return False  # "renew" is read from births_total (see _renew_episodes)
 
 
 def episodes(
@@ -174,14 +190,18 @@ def episodes(
 
     An episode opens on the first tick the signal holds and closes after
     ``RECOVERY_TICKS`` consecutive ticks without it. The ticks come from
-    the population/food/soil series of the scope — the same fields the
-    situation layer reads, so the two layers cannot disagree about what
-    the world said.
+    the scope's own series — the same fields the situation layer reads,
+    so the two layers cannot disagree about what the world said.
+
+    The ``renew`` goal is read from the cell's ``births_total`` counter:
+    a stall opens when no child has been born for ``BIRTH_STALL_TICKS``
+    and closes on the tick the counter moves. No separate bookkeeping,
+    and the archive and the live world see the same episodes.
     """
+    if kind == "renew":
+        return _renew_episodes(history, scope, last_tick)
     signal = "famine" if kind == "feed" else (
-        "thin_soil" if kind == "restore_soil" else (
-            "abandoned" if kind == "resettle" else "birth_stall"
-        )
+        "thin_soil" if kind == "restore_soil" else "abandoned"
     )
     ticks = sorted(
         {t for t, _ in history.series(scope, "population")}
@@ -219,9 +239,50 @@ def episodes(
     return out
 
 
+def _renew_episodes(
+    history: FieldHistory, scope: str, last_tick: int | None
+) -> list[Goal]:
+    """Birth stalls, read from the cell's own ``births_total`` counter."""
+    births = history.series(scope, "births_total")
+    ticks = sorted({t for t, _ in births}
+                   | {t for t, _ in history.series(scope, "population")})
+    if last_tick is not None:
+        ticks = [t for t in ticks if t <= last_tick]
+    out: list[Goal] = []
+    opened: int | None = None
+    last_change: int | None = None
+    last_value = None
+    for tick in ticks:
+        value = history.value_at(scope, "births_total", tick)
+        if value != last_value:
+            # a birth (or the first reading) resets the clock
+            if opened is not None:
+                out.append(Goal("renew", scope, "birth_stall", opened, tick))
+                opened = None
+            last_change = tick
+            last_value = value
+        if opened is None:
+            population = int(history.value_at(scope, "population", tick) or 0)
+            if (
+                population > 0
+                and last_change is not None
+                and tick - last_change > BIRTH_STALL_TICKS
+            ):
+                opened = last_change
+    if opened is not None:
+        out.append(Goal("renew", scope, "birth_stall", opened, None))
+    return out
+
+
 # ----------------------------------------------------------------------
 # Deciding whether a goal was actually solved
 # ----------------------------------------------------------------------
+def _active(view: StateView, cell: str) -> bool:
+    """A wild parcel (``land_active = 0``) is land, not a goal scope."""
+    value = view.get(cell, "land_active")
+    return True if value is None else bool(int(value))
+
+
 def _neighbours(scope: str, view: StateView) -> list[str]:
     """The orthogonal neighbours of a cell (empty for region worlds).
 
@@ -239,6 +300,8 @@ def _neighbours(scope: str, view: StateView) -> list[str]:
         return []
     out = []
     for other in view.entities_with_prefix("cell:"):
+        if not _active(view, other):
+            continue
         if view.get(other, "region") != region:
             continue
         ox, oy = view.get(other, "cell_x"), view.get(other, "cell_y")
@@ -261,15 +324,22 @@ def evaluate(
     *,
     tick: int,
     neighbours: list[str] | None = None,
+    settle_ticks: int | None = None,
 ) -> Verdict:
-    """The five-way verdict for one goal.
+    """The verdict for one goal.
 
     ``alerts`` are the CURRENT alerts (as of ``tick``), so the caller
     does not have to reconstruct the feed at the closing tick.
+    ``settle_ticks`` overrides the default watch window: the v0.10
+    sensitivity experiment changes it to ask how much the verdict
+    depends on the chosen horizon.
     """
+    window = SETTLE_TICKS if settle_ticks is None else int(settle_ticks)
     closed = goal.closed_tick
-    # The system is watched for SETTLE_TICKS after the signal goes away.
-    at = tick if closed is None else min(tick, closed + SETTLE_TICKS)
+    # The system is watched for the whole window after the signal goes
+    # away (SETTLE_TICKS by default; the parameter exists so the choice
+    # can be MEASURED, not asserted).
+    at = tick if closed is None else min(tick, closed + window)
     pop_open = int(history.value_at(goal.scope, "population", goal.opened_tick) or 0)
     pop_close = int(history.value_at(goal.scope, "population", at) or 0)
     pop_at_close = (
@@ -280,6 +350,9 @@ def evaluate(
         history.value_at(goal.scope, "soil_fertility", goal.opened_tick) or 0.0
     )
     soil_close = float(history.value_at(goal.scope, "soil_fertility", at) or 0.0)
+    births_open = int(history.value_at(goal.scope, "births_total",
+                                       goal.opened_tick) or 0)
+    births_close = int(history.value_at(goal.scope, "births_total", at) or 0)
 
     here = [a for a in alerts if a.scope == goal.scope]
     family = SIGNAL_FAMILY[goal.kind]
@@ -323,18 +396,18 @@ def evaluate(
             pop_open, pop_close, soil_open, soil_close,
             tuple(related), tuple(evidence),
         )
-    if closed + SETTLE_TICKS > tick:
+    if closed + window > tick:
         return Verdict(
             goal, "settling",
             f"{goal.signal} ушёл на тике {closed}; последствия ещё "
-            f"наблюдаются ({tick - closed} из {SETTLE_TICKS} тиков) — "
+            f"наблюдаются ({tick - closed} из {window} тиков) — "
             f"объявлять победу рано",
             pop_open, pop_close, soil_open, soil_close,
             tuple(related), tuple(evidence),
         )
 
     # 3. The signal is gone and the settling window has passed.
-    if goal.kind in ("feed", "restore_soil", "resettle"):
+    if goal.kind in ("feed", "restore_soil", "resettle", "renew"):
         if pop_close == 0:
             return Verdict(
                 goal, "collapsed",
@@ -352,14 +425,47 @@ def evaluate(
                 tuple(related), tuple(evidence),
             )
 
-    if transferred_to and pop_open > 0 and pop_close / pop_open >= COST_POP_SHARE:
+    if goal.kind == "renew":
+        # A birth stall ends when a child is born. That is the fact; the
+        # question is whether the cell can now GROW.
+        if births_close <= births_open:
+            return Verdict(
+                goal, "active",
+                f"рождений в {goal.scope} так и нет "
+                f"({births_open} за эпизод) — предел не снят",
+                pop_open, pop_close, soil_open, soil_close,
+                tuple(related), tuple(evidence),
+            )
+        if pop_close <= pop_open:
+            return Verdict(
+                goal, "resolved_with_cost",
+                f"рождения возобновились ({births_open} → {births_close}), "
+                f"но население не выросло ({pop_open} → {pop_close}): "
+                f"смертность съела прирост",
+                pop_open, pop_close, soil_open, soil_close,
+                tuple(related), tuple(evidence),
+                births_open=births_open, births_close=births_close,
+            )
+
+    # "Transferred" is a statement about a PROBLEM MOVING between places.
+    # A birth stall is not a place-bound problem, and it has its own
+    # verdict above; it must never fall through to this reading.
+    if (
+        goal.kind in ("feed", "restore_soil", "resettle")
+        and transferred_to
+        and pop_open > 0
+        and pop_close / pop_open >= COST_POP_SHARE
+    ):
         return Verdict(
             goal, "transferred",
-            f"{goal.signal} ушёл из {goal.scope}, но появился рядом: "
-            f"{', '.join(sorted(set(transferred_to)))} — проблема "
-            f"переехала, а не исчезла",
+            f"ПРЕДПОЛОЖЕНИЕ (не доказано): {goal.signal} ушёл из "
+            f"{goal.scope}, но появился рядом: "
+            f"{', '.join(sorted(set(transferred_to)))} — проблема могла "
+            f"переехать, а могла возникнуть сама; близость и время не "
+            f"доказывают перенос причины",
             pop_open, pop_close, soil_open, soil_close,
             tuple(related), tuple(evidence),
+            confidence="hypothesis",
         )
 
     if goal.kind == "restore_soil" and soil_close < THIN_SOIL:
@@ -388,6 +494,7 @@ def evaluate(
         f"почва {soil_open:.2f} → {soil_close:.2f}: система цела",
         pop_open, pop_close, soil_open, soil_close,
         tuple(related), tuple(evidence),
+        births_open=births_open, births_close=births_close,
     )
 
 
@@ -430,13 +537,14 @@ def goals(
     with the same seed produce the same feed in the same order.
     """
     if scopes is None:
-        scopes = (
-            view.entities_with_prefix("cell:")
-            or view.entities_with_prefix("region:")
-        )
+        cells = [
+            c for c in view.entities_with_prefix("cell:")
+            if _active(view, c)
+        ]
+        scopes = cells or view.entities_with_prefix("region:")
     verdicts: list[Verdict] = []
     for scope in scopes:
-        for kind in ("feed", "restore_soil", "resettle"):
+        for kind in HISTORY_GOALS:
             for goal in episodes(history, scope, kind, last_tick=tick):
                 closed = goal.closed_tick
                 if closed is not None and closed < tick - window:

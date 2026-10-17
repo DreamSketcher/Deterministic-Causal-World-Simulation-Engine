@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 252 tests
+python -m pytest          # 318 tests
 ```
 
 | spec test | where |
@@ -894,6 +894,126 @@ bounds, both orders in the journal, the frame answer) and
 `tests/test_v09_goals.py` (15: episodes, the collapse-by-extinction case,
 settling, transfer, cost). The v0.6 frozen world still hashes bit-for-bit.
 
+## v0.10 — Capacity: a named limit, priced land, and an honest window
+
+The v0.9 grid left three questions open, and this stage answers them with
+measurements rather than with new policy surface.
+
+### 1. A limit is now named, not guessed
+
+`situation.growth_limit` no longer says "capacity or food". It reads the
+birth law's own arithmetic and returns one of:
+
+| limit | condition |
+|---|---|
+| `capacity` | `population >= round(pop_base × (1 + soil))` — the law's rounding, not a float compare |
+| `food` | `food_stock / population <= 3.0` |
+| `soil` | `soil_fertility < 0.35` with room and food available |
+| `adults` | no living agent in the cell is older than the reproduction age (20) |
+| `pool` | the world has no free lives (dormant slots) left |
+| `none` | no gate of the law is closed at this instant |
+
+The last two came out of measurement: at tick 400 three cells sat below
+capacity with food in store and still had no births. A reader that says
+"nothing" there lies to the player; so the observer says which gate is
+shut. `birth_stall` carries `detail["limit"]`, and the map prints
+`предел N · лимит: ёмкость`.
+
+### 2. Land is a transition, not a config edit
+
+`CapacityRules` (0.10.0) adds two levers, both ordinary journaled
+transitions:
+
+* **claim** (`DIRECTIVE_CLAIM = 4`) — 90 food from the region's richest
+  cell turns a wild parcel (`land_active = 0`, `cell:{r}:4..5`) into
+  farmed land. `claim_done` / `claim_no_food` / `claim_already` are
+  explicit answers; a refusal is visible in the journal, never silent.
+* **terrace** (`DIRECTIVE_TERRACE = 5`) — 60 food + 0.04 soil for
+  `+2 pop_base`, at most three per cell; costs are checked against the
+  `old − new` writes of the SAME transition, because a snapshot taken
+  before the tick would compare against food the world already ate.
+
+Wild parcels are filtered out of ecology, alerts, goals and migration
+(`spatial.is_active`); they are land in the snapshot, not hidden state.
+
+### 3. The verdict window is measured, not chosen
+
+`evaluate(..., settle_ticks)` takes the window as a parameter, and
+`experiments/v010_settle_sensitivity.py` replays ONE archive (seed 7,
+54 agents, 600 ticks) at 20 / 50 / 100 ticks:
+
+**8 of 21 goals change verdict** in at least one window. The usual
+pattern is `resolved` at 20 becoming `settling` at 50/100; one goal goes
+`resolved → resolved_with_cost → settling`. The UI must therefore show
+the horizon next to a verdict, or "solved" reads as a property of the
+world instead of a property of the observation.
+
+`transferred` is now always `confidence="hypothesis"` with text starting
+"ПРЕДПОЛОЖЕНИЕ (не доказано)", and a `renew` episode can never become
+`transferred` — a birth stall is not a problem that moves next door.
+`test_a_renew_goal_never_becomes_transferred` pins this.
+
+### 4. Three arms: price and result
+
+`experiments/v010_capacity.py` — seed 7, 54 agents, the v0.8 protocol
+until tick 400 (the world at its ceiling), then 200 ticks:
+
+| arm | alive | capacity | births | food paid |
+|---|---:|---:|---:|---:|
+| control | 73 | 83 | 13 | 0 |
+| claim | 73 | 92 | 13 | 180 |
+| terrace | 84 | 95 | 24 | 240 |
+
+The claim is a **measured failure as a growth policy**: room grew by 9,
+but nobody moved in, because migration in the law fires on hunger and a
+fed world does not hunger. The report says so instead of hiding it; the
+`resettle` goal stays open. Terraces are a success with a price: +12
+capacity, 24 births against 13, no soil difference at report precision.
+
+### 5. Regimes mix, so a single grid is not proof
+
+`experiments/v010_regimes.py` — 24 points (seeds 7/11/23/31 × 36/54/72 ×
+baseline/decrees), 600 ticks. The regime is read from the baseline
+world's OUTCOME (fall ≥ 15 % → `degradation`; final saturation ≥ 85 % →
+`saturation`; otherwise `equilibrium`), never from one window:
+
+| regime | points | mean Δ alive | mean Δ births |
+|---|---:|---:|---:|
+| degradation | 6 | +26.7 | +37.7 |
+| equilibrium | 2 | +42.5 | +66.0 |
+| saturation | 4 | +4.8 | +11.5 |
+
+In v0.9 "0 trade-offs in 9" sounded like a property of the law. It is a
+property of the basket: in saturation the same protocol buys +4.8 people
+and costs food and soil. So the interface must show the regime beside
+the effect — the same lever is a cure in degradation and a spend in
+saturation.
+
+Commands:
+
+```
+python3 experiments/v010_regimes.py --ticks 600
+python3 experiments/v010_settle_sensitivity.py --ticks 600
+python3 experiments/v010_capacity.py
+python3 -m causal_world civic --ruleset player_capacity --ticks 40 \
+        --decree 10:claim:cell:0:4 --decree 12:terrace:cell:0:0
+python3 -m causal_world serve --host 0.0.0.0 --port 8811
+```
+
+Tests: **318** — `tests/test_v010_capacity.py` (20: wild land is not
+ecology, claim price and refusal, terrace cost checked by the same
+transition, the four limits, `renew` episodes, the sensitivity of the
+settle window, `transferred` is a hypothesis, a renew goal never becomes
+transferred, the server frame). The v0.6 frozen world still hashes
+bit-for-bit.
+
+Honest limits: one seed and one protocol in the capacity arms; the
+"starvation death" is a proxy (hunger ≥ 0.75 on the last living tick),
+not a cause read from a transition; the measures are dependent and do not
+give independent confirmations; the window sensitivity is measured in one
+world; `growth_limit` names a closed gate now, it does not predict a
+birth.
+
 ## Roadmap
 
 ```
@@ -923,9 +1043,10 @@ v0.9  Verifiable loop: explicit order contract (accepted / queued /
       rejected), goals with honest completion (collapse ≠ resolution),
       reproducibility grid over seeds and starting populations, measured
       capacity ceiling; the success creates the next problem (this branch)
-v0.10 Capacity policy: raise `pop_base` with a cost (new land, terraces),
-      long-term charters with expiry, resettlement — measured BEFORE
-      shipping, since the ceiling decides whether they can matter
+v0.10 Capacity policy: wild land claimed by a priced transition, terraces
+      that buy capacity with food and soil, a named growth limit, and a
+      measured verdict window; resettlement is measured as missing, not
+      shipped (this branch)
 v0.11 100k+ agents: memory layout, sparse state, batching,
       spatial partitioning, parallel execution, compressed provenance
 v1.0  Large artificial world

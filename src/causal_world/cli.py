@@ -142,7 +142,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     civic_p.add_argument("--seed", type=int, default=7)
     civic_p.add_argument("--ruleset", default="player_spatial",
-                         help="player_spatial (v0.8 cell world) | "
+                         help="player_capacity (v0.10 cells + land/terraces) | "
+                              "player_spatial (v0.8 cell world) | "
                               "player_civic (v0.7 region world) | "
                               "player_life (v0.6)")
     civic_p.add_argument("--regions", type=int, default=2)
@@ -593,11 +594,17 @@ def _cmd_civic(args: argparse.Namespace) -> int:
     )
     from causal_world.observer.hypothesis import Hypothesis
     from causal_world.systems.directive import (
-        DIRECTIVE_ALL_NAMES,
+        DIRECTIVE_CAPACITY_NAMES,
         Directive,
     )
 
-    kinds = {name: code for code, name in DIRECTIVE_ALL_NAMES.items()}
+    # The card of the world about to be created: the capacity ruleset
+    # knows two levers more, and the CLI must not offer a lever the
+    # world cannot enact (nor hide one it can).
+    kinds = {name: code for code, name in DIRECTIVE_CAPACITY_NAMES.items()}
+    if args.ruleset not in ("player_capacity",):
+        kinds.pop("claim", None)
+        kinds.pop("terrace", None)
     tmpdir = None
     if args.db:
         db_path = args.db
@@ -623,8 +630,13 @@ def _cmd_civic(args: argparse.Namespace) -> int:
                   f"(expected TICK:KIND:TARGET[:PARAM])", file=sys.stderr)
             return 2
         tick, kind = int(parts[0]), parts[1]
-        param = float(parts[-1]) if len(parts) > 3 else 0.25
-        target = ":".join(parts[2:-1]) if len(parts) > 3 else parts[2]
+        if kind in ("claim", "terrace"):
+            # These levers take no parameter: the whole tail is the
+            # parcel ("10:claim:cell:0:4"), never silently cut to "cell:0".
+            param, target = 0.0, ":".join(parts[2:])
+        else:
+            param = float(parts[-1]) if len(parts) > 3 else 0.25
+            target = ":".join(parts[2:-1]) if len(parts) > 3 else parts[2]
         if kind not in kinds:
             print(f"error: unknown decree kind {kind!r} "
                   f"(have {', '.join(sorted(kinds))})", file=sys.stderr)
@@ -695,6 +707,10 @@ def _cmd_civic(args: argparse.Namespace) -> int:
         print("cells:")
         for cell in obs["cells"]:
             law = cell.get("law") or {}
+            if cell.get("land_active") == 0:
+                print(f"  {cell['id']:<12} целина (не заявлена)  "
+                      f"soil {cell['soil_fertility']:.3f}")
+                continue
             print(f"  {cell['id']:<12} pop {cell['population']:>3}  "
                   f"soil {cell['soil_fertility']:.3f}  "
                   f"food {cell['food_stock']:7.1f}  "

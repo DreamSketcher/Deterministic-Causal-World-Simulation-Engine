@@ -48,6 +48,7 @@ from causal_world.observer.goal import goals as goal_verdicts
 from causal_world.observer.situation import (
     FieldHistory,
     StateView,
+    growth_limit,
     situations,
 )
 from causal_world.player import DecisionChannel, attach_player_channel
@@ -468,6 +469,7 @@ class Session:
         transition ids they rest on.
         """
         st = self.sim.state
+        st_view = StateView.from_state(st)
         regions = []
         for region in st.entities_with_prefix("region:"):
             row = {
@@ -501,7 +503,30 @@ class Session:
                 "soil_fertility": st.get(cell, "soil_fertility"),
                 "food_stock": st.get(cell, "food_stock"),
                 "rain_factor": st.get(cell, "rain_factor"),
+                # v0.10: wild land is drawn as land waiting, not as a
+                # dead cell; the limit says what blocks growth (if
+                # anything) so the player does not have to guess.
+                "land_active": (
+                    st.get(cell, "land_active")
+                    if st.has(cell, "land_active") else 1
+                ),
+                "capacity": (
+                    float(st.get(cell, "pop_base") or 0)
+                    * (1.0 + float(st.get(cell, "soil_fertility") or 0))
+                ),
+                "claim_state": (
+                    st.get(cell, "claim_state")
+                    if st.has(cell, "claim_state") else 0
+                ),
+                "terraces": (
+                    st.get(cell, "terraces")
+                    if st.has(cell, "terraces") else 0
+                ),
             }
+            if row["land_active"]:
+                row["limit"] = growth_limit(
+                    st_view, cell, int(st.tick)
+                )["limit"]
             if st.has(cell, "labor_diversion"):
                 row["law"] = {
                     "labor_diversion": st.get(cell, "labor_diversion"),
@@ -540,7 +565,8 @@ class Session:
         scopes = (st.entities_with_prefix("cell:")
                   or st.entities_with_prefix("region:"))
         for scope in scopes:
-            for field_name in ("population", "food_stock", "soil_fertility"):
+            for field_name in ("population", "food_stock", "soil_fertility",
+                               "births_total"):
                 if st.has(scope, field_name):
                     self._history.add(scope, field_name, tick,
                                       st.get(scope, field_name))

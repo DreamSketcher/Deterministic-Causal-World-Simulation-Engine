@@ -173,7 +173,9 @@ function renderDecrees() {
   const targets = decreeTargets();
   box.innerHTML = "<h3>Устав — приказы правителю</h3>" +
     "<p>Приказ вступает в силу со следующего тика и пишется в журнал " +
-    "как обычный переход: его можно найти в бюджете причин.</p>";
+    "как обычный переход: его можно найти в бюджете причин. " +
+    "Для <b>claim</b> и <b>terrace</b> сила не нужна: цену платит мир " +
+    "(еда и почва), а ответ записывается в состояние клетки.</p>";
   const mk = (label, options, current) => {
     const sel = document.createElement("select");
     for (const [v, t] of options) {
@@ -232,6 +234,10 @@ function renderDecrees() {
       ? state.world.cells : (state.world.regions || []);
     law.innerHTML = scopes.map(s =>
       `<span class="badge hypothesis">${s.id}: ` +
+      (s.land_active === 0 ? "целина (можно заявить) · " : "") +
+      (s.land_active !== 0 && s.capacity
+        ? `предел ${Math.round(s.capacity)}${s.limit && s.limit !== "none"
+            ? " · лимит: " + (LIMIT_WORDS[s.limit] || s.limit) : ""}, ` : "") +
       (s.law ? `отвод ${(s.law.labor_diversion).toFixed(2)}, ` +
                `полив ${(s.law.water_aid).toFixed(2)}` +
                (s.law.nursery ? `, ясли ${(s.law.nursery).toFixed(2)}` : "") +
@@ -273,13 +279,18 @@ function renderSituations() {
 
 // A goal is a problem with a verdict: the world says not only whether the
 // signal disappeared, but whether the PEOPLE and the LAND survived it.
+const LIMIT_WORDS = {
+  capacity: "ёмкость", food: "еда", soil: "земля",
+  adults: "нет взрослых", pool: "резерв жизней", none: "нет",
+};
+
 const GOAL_STATUS = {
   active: ["confirmed", "идёт"],
   settling: ["hypothesis", "проверяем"],
   resolved: ["resolved", "решено"],
   resolved_with_cost: ["hypothesis", "решено с ценой"],
   collapsed: ["refuted", "катастрофа"],
-  transferred: ["refuted", "переехало"],
+  transferred: ["hypothesis", "рядом, не доказано"],
 };
 
 function renderGoals() {
@@ -297,7 +308,9 @@ function renderGoals() {
     const [cls, label] = GOAL_STATUS[g.status] || ["hypothesis", g.status];
     const e = document.createElement("div");
     e.className = "problem sev-" + (g.status === "collapsed" ? "high" : "low");
-    e.innerHTML = `<span class="badge ${cls}">${label}</span> ` +
+    const conf = g.confidence === "hypothesis"
+      ? `<span class="badge hypothesis">предположение</span> ` : "";
+    e.innerHTML = `<span class="badge ${cls}">${label}</span> ` + conf +
       `<b>${g.kind}</b> ${g.scope} · с тика ${g.opened_tick}` +
       (g.closed_tick !== null && g.closed_tick !== undefined
         ? `, закрыт ${g.closed_tick}` : "") +
@@ -412,10 +425,38 @@ function renderCells(svg, cells) {
     const g = document.createElementNS(SVG, "g");
     g.setAttribute("class", "region" + (state.selected === c.id ? " sel" : ""));
     g.onclick = () => { state.selected = c.id; renderMap(); fillEntities(); };
+    if (c.land_active === 0) {
+      // Wild land: part of the state, not a cell yet. Drawn flat and
+      // dashed so the map never pretends it is inhabited.
+      const flat = document.createElementNS(SVG, "polygon");
+      flat.setAttribute("class", "tile wild");
+      flat.setAttribute("points",
+        `${cx},${cy - th / 2} ${cx + tw / 2},${cy} ` +
+        `${cx},${cy + th / 2} ${cx - tw / 2},${cy}`);
+      flat.setAttribute("fill", "#1d242b");
+      flat.setAttribute("stroke", "#6b7c8c");
+      flat.setAttribute("stroke-dasharray", "5 4");
+      g.appendChild(flat);
+      const t = document.createElementNS(SVG, "text");
+      t.setAttribute("x", cx); t.setAttribute("y", cy + 4);
+      t.setAttribute("text-anchor", "middle");
+      t.textContent = `${c.id.replace("cell:", "")} · целина`;
+      g.appendChild(t);
+      const sub2 = document.createElementNS(SVG, "text");
+      sub2.setAttribute("class", "sub");
+      sub2.setAttribute("x", cx); sub2.setAttribute("y", cy + 18);
+      sub2.setAttribute("text-anchor", "middle");
+      sub2.textContent = `почва ${(c.soil_fertility || 0).toFixed(2)} · ` +
+        `предел ${Math.round(c.capacity || 0)}`;
+      g.appendChild(sub2);
+      svg.appendChild(g);
+      continue;
+    }
     const d = Object.assign({}, c, {pop_max: popMax, food_max: foodMax});
     const label = c.id.replace("cell:", "");
     const sub = `почва ${(c.soil_fertility || 0).toFixed(2)} · ` +
-      `еда ${Math.round(c.food_stock || 0)} · нас. ${c.population || 0}`;
+      `еда ${Math.round(c.food_stock || 0)} · нас. ${c.population || 0}` +
+      ` · предел ${Math.round(c.capacity || 0)}`;
     drawTile(g, cx, cy, tw, th, d, label, sub);
     svg.appendChild(g);
   }

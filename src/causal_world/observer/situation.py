@@ -36,6 +36,25 @@ THIN_SOIL = 0.35          #: soil points: below this the land is spent
 SURPLUS_FOOD_PC = 40.0    #: rations per person: more than this is waste
 BIRTH_STALL_TICKS = 40    #: no birth for this long in a living cell
 POOL_LOW_SHARE = 0.15     #: free reserve of lives below this share
+#: v0.10: the same thresholds the birth law uses, so the LIMIT diagnosis
+#: and the refusal of a conception cannot disagree about the world.
+BIRTH_FOOD_PC_MIN = 3.0   #: below this the birth law refuses to conceive
+#: The things that can stop growth. Stated as the world's own answer
+#: ("what binds") instead of the old "capacity or food". The last two
+#: exist because a birth stall is not always about land or stores: an
+#: empty-of-adults cell cannot conceive, and an exhausted reserve of
+#: lives cannot supply a child anywhere.
+LIMIT_CAPACITY = "capacity"
+LIMIT_FOOD = "food"
+LIMIT_SOIL = "soil"
+LIMIT_ADULTS = "adults"
+LIMIT_POOL = "pool"
+LIMIT_NONE = "none"
+
+#: The reproduction age of the birth law (must match
+#: ``SpatialBirthSystem.MATURITY``): the observer must not disagree with
+#: the law about who can have a child.
+BIRTH_MATURITY = 20
 
 
 @dataclass(frozen=True)
@@ -48,6 +67,10 @@ class Alert:
     since_tick: int
     message: str
     evidence: tuple = field(default_factory=tuple)
+    #: Structured reading behind the alert (v0.10): e.g. the limit that
+    #: binds a cell's growth and the numbers it was read from. The client
+    #: may show it, but the message already states it in words.
+    detail: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -57,6 +80,7 @@ class Alert:
             "since_tick": self.since_tick,
             "message": self.message,
             "evidence": [dict(e) for e in self.evidence],
+            "detail": dict(self.detail),
         }
 
 
@@ -308,6 +332,97 @@ def _last_food_pc_tick(history: FieldHistory, scope: str, pred):
     return last
 
 
+def _is_active(view: "StateView", cell: str) -> bool:
+    """A wild parcel is land, not a cell: it has no people and no alerts.
+
+    Earlier spatial worlds have no ``land_active`` field: a parcel
+    without it is an ordinary cell.
+    """
+    value = view.get(cell, "land_active")
+    return True if value is None else bool(int(value))
+
+
+def growth_limit(view: "StateView", scope: str,
+                 tick: int | None = None) -> dict:
+    """What stops a cell from growing, in the world's own numbers.
+
+    The v0.8 alert said "capacity or food". The player deserves the
+    actual answer, computed with the SAME arithmetic the birth law uses:
+
+    * ``capacity`` — the head count has reached the capacity the law
+      computes (``round(pop_base x (1+soil))`` — the law ROUNDS, so the
+      observer rounds too, or it would call a cell "not full" while the
+      law refuses to conceive in it);
+    * ``food``     — the stores are below ``BIRTH_FOOD_PC_MIN`` per head;
+    * ``soil``     — room and food are there, but the land is spent;
+    * ``adults``   — nobody in the cell is old enough to conceive;
+    * ``pool``     — the world has no free lives left to supply a child;
+    * ``none``     — nothing in the model blocks a birth right now.
+
+    Stated as a reading, not a prediction: it says which of the law's
+    own gates is closed, not what will happen next.
+    """
+    population = int(view.get(scope, "population", 0) or 0)
+    soil = float(view.get(scope, "soil_fertility", 0.0) or 0.0)
+    food = float(view.get(scope, "food_stock", 0.0) or 0.0)
+    pop_base = int(view.get(scope, "pop_base", 0) or 0)
+    # the law's own arithmetic (SpatialBirthSystem.compute)
+    capacity = int(round(pop_base * (1.0 + soil)))
+    food_pc = food / max(population, 1)
+    base = {"population": population, "capacity": capacity,
+            "food_pc": round(food_pc, 2), "soil": round(soil, 3)}
+    if capacity > 0 and population >= capacity:
+        return {**base, "limit": LIMIT_CAPACITY}
+    if population > 0 and food_pc <= BIRTH_FOOD_PC_MIN:
+        return {**base, "limit": LIMIT_FOOD}
+    if population > 0 and soil < THIN_SOIL:
+        return {**base, "limit": LIMIT_SOIL}
+    if tick is not None and population > 0:
+        adults = adults_in_cell(view, scope, tick)
+        base["adults"] = adults
+        if adults == 0:
+            return {**base, "limit": LIMIT_ADULTS}
+        if free_lives(view) == 0:
+            return {**base, "limit": LIMIT_POOL}
+    return {**base, "limit": LIMIT_NONE}
+
+
+def adults_in_cell(view: "StateView", scope: str, tick: int) -> int:
+    """Alive agents in the cell older than the reproduction age."""
+    count = 0
+    for agent in view.entities_with_prefix("agent:"):
+        if not view.get(agent, "alive"):
+            continue
+        if view.get(agent, "cell") != scope:
+            continue
+        birth_tick = view.get(agent, "birth_tick")
+        if birth_tick is None:
+            continue
+        if tick - int(birth_tick) > BIRTH_MATURITY:
+            count += 1
+    return count
+
+
+def free_lives(view: "StateView") -> int:
+    """The world's unused reserve of lives (dormant slots with no region)."""
+    free = 0
+    for entity in view.entities_with_prefix("agent:"):
+        if view.get(entity, "region") == "none":
+            free += 1
+    return free
+
+
+#: How each limit is said in words.
+LIMIT_WORDS = {
+    LIMIT_CAPACITY: "ёмкость",
+    LIMIT_FOOD: "еда",
+    LIMIT_SOIL: "земля",
+    LIMIT_ADULTS: "нет взрослых",
+    LIMIT_POOL: "резерв жизней",
+    LIMIT_NONE: "ничего",
+}
+
+
 def situations(
     journal_or_view,
     *,
@@ -335,7 +450,10 @@ def situations(
         return []
     tick = current_tick if current_tick is not None else view.max_tick()
 
-    cells = view.entities_with_prefix("cell:")
+    cells = [
+        c for c in view.entities_with_prefix("cell:")
+        if _is_active(view, c)
+    ]
     regions = view.entities_with_prefix("region:")
     scopes = cells or regions
 
@@ -470,6 +588,7 @@ def situations(
         if last_birth:
             stalled = tick - int(last_birth)
             if stalled > BIRTH_STALL_TICKS:
+                limit = growth_limit(view, scope, tick)
                 alerts.append(
                     Alert(
                         kind="birth_stall",
@@ -477,10 +596,16 @@ def situations(
                         severity=0.5,
                         since_tick=int(last_birth),
                         message=(
-                            f"{scope}: рождений нет уже {stalled} "
-                            f"тиков — ёмкость или еда не дают"
+                            f"{scope}: рождений нет уже {stalled} тиков — "
+                            f"предел: {LIMIT_WORDS.get(limit['limit'], limit['limit'])}"
+                            + (
+                                f" ({limit['population']} из "
+                                f"{limit['capacity']:.0f})"
+                                if limit["limit"] == LIMIT_CAPACITY else ""
+                            )
                         ),
                         evidence=tuple(evidence),
+                        detail=limit,
                     )
                 )
 

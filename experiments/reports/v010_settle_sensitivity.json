@@ -1,0 +1,3050 @@
+{
+  "config": {
+    "seed": 7,
+    "ticks": 600,
+    "tmp": "/tmp/v010_settle",
+    "out": "experiments/reports/v010_settle_sensitivity.md",
+    "json": "experiments/reports/v010_settle_sensitivity.json"
+  },
+  "windows": [
+    20,
+    50,
+    100
+  ],
+  "analysis": {
+    "rows": [
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "opened_tick": 33,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved_with_cost",
+          "resolved_with_cost"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "opened_tick": 373,
+        "statuses": [
+          "resolved",
+          "resolved_with_cost",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "opened_tick": 45,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved",
+          "resolved"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "opened_tick": 384,
+        "statuses": [
+          "resolved",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "opened_tick": 39,
+        "statuses": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "opened_tick": 400,
+        "statuses": [
+          "active",
+          "active",
+          "active"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "opened_tick": 42,
+        "statuses": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "opened_tick": 338,
+        "statuses": [
+          "active",
+          "active",
+          "active"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "opened_tick": 51,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved_with_cost",
+          "resolved_with_cost"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "opened_tick": 375,
+        "statuses": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "opened_tick": 418,
+        "statuses": [
+          "settling",
+          "settling",
+          "settling"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "opened_tick": 55,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved",
+          "resolved"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "opened_tick": 374,
+        "statuses": [
+          "resolved_with_cost",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "opened_tick": 61,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved_with_cost",
+          "resolved_with_cost"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "opened_tick": 396,
+        "statuses": [
+          "resolved",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "opened_tick": 65,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved_with_cost",
+          "resolved"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "opened_tick": 358,
+        "statuses": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "opened_tick": 400,
+        "statuses": [
+          "resolved_with_cost",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:0:2",
+        "opened_tick": 0,
+        "statuses": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:0",
+        "opened_tick": 0,
+        "statuses": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "stable": true
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:1",
+        "opened_tick": 0,
+        "statuses": [
+          "resolved",
+          "resolved",
+          "resolved"
+        ],
+        "stable": true
+      }
+    ],
+    "counts": {
+      "20": {
+        "resolved_with_cost": 8,
+        "resolved": 10,
+        "active": 2,
+        "settling": 1
+      },
+      "50": {
+        "resolved_with_cost": 5,
+        "resolved": 9,
+        "settling": 5,
+        "active": 2
+      },
+      "100": {
+        "resolved_with_cost": 3,
+        "settling": 6,
+        "resolved": 10,
+        "active": 2
+      }
+    },
+    "changed": [
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "opened_tick": 373,
+        "statuses": [
+          "resolved",
+          "resolved_with_cost",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "opened_tick": 45,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved",
+          "resolved"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "opened_tick": 384,
+        "statuses": [
+          "resolved",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "opened_tick": 55,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved",
+          "resolved"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "opened_tick": 374,
+        "statuses": [
+          "resolved_with_cost",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "opened_tick": 396,
+        "statuses": [
+          "resolved",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "opened_tick": 65,
+        "statuses": [
+          "resolved_with_cost",
+          "resolved_with_cost",
+          "resolved"
+        ],
+        "stable": false
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "opened_tick": 400,
+        "statuses": [
+          "resolved_with_cost",
+          "settling",
+          "settling"
+        ],
+        "stable": false
+      }
+    ],
+    "total": 21
+  },
+  "verdicts": {
+    "20": [
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "signal": "birth_stall",
+        "opened_tick": 33,
+        "closed_tick": 286,
+        "duration": 253,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (4 → 6), но население не выросло (10 → 9): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 9,
+        "soil_open": 0.5347,
+        "soil_close": 0.4706,
+        "births_open": 4,
+        "births_close": 6,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110586,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "food_stock",
+            "value": 277.99465891420954
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "soil_fertility",
+            "value": 0.470588235567184
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "signal": "birth_stall",
+        "opened_tick": 373,
+        "closed_tick": 549,
+        "duration": 176,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.47 → 0.47: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 15,
+        "births_close": 16,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110586,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "food_stock",
+            "value": 277.99465891420954
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "soil_fertility",
+            "value": 0.470588235567184
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "signal": "birth_stall",
+        "opened_tick": 45,
+        "closed_tick": 290,
+        "duration": 245,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (3 → 7), но население не выросло (9 → 9): смертность съела прирост",
+        "population_open": 9,
+        "population_close": 9,
+        "soil_open": 0.4983,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 7,
+        "related": [
+          "birth_stall@cell:0:3"
+        ],
+        "evidence": [
+          {
+            "tid": 110587,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "food_stock",
+            "value": 281.77900943509826
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "soil_fertility",
+            "value": 0.4705882355184898
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "signal": "birth_stall",
+        "opened_tick": 384,
+        "closed_tick": 561,
+        "duration": 177,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.47 → 0.47: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 13,
+        "births_close": 14,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110587,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "food_stock",
+            "value": 281.77900943509826
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "soil_fertility",
+            "value": 0.4705882355184898
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:0:2",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 18,
+        "duration": 18,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 9, почва 0.29 → 0.40: система цела",
+        "population_open": 7,
+        "population_close": 9,
+        "soil_open": 0.2862,
+        "soil_close": 0.3975,
+        "births_open": 0,
+        "births_close": 2,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "signal": "birth_stall",
+        "opened_tick": 39,
+        "closed_tick": 256,
+        "duration": 217,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.40 → 0.47: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.3998,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 5,
+        "related": [
+          "birth_stall@cell:0:3"
+        ],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "signal": "birth_stall",
+        "opened_tick": 400,
+        "closed_tick": null,
+        "duration": null,
+        "status": "active",
+        "solved": false,
+        "reason": "birth_stall в cell:0:2 продолжается (с тика 400, острота 0.50)",
+        "population_open": 10,
+        "population_close": 10,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "signal": "birth_stall",
+        "opened_tick": 42,
+        "closed_tick": 284,
+        "duration": 242,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 8 → 9, почва 0.48 → 0.47: система цела",
+        "population_open": 8,
+        "population_close": 9,
+        "soil_open": 0.4807,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 8,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110589,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "population",
+            "value": 7
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "food_stock",
+            "value": 306.4169555980683
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "soil_fertility",
+            "value": 0.470588235458648
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "signal": "birth_stall",
+        "opened_tick": 338,
+        "closed_tick": null,
+        "duration": null,
+        "status": "active",
+        "solved": false,
+        "reason": "birth_stall в cell:0:3 продолжается (с тика 338, острота 0.50)",
+        "population_open": 9,
+        "population_close": 7,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110589,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "population",
+            "value": 7
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "food_stock",
+            "value": 306.4169555980683
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "soil_fertility",
+            "value": 0.470588235458648
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:0",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 14,
+        "duration": 14,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 9, почва 0.30 → 0.47: система цела",
+        "population_open": 7,
+        "population_close": 9,
+        "soil_open": 0.3026,
+        "soil_close": 0.4734,
+        "births_open": 0,
+        "births_close": 2,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 51,
+        "closed_tick": 294,
+        "duration": 243,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (5 → 8), но население не выросло (11 → 10): смертность съела прирост",
+        "population_open": 11,
+        "population_close": 10,
+        "soil_open": 0.5489,
+        "soil_close": 0.6019,
+        "births_open": 5,
+        "births_close": 8,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 375,
+        "closed_tick": 418,
+        "duration": 43,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 10 → 11, почва 0.60 → 0.60: система цела",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 15,
+        "births_close": 16,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 418,
+        "closed_tick": 598,
+        "duration": 180,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 598; последствия ещё наблюдаются (1 из 20 тиков) — объявлять победу рано",
+        "population_open": 10,
+        "population_close": 9,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:1",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 14,
+        "duration": 14,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 9, почва 0.30 → 0.47: система цела",
+        "population_open": 7,
+        "population_close": 9,
+        "soil_open": 0.302,
+        "soil_close": 0.4669,
+        "births_open": 0,
+        "births_close": 2,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "signal": "birth_stall",
+        "opened_tick": 55,
+        "closed_tick": 270,
+        "duration": 215,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (4 → 5), но население не выросло (10 → 9): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 9,
+        "soil_open": 0.5536,
+        "soil_close": 0.6019,
+        "births_open": 4,
+        "births_close": 5,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "signal": "birth_stall",
+        "opened_tick": 374,
+        "closed_tick": 574,
+        "duration": 200,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (15 → 16), но население не выросло (10 → 10): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 10,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 15,
+        "births_close": 16,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "signal": "birth_stall",
+        "opened_tick": 61,
+        "closed_tick": 270,
+        "duration": 209,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (4 → 6), но население не выросло (10 → 7): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 7,
+        "soil_open": 0.5952,
+        "soil_close": 0.6019,
+        "births_open": 4,
+        "births_close": 6,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110592,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "food_stock",
+            "value": 184.95202894909247
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "soil_fertility",
+            "value": 0.601923076923076
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "signal": "birth_stall",
+        "opened_tick": 396,
+        "closed_tick": 574,
+        "duration": 178,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 10 → 11, почва 0.60 → 0.60: система цела",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 15,
+        "births_close": 16,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110592,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "food_stock",
+            "value": 184.95202894909247
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "soil_fertility",
+            "value": 0.601923076923076
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 65,
+        "closed_tick": 275,
+        "duration": 210,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (5 → 8), но население не выросло (9 → 9): смертность съела прирост",
+        "population_open": 9,
+        "population_close": 9,
+        "soil_open": 0.6031,
+        "soil_close": 0.6019,
+        "births_open": 5,
+        "births_close": 8,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 358,
+        "closed_tick": 400,
+        "duration": 42,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.60 → 0.60: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 14,
+        "births_close": 15,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 400,
+        "closed_tick": 565,
+        "duration": 165,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (15 → 18), но население не выросло (9 → 9): смертность съела прирост",
+        "population_open": 9,
+        "population_close": 9,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 15,
+        "births_close": 18,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      }
+    ],
+    "50": [
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "signal": "birth_stall",
+        "opened_tick": 33,
+        "closed_tick": 286,
+        "duration": 253,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (4 → 11), но население не выросло (10 → 8): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 8,
+        "soil_open": 0.5347,
+        "soil_close": 0.4706,
+        "births_open": 4,
+        "births_close": 11,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110586,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "food_stock",
+            "value": 277.99465891420954
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "soil_fertility",
+            "value": 0.470588235567184
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "signal": "birth_stall",
+        "opened_tick": 373,
+        "closed_tick": 549,
+        "duration": 176,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (15 → 17), но население не выросло (9 → 8): смертность съела прирост",
+        "population_open": 9,
+        "population_close": 8,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 15,
+        "births_close": 17,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110586,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "food_stock",
+            "value": 277.99465891420954
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "soil_fertility",
+            "value": 0.470588235567184
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "signal": "birth_stall",
+        "opened_tick": 45,
+        "closed_tick": 290,
+        "duration": 245,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.50 → 0.47: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.4983,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 10,
+        "related": [
+          "birth_stall@cell:0:3"
+        ],
+        "evidence": [
+          {
+            "tid": 110587,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "food_stock",
+            "value": 281.77900943509826
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "soil_fertility",
+            "value": 0.4705882355184898
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "signal": "birth_stall",
+        "opened_tick": 384,
+        "closed_tick": 561,
+        "duration": 177,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 561; последствия ещё наблюдаются (38 из 50 тиков) — объявлять победу рано",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110587,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "food_stock",
+            "value": 281.77900943509826
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "soil_fertility",
+            "value": 0.4705882355184898
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:0:2",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 18,
+        "duration": 18,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 10, почва 0.29 → 0.44: система цела",
+        "population_open": 7,
+        "population_close": 10,
+        "soil_open": 0.2862,
+        "soil_close": 0.4445,
+        "births_open": 0,
+        "births_close": 3,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "signal": "birth_stall",
+        "opened_tick": 39,
+        "closed_tick": 256,
+        "duration": 217,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.40 → 0.47: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.3998,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 6,
+        "related": [
+          "birth_stall@cell:0:3"
+        ],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "signal": "birth_stall",
+        "opened_tick": 400,
+        "closed_tick": null,
+        "duration": null,
+        "status": "active",
+        "solved": false,
+        "reason": "birth_stall в cell:0:2 продолжается (с тика 400, острота 0.50)",
+        "population_open": 10,
+        "population_close": 10,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "signal": "birth_stall",
+        "opened_tick": 42,
+        "closed_tick": 284,
+        "duration": 242,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 8 → 9, почва 0.48 → 0.47: система цела",
+        "population_open": 8,
+        "population_close": 9,
+        "soil_open": 0.4807,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 11,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110589,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "population",
+            "value": 7
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "food_stock",
+            "value": 306.4169555980683
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "soil_fertility",
+            "value": 0.470588235458648
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "signal": "birth_stall",
+        "opened_tick": 338,
+        "closed_tick": null,
+        "duration": null,
+        "status": "active",
+        "solved": false,
+        "reason": "birth_stall в cell:0:3 продолжается (с тика 338, острота 0.50)",
+        "population_open": 9,
+        "population_close": 7,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110589,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "population",
+            "value": 7
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "food_stock",
+            "value": 306.4169555980683
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "soil_fertility",
+            "value": 0.470588235458648
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:0",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 14,
+        "duration": 14,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 12, почва 0.30 → 0.58: система цела",
+        "population_open": 7,
+        "population_close": 12,
+        "soil_open": 0.3026,
+        "soil_close": 0.5789,
+        "births_open": 0,
+        "births_close": 5,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 51,
+        "closed_tick": 294,
+        "duration": 243,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (5 → 11), но население не выросло (11 → 9): смертность съела прирост",
+        "population_open": 11,
+        "population_close": 9,
+        "soil_open": 0.5489,
+        "soil_close": 0.6019,
+        "births_open": 5,
+        "births_close": 11,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 375,
+        "closed_tick": 418,
+        "duration": 43,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 10 → 11, почва 0.60 → 0.60: система цела",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 15,
+        "births_close": 16,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 418,
+        "closed_tick": 598,
+        "duration": 180,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 598; последствия ещё наблюдаются (1 из 50 тиков) — объявлять победу рано",
+        "population_open": 10,
+        "population_close": 9,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:1",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 14,
+        "duration": 14,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 11, почва 0.30 → 0.57: система цела",
+        "population_open": 7,
+        "population_close": 11,
+        "soil_open": 0.302,
+        "soil_close": 0.5733,
+        "births_open": 0,
+        "births_close": 4,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "signal": "birth_stall",
+        "opened_tick": 55,
+        "closed_tick": 270,
+        "duration": 215,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 10 → 11, почва 0.55 → 0.60: система цела",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.5536,
+        "soil_close": 0.6019,
+        "births_open": 4,
+        "births_close": 10,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "signal": "birth_stall",
+        "opened_tick": 374,
+        "closed_tick": 574,
+        "duration": 200,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 574; последствия ещё наблюдаются (25 из 50 тиков) — объявлять победу рано",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "signal": "birth_stall",
+        "opened_tick": 61,
+        "closed_tick": 270,
+        "duration": 209,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (4 → 8), но население не выросло (10 → 7): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 7,
+        "soil_open": 0.5952,
+        "soil_close": 0.6019,
+        "births_open": 4,
+        "births_close": 8,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110592,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "food_stock",
+            "value": 184.95202894909247
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "soil_fertility",
+            "value": 0.601923076923076
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "signal": "birth_stall",
+        "opened_tick": 396,
+        "closed_tick": 574,
+        "duration": 178,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 574; последствия ещё наблюдаются (25 из 50 тиков) — объявлять победу рано",
+        "population_open": 10,
+        "population_close": 10,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110592,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "food_stock",
+            "value": 184.95202894909247
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "soil_fertility",
+            "value": 0.601923076923076
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 65,
+        "closed_tick": 275,
+        "duration": 210,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (5 → 11), но население не выросло (9 → 9): смертность съела прирост",
+        "population_open": 9,
+        "population_close": 9,
+        "soil_open": 0.6031,
+        "soil_close": 0.6019,
+        "births_open": 5,
+        "births_close": 11,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 358,
+        "closed_tick": 400,
+        "duration": 42,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.60 → 0.60: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 14,
+        "births_close": 15,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 400,
+        "closed_tick": 565,
+        "duration": 165,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 565; последствия ещё наблюдаются (34 из 50 тиков) — объявлять победу рано",
+        "population_open": 9,
+        "population_close": 8,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      }
+    ],
+    "100": [
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "signal": "birth_stall",
+        "opened_tick": 33,
+        "closed_tick": 286,
+        "duration": 253,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (4 → 15), но население не выросло (10 → 10): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 10,
+        "soil_open": 0.5347,
+        "soil_close": 0.4706,
+        "births_open": 4,
+        "births_close": 15,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110586,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "food_stock",
+            "value": 277.99465891420954
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "soil_fertility",
+            "value": 0.470588235567184
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:0",
+        "signal": "birth_stall",
+        "opened_tick": 373,
+        "closed_tick": 549,
+        "duration": 176,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 549; последствия ещё наблюдаются (50 из 100 тиков) — объявлять победу рано",
+        "population_open": 9,
+        "population_close": 8,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110586,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "food_stock",
+            "value": 277.99465891420954
+          },
+          {
+            "tid": 110596,
+            "tick": 599,
+            "entity": "cell:0:0",
+            "field": "soil_fertility",
+            "value": 0.470588235567184
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "signal": "birth_stall",
+        "opened_tick": 45,
+        "closed_tick": 290,
+        "duration": 245,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.50 → 0.47: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.4983,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 13,
+        "related": [
+          "birth_stall@cell:0:3"
+        ],
+        "evidence": [
+          {
+            "tid": 110587,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "food_stock",
+            "value": 281.77900943509826
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "soil_fertility",
+            "value": 0.4705882355184898
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:1",
+        "signal": "birth_stall",
+        "opened_tick": 384,
+        "closed_tick": 561,
+        "duration": 177,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 561; последствия ещё наблюдаются (38 из 100 тиков) — объявлять победу рано",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110587,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "food_stock",
+            "value": 281.77900943509826
+          },
+          {
+            "tid": 110597,
+            "tick": 599,
+            "entity": "cell:0:1",
+            "field": "soil_fertility",
+            "value": 0.4705882355184898
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:0:2",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 18,
+        "duration": 18,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 10, почва 0.29 → 0.47: система цела",
+        "population_open": 7,
+        "population_close": 10,
+        "soil_open": 0.2862,
+        "soil_close": 0.466,
+        "births_open": 0,
+        "births_close": 3,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "signal": "birth_stall",
+        "opened_tick": 39,
+        "closed_tick": 256,
+        "duration": 217,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.40 → 0.47: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.3998,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 11,
+        "related": [
+          "birth_stall@cell:0:3"
+        ],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:2",
+        "signal": "birth_stall",
+        "opened_tick": 400,
+        "closed_tick": null,
+        "duration": null,
+        "status": "active",
+        "solved": false,
+        "reason": "birth_stall в cell:0:2 продолжается (с тика 400, острота 0.50)",
+        "population_open": 10,
+        "population_close": 10,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110588,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "food_stock",
+            "value": 331.05912629478183
+          },
+          {
+            "tid": 110598,
+            "tick": 599,
+            "entity": "cell:0:2",
+            "field": "soil_fertility",
+            "value": 0.4705882350083565
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "signal": "birth_stall",
+        "opened_tick": 42,
+        "closed_tick": 284,
+        "duration": 242,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 8 → 10, почва 0.48 → 0.47: система цела",
+        "population_open": 8,
+        "population_close": 10,
+        "soil_open": 0.4807,
+        "soil_close": 0.4706,
+        "births_open": 3,
+        "births_close": 13,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110589,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "population",
+            "value": 7
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "food_stock",
+            "value": 306.4169555980683
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "soil_fertility",
+            "value": 0.470588235458648
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:0:3",
+        "signal": "birth_stall",
+        "opened_tick": 338,
+        "closed_tick": null,
+        "duration": null,
+        "status": "active",
+        "solved": false,
+        "reason": "birth_stall в cell:0:3 продолжается (с тика 338, острота 0.50)",
+        "population_open": 9,
+        "population_close": 7,
+        "soil_open": 0.4706,
+        "soil_close": 0.4706,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [
+          "birth_stall@cell:0:2"
+        ],
+        "evidence": [
+          {
+            "tid": 110589,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "population",
+            "value": 7
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "food_stock",
+            "value": 306.4169555980683
+          },
+          {
+            "tid": 110599,
+            "tick": 599,
+            "entity": "cell:0:3",
+            "field": "soil_fertility",
+            "value": 0.470588235458648
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:0",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 14,
+        "duration": 14,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 12, почва 0.30 → 0.60: система цела",
+        "population_open": 7,
+        "population_close": 12,
+        "soil_open": 0.3026,
+        "soil_close": 0.601,
+        "births_open": 0,
+        "births_close": 5,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 51,
+        "closed_tick": 294,
+        "duration": 243,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (5 → 15), но население не выросло (11 → 11): смертность съела прирост",
+        "population_open": 11,
+        "population_close": 11,
+        "soil_open": 0.5489,
+        "soil_close": 0.6019,
+        "births_open": 5,
+        "births_close": 15,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 375,
+        "closed_tick": 418,
+        "duration": 43,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 10 → 11, почва 0.60 → 0.60: система цела",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 15,
+        "births_close": 16,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:0",
+        "signal": "birth_stall",
+        "opened_tick": 418,
+        "closed_tick": 598,
+        "duration": 180,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 598; последствия ещё наблюдаются (1 из 100 тиков) — объявлять победу рано",
+        "population_open": 10,
+        "population_close": 9,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110590,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "population",
+            "value": 9
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "food_stock",
+            "value": 382.26507005010154
+          },
+          {
+            "tid": 110600,
+            "tick": 599,
+            "entity": "cell:1:0",
+            "field": "soil_fertility",
+            "value": 0.6019230769230768
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "restore_soil",
+        "scope": "cell:1:1",
+        "signal": "thin_soil",
+        "opened_tick": 0,
+        "closed_tick": 14,
+        "duration": 14,
+        "status": "resolved",
+        "solved": true,
+        "reason": "thin_soil ушёл, население 7 → 11, почва 0.30 → 0.60: система цела",
+        "population_open": 7,
+        "population_close": 11,
+        "soil_open": 0.302,
+        "soil_close": 0.6004,
+        "births_open": 0,
+        "births_close": 4,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "signal": "birth_stall",
+        "opened_tick": 55,
+        "closed_tick": 270,
+        "duration": 215,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 10 → 11, почва 0.55 → 0.60: система цела",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.5536,
+        "soil_close": 0.6019,
+        "births_open": 4,
+        "births_close": 14,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:1",
+        "signal": "birth_stall",
+        "opened_tick": 374,
+        "closed_tick": 574,
+        "duration": 200,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 574; последствия ещё наблюдаются (25 из 100 тиков) — объявлять победу рано",
+        "population_open": 10,
+        "population_close": 11,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110591,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "population",
+            "value": 11
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "food_stock",
+            "value": 379.9595935387198
+          },
+          {
+            "tid": 110601,
+            "tick": 599,
+            "entity": "cell:1:1",
+            "field": "soil_fertility",
+            "value": 0.6019230769230755
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "signal": "birth_stall",
+        "opened_tick": 61,
+        "closed_tick": 270,
+        "duration": 209,
+        "status": "resolved_with_cost",
+        "solved": true,
+        "reason": "рождения возобновились (4 → 10), но население не выросло (10 → 7): смертность съела прирост",
+        "population_open": 10,
+        "population_close": 7,
+        "soil_open": 0.5952,
+        "soil_close": 0.6019,
+        "births_open": 4,
+        "births_close": 10,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110592,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "food_stock",
+            "value": 184.95202894909247
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "soil_fertility",
+            "value": 0.601923076923076
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:2",
+        "signal": "birth_stall",
+        "opened_tick": 396,
+        "closed_tick": 574,
+        "duration": 178,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 574; последствия ещё наблюдаются (25 из 100 тиков) — объявлять победу рано",
+        "population_open": 10,
+        "population_close": 10,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110592,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "population",
+            "value": 10
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "food_stock",
+            "value": 184.95202894909247
+          },
+          {
+            "tid": 110602,
+            "tick": 599,
+            "entity": "cell:1:2",
+            "field": "soil_fertility",
+            "value": 0.601923076923076
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 65,
+        "closed_tick": 275,
+        "duration": 210,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.60 → 0.60: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.6031,
+        "soil_close": 0.6019,
+        "births_open": 5,
+        "births_close": 14,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 358,
+        "closed_tick": 400,
+        "duration": 42,
+        "status": "resolved",
+        "solved": true,
+        "reason": "birth_stall ушёл, население 9 → 10, почва 0.60 → 0.60: система цела",
+        "population_open": 9,
+        "population_close": 10,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 14,
+        "births_close": 15,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      },
+      {
+        "kind": "renew",
+        "scope": "cell:1:3",
+        "signal": "birth_stall",
+        "opened_tick": 400,
+        "closed_tick": 565,
+        "duration": 165,
+        "status": "settling",
+        "solved": false,
+        "reason": "birth_stall ушёл на тике 565; последствия ещё наблюдаются (34 из 100 тиков) — объявлять победу рано",
+        "population_open": 9,
+        "population_close": 8,
+        "soil_open": 0.6019,
+        "soil_close": 0.6019,
+        "births_open": 0,
+        "births_close": 0,
+        "related": [],
+        "evidence": [
+          {
+            "tid": 110593,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "population",
+            "value": 8
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "food_stock",
+            "value": 206.36242933792377
+          },
+          {
+            "tid": 110603,
+            "tick": 599,
+            "entity": "cell:1:3",
+            "field": "soil_fertility",
+            "value": 0.6019230769230777
+          }
+        ],
+        "confidence": "established"
+      }
+    ]
+  }
+}

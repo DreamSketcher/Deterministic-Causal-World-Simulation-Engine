@@ -139,6 +139,12 @@ def observe(db_path: str, *, agent: str = "agent:0") -> dict:
                 "soil_fertility": state.get(cell, "soil_fertility"),
                 "food_stock": state.get(cell, "food_stock"),
                 "rain_factor": state.get(cell, "rain_factor"),
+                # v0.10: a parcel has a land status; older rulesets
+                # leave these fields absent, which read as None (and the
+                # readers below treat "not False" as ordinary land).
+                "land_active": state.get(cell, "land_active"),
+                "claim_state": state.get(cell, "claim_state"),
+                "terraces": state.get(cell, "terraces"),
                 "law": {
                     "labor_diversion": state.get(cell, "labor_diversion"),
                     "water_aid": state.get(cell, "water_aid"),

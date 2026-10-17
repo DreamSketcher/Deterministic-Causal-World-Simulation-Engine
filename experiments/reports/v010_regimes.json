@@ -1,0 +1,977 @@
+{
+  "config": {
+    "seeds": [
+      7,
+      11,
+      23,
+      31
+    ],
+    "agents": [
+      36,
+      54,
+      72
+    ],
+    "ticks": 600,
+    "out": "experiments/reports/v010_regimes.md",
+    "json": "experiments/reports/v010_regimes.json"
+  },
+  "runs": [
+    {
+      "seed": 7,
+      "agents": 36,
+      "condition": "baseline",
+      "alive": 24,
+      "alive_early": 33,
+      "births": 50,
+      "deaths": 278,
+      "starvation_deaths": 26,
+      "extinct_cells": 4,
+      "mean_soil": 0.46580143668897994,
+      "capacity": 52.725355129138066,
+      "saturation": 0.4551889682149656,
+      "regime": "degradation",
+      "cells_at_capacity": 1
+    },
+    {
+      "seed": 7,
+      "agents": 36,
+      "condition": "decrees",
+      "alive": 53,
+      "alive_early": 59,
+      "births": 84,
+      "deaths": 283,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362555832592016,
+      "capacity": 55.305201320777684,
+      "saturation": 0.9583185439031818,
+      "regime": "saturation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 7,
+      "agents": 54,
+      "condition": "baseline",
+      "alive": 38,
+      "alive_early": 41,
+      "births": 71,
+      "deaths": 411,
+      "starvation_deaths": 38,
+      "extinct_cells": 4,
+      "mean_soil": 0.47037108609565725,
+      "capacity": 79.39429355773895,
+      "saturation": 0.4786238191333583,
+      "regime": "equilibrium",
+      "cells_at_capacity": 2
+    },
+    {
+      "seed": 7,
+      "agents": 54,
+      "condition": "decrees",
+      "alive": 73,
+      "alive_early": 83,
+      "births": 126,
+      "deaths": 431,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556561556231,
+      "capacity": 82.95780543233317,
+      "saturation": 0.8799654188000967,
+      "regime": "saturation",
+      "cells_at_capacity": 0
+    },
+    {
+      "seed": 7,
+      "agents": 72,
+      "condition": "baseline",
+      "alive": 47,
+      "alive_early": 53,
+      "births": 91,
+      "deaths": 548,
+      "starvation_deaths": 50,
+      "extinct_cells": 4,
+      "mean_soil": 0.47112425090297133,
+      "capacity": 105.92094606501395,
+      "saturation": 0.4437271545058854,
+      "regime": "equilibrium",
+      "cells_at_capacity": 1
+    },
+    {
+      "seed": 7,
+      "agents": 72,
+      "condition": "decrees",
+      "alive": 97,
+      "alive_early": 109,
+      "births": 168,
+      "deaths": 575,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556561086043,
+      "capacity": 110.61040723981951,
+      "saturation": 0.8769518386248216,
+      "regime": "saturation",
+      "cells_at_capacity": 1
+    },
+    {
+      "seed": 11,
+      "agents": 36,
+      "condition": "baseline",
+      "alive": 47,
+      "alive_early": 54,
+      "births": 78,
+      "deaths": 283,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.47058826995137454,
+      "capacity": 52.94117784581078,
+      "saturation": 0.8877777547164848,
+      "regime": "saturation",
+      "cells_at_capacity": 2
+    },
+    {
+      "seed": 11,
+      "agents": 36,
+      "condition": "decrees",
+      "alive": 52,
+      "alive_early": 55,
+      "births": 84,
+      "deaths": 284,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.536255492774727,
+      "capacity": 55.305198356933474,
+      "saturation": 0.9402371123307054,
+      "regime": "saturation",
+      "cells_at_capacity": 4
+    },
+    {
+      "seed": 11,
+      "agents": 54,
+      "condition": "baseline",
+      "alive": 75,
+      "alive_early": 79,
+      "births": 115,
+      "deaths": 418,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.4705882352249097,
+      "capacity": 79.41176470212525,
+      "saturation": 0.9444444444891277,
+      "regime": "saturation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 11,
+      "agents": 54,
+      "condition": "decrees",
+      "alive": 78,
+      "alive_early": 82,
+      "births": 129,
+      "deaths": 429,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556558973891,
+      "capacity": 82.95780541940289,
+      "saturation": 0.9402370229740514,
+      "regime": "saturation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 11,
+      "agents": 72,
+      "condition": "baseline",
+      "alive": 99,
+      "alive_early": 106,
+      "births": 159,
+      "deaths": 564,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.47058823529411836,
+      "capacity": 105.88235294117653,
+      "saturation": 0.9349999999999994,
+      "regime": "saturation",
+      "cells_at_capacity": 1
+    },
+    {
+      "seed": 11,
+      "agents": 72,
+      "condition": "decrees",
+      "alive": 106,
+      "alive_early": 109,
+      "births": 175,
+      "deaths": 573,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556561084778,
+      "capacity": 110.61040723981041,
+      "saturation": 0.9583185040643168,
+      "regime": "saturation",
+      "cells_at_capacity": 1
+    },
+    {
+      "seed": 23,
+      "agents": 36,
+      "condition": "baseline",
+      "alive": 25,
+      "alive_early": 49,
+      "births": 44,
+      "deaths": 271,
+      "starvation_deaths": 3,
+      "extinct_cells": 4,
+      "mean_soil": 0.47086112517288065,
+      "capacity": 52.9439107104332,
+      "saturation": 0.47219783473746046,
+      "regime": "degradation",
+      "cells_at_capacity": 1
+    },
+    {
+      "seed": 23,
+      "agents": 36,
+      "condition": "decrees",
+      "alive": 54,
+      "alive_early": 55,
+      "births": 83,
+      "deaths": 281,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362558508722081,
+      "capacity": 55.30520964771335,
+      "saturation": 0.9763998788535952,
+      "regime": "saturation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 23,
+      "agents": 54,
+      "condition": "baseline",
+      "alive": 43,
+      "alive_early": 73,
+      "births": 75,
+      "deaths": 410,
+      "starvation_deaths": 2,
+      "extinct_cells": 3,
+      "mean_soil": 0.4709085098655442,
+      "capacity": 79.4233585566175,
+      "saturation": 0.5414024385451687,
+      "regime": "degradation",
+      "cells_at_capacity": 1
+    },
+    {
+      "seed": 23,
+      "agents": 54,
+      "condition": "decrees",
+      "alive": 82,
+      "alive_early": 83,
+      "births": 128,
+      "deaths": 424,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556560076246,
+      "capacity": 82.95780542494458,
+      "saturation": 0.9884543061374599,
+      "regime": "saturation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 23,
+      "agents": 72,
+      "condition": "baseline",
+      "alive": 63,
+      "alive_early": 95,
+      "births": 99,
+      "deaths": 540,
+      "starvation_deaths": 2,
+      "extinct_cells": 3,
+      "mean_soil": 0.4706628852122636,
+      "capacity": 105.887727735283,
+      "saturation": 0.5949697981762213,
+      "regime": "degradation",
+      "cells_at_capacity": 0
+    },
+    {
+      "seed": 23,
+      "agents": 72,
+      "condition": "decrees",
+      "alive": 109,
+      "alive_early": 109,
+      "births": 168,
+      "deaths": 563,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556561087279,
+      "capacity": 110.61040723982842,
+      "saturation": 0.9854407258772975,
+      "regime": "saturation",
+      "cells_at_capacity": 2
+    },
+    {
+      "seed": 31,
+      "agents": 36,
+      "condition": "baseline",
+      "alive": 44,
+      "alive_early": 53,
+      "births": 69,
+      "deaths": 277,
+      "starvation_deaths": 1,
+      "extinct_cells": 1,
+      "mean_soil": 0.4706051714569597,
+      "capacity": 52.941718955116244,
+      "saturation": 0.8311025948610208,
+      "regime": "degradation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 31,
+      "agents": 36,
+      "condition": "decrees",
+      "alive": 51,
+      "alive_early": 54,
+      "births": 79,
+      "deaths": 280,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556858670972,
+      "capacity": 55.305204719082866,
+      "saturation": 0.9221555233191756,
+      "regime": "saturation",
+      "cells_at_capacity": 2
+    },
+    {
+      "seed": 31,
+      "agents": 54,
+      "condition": "baseline",
+      "alive": 68,
+      "alive_early": 82,
+      "births": 108,
+      "deaths": 418,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.470588331599408,
+      "capacity": 79.41177008964127,
+      "saturation": 0.8562962382432796,
+      "regime": "degradation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 31,
+      "agents": 54,
+      "condition": "decrees",
+      "alive": 78,
+      "alive_early": 85,
+      "births": 129,
+      "deaths": 429,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556560399443,
+      "capacity": 82.9578054268705,
+      "saturation": 0.9402370228894141,
+      "regime": "saturation",
+      "cells_at_capacity": 2
+    },
+    {
+      "seed": 31,
+      "agents": 72,
+      "condition": "baseline",
+      "alive": 102,
+      "alive_early": 105,
+      "births": 158,
+      "deaths": 560,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.47058823529717453,
+      "capacity": 105.88235294139656,
+      "saturation": 0.9633333333313309,
+      "regime": "saturation",
+      "cells_at_capacity": 3
+    },
+    {
+      "seed": 31,
+      "agents": 72,
+      "condition": "decrees",
+      "alive": 106,
+      "alive_early": 108,
+      "births": 168,
+      "deaths": 566,
+      "starvation_deaths": 1,
+      "extinct_cells": 0,
+      "mean_soil": 0.5362556561085671,
+      "capacity": 110.61040723981684,
+      "saturation": 0.9583185040642612,
+      "regime": "saturation",
+      "cells_at_capacity": 2
+    }
+  ],
+  "analysis": {
+    "pairs": [
+      {
+        "seed": 7,
+        "agents": 36,
+        "regime": "degradation",
+        "base": {
+          "alive": 24,
+          "births": 50,
+          "deaths": 278,
+          "starvation_deaths": 26,
+          "mean_soil": 0.4658,
+          "extinct_cells": 4,
+          "capacity": 52.7,
+          "saturation": 0.455,
+          "cells_at_capacity": 1,
+          "regime": "degradation"
+        },
+        "dec": {
+          "alive": 53,
+          "births": 84,
+          "deaths": 283,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 55.3,
+          "saturation": 0.958,
+          "cells_at_capacity": 3,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 29,
+          "births": 34,
+          "deaths": 5,
+          "starvation_deaths": -25,
+          "mean_soil": 0.0705,
+          "extinct_cells": -4
+        }
+      },
+      {
+        "seed": 7,
+        "agents": 54,
+        "regime": "equilibrium",
+        "base": {
+          "alive": 38,
+          "births": 71,
+          "deaths": 411,
+          "starvation_deaths": 38,
+          "mean_soil": 0.4704,
+          "extinct_cells": 4,
+          "capacity": 79.4,
+          "saturation": 0.479,
+          "cells_at_capacity": 2,
+          "regime": "equilibrium"
+        },
+        "dec": {
+          "alive": 73,
+          "births": 126,
+          "deaths": 431,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 83.0,
+          "saturation": 0.88,
+          "cells_at_capacity": 0,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 35,
+          "births": 55,
+          "deaths": 20,
+          "starvation_deaths": -37,
+          "mean_soil": 0.0659,
+          "extinct_cells": -4
+        }
+      },
+      {
+        "seed": 7,
+        "agents": 72,
+        "regime": "equilibrium",
+        "base": {
+          "alive": 47,
+          "births": 91,
+          "deaths": 548,
+          "starvation_deaths": 50,
+          "mean_soil": 0.4711,
+          "extinct_cells": 4,
+          "capacity": 105.9,
+          "saturation": 0.444,
+          "cells_at_capacity": 1,
+          "regime": "equilibrium"
+        },
+        "dec": {
+          "alive": 97,
+          "births": 168,
+          "deaths": 575,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 110.6,
+          "saturation": 0.877,
+          "cells_at_capacity": 1,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 50,
+          "births": 77,
+          "deaths": 27,
+          "starvation_deaths": -49,
+          "mean_soil": 0.0651,
+          "extinct_cells": -4
+        }
+      },
+      {
+        "seed": 11,
+        "agents": 36,
+        "regime": "saturation",
+        "base": {
+          "alive": 47,
+          "births": 78,
+          "deaths": 283,
+          "starvation_deaths": 1,
+          "mean_soil": 0.4706,
+          "extinct_cells": 0,
+          "capacity": 52.9,
+          "saturation": 0.888,
+          "cells_at_capacity": 2,
+          "regime": "saturation"
+        },
+        "dec": {
+          "alive": 52,
+          "births": 84,
+          "deaths": 284,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 55.3,
+          "saturation": 0.94,
+          "cells_at_capacity": 4,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 5,
+          "births": 6,
+          "deaths": 1,
+          "starvation_deaths": 0,
+          "mean_soil": 0.0657,
+          "extinct_cells": 0
+        }
+      },
+      {
+        "seed": 11,
+        "agents": 54,
+        "regime": "saturation",
+        "base": {
+          "alive": 75,
+          "births": 115,
+          "deaths": 418,
+          "starvation_deaths": 1,
+          "mean_soil": 0.4706,
+          "extinct_cells": 0,
+          "capacity": 79.4,
+          "saturation": 0.944,
+          "cells_at_capacity": 3,
+          "regime": "saturation"
+        },
+        "dec": {
+          "alive": 78,
+          "births": 129,
+          "deaths": 429,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 83.0,
+          "saturation": 0.94,
+          "cells_at_capacity": 3,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 3,
+          "births": 14,
+          "deaths": 11,
+          "starvation_deaths": 0,
+          "mean_soil": 0.0657,
+          "extinct_cells": 0
+        }
+      },
+      {
+        "seed": 11,
+        "agents": 72,
+        "regime": "saturation",
+        "base": {
+          "alive": 99,
+          "births": 159,
+          "deaths": 564,
+          "starvation_deaths": 1,
+          "mean_soil": 0.4706,
+          "extinct_cells": 0,
+          "capacity": 105.9,
+          "saturation": 0.935,
+          "cells_at_capacity": 1,
+          "regime": "saturation"
+        },
+        "dec": {
+          "alive": 106,
+          "births": 175,
+          "deaths": 573,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 110.6,
+          "saturation": 0.958,
+          "cells_at_capacity": 1,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 7,
+          "births": 16,
+          "deaths": 9,
+          "starvation_deaths": 0,
+          "mean_soil": 0.0657,
+          "extinct_cells": 0
+        }
+      },
+      {
+        "seed": 23,
+        "agents": 36,
+        "regime": "degradation",
+        "base": {
+          "alive": 25,
+          "births": 44,
+          "deaths": 271,
+          "starvation_deaths": 3,
+          "mean_soil": 0.4709,
+          "extinct_cells": 4,
+          "capacity": 52.9,
+          "saturation": 0.472,
+          "cells_at_capacity": 1,
+          "regime": "degradation"
+        },
+        "dec": {
+          "alive": 54,
+          "births": 83,
+          "deaths": 281,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 55.3,
+          "saturation": 0.976,
+          "cells_at_capacity": 3,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 29,
+          "births": 39,
+          "deaths": 10,
+          "starvation_deaths": -2,
+          "mean_soil": 0.0654,
+          "extinct_cells": -4
+        }
+      },
+      {
+        "seed": 23,
+        "agents": 54,
+        "regime": "degradation",
+        "base": {
+          "alive": 43,
+          "births": 75,
+          "deaths": 410,
+          "starvation_deaths": 2,
+          "mean_soil": 0.4709,
+          "extinct_cells": 3,
+          "capacity": 79.4,
+          "saturation": 0.541,
+          "cells_at_capacity": 1,
+          "regime": "degradation"
+        },
+        "dec": {
+          "alive": 82,
+          "births": 128,
+          "deaths": 424,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 83.0,
+          "saturation": 0.988,
+          "cells_at_capacity": 3,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 39,
+          "births": 53,
+          "deaths": 14,
+          "starvation_deaths": -1,
+          "mean_soil": 0.0653,
+          "extinct_cells": -3
+        }
+      },
+      {
+        "seed": 23,
+        "agents": 72,
+        "regime": "degradation",
+        "base": {
+          "alive": 63,
+          "births": 99,
+          "deaths": 540,
+          "starvation_deaths": 2,
+          "mean_soil": 0.4707,
+          "extinct_cells": 3,
+          "capacity": 105.9,
+          "saturation": 0.595,
+          "cells_at_capacity": 0,
+          "regime": "degradation"
+        },
+        "dec": {
+          "alive": 109,
+          "births": 168,
+          "deaths": 563,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 110.6,
+          "saturation": 0.985,
+          "cells_at_capacity": 2,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 46,
+          "births": 69,
+          "deaths": 23,
+          "starvation_deaths": -1,
+          "mean_soil": 0.0656,
+          "extinct_cells": -3
+        }
+      },
+      {
+        "seed": 31,
+        "agents": 36,
+        "regime": "degradation",
+        "base": {
+          "alive": 44,
+          "births": 69,
+          "deaths": 277,
+          "starvation_deaths": 1,
+          "mean_soil": 0.4706,
+          "extinct_cells": 1,
+          "capacity": 52.9,
+          "saturation": 0.831,
+          "cells_at_capacity": 3,
+          "regime": "degradation"
+        },
+        "dec": {
+          "alive": 51,
+          "births": 79,
+          "deaths": 280,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 55.3,
+          "saturation": 0.922,
+          "cells_at_capacity": 2,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 7,
+          "births": 10,
+          "deaths": 3,
+          "starvation_deaths": 0,
+          "mean_soil": 0.0657,
+          "extinct_cells": -1
+        }
+      },
+      {
+        "seed": 31,
+        "agents": 54,
+        "regime": "degradation",
+        "base": {
+          "alive": 68,
+          "births": 108,
+          "deaths": 418,
+          "starvation_deaths": 1,
+          "mean_soil": 0.4706,
+          "extinct_cells": 0,
+          "capacity": 79.4,
+          "saturation": 0.856,
+          "cells_at_capacity": 3,
+          "regime": "degradation"
+        },
+        "dec": {
+          "alive": 78,
+          "births": 129,
+          "deaths": 429,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 83.0,
+          "saturation": 0.94,
+          "cells_at_capacity": 2,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 10,
+          "births": 21,
+          "deaths": 11,
+          "starvation_deaths": 0,
+          "mean_soil": 0.0657,
+          "extinct_cells": 0
+        }
+      },
+      {
+        "seed": 31,
+        "agents": 72,
+        "regime": "saturation",
+        "base": {
+          "alive": 102,
+          "births": 158,
+          "deaths": 560,
+          "starvation_deaths": 1,
+          "mean_soil": 0.4706,
+          "extinct_cells": 0,
+          "capacity": 105.9,
+          "saturation": 0.963,
+          "cells_at_capacity": 3,
+          "regime": "saturation"
+        },
+        "dec": {
+          "alive": 106,
+          "births": 168,
+          "deaths": 566,
+          "starvation_deaths": 1,
+          "mean_soil": 0.5363,
+          "extinct_cells": 0,
+          "capacity": 110.6,
+          "saturation": 0.958,
+          "cells_at_capacity": 2,
+          "regime": "saturation"
+        },
+        "delta": {
+          "alive": 4,
+          "births": 10,
+          "deaths": 6,
+          "starvation_deaths": 0,
+          "mean_soil": 0.0657,
+          "extinct_cells": 0
+        }
+      }
+    ],
+    "by_regime": {
+      "degradation": {
+        "n": 6,
+        "delta": {
+          "alive": {
+            "positive": 6,
+            "zero": 0,
+            "negative": 0,
+            "mean": 26.6667
+          },
+          "births": {
+            "positive": 6,
+            "zero": 0,
+            "negative": 0,
+            "mean": 37.6667
+          },
+          "deaths": {
+            "positive": 6,
+            "zero": 0,
+            "negative": 0,
+            "mean": 11.0
+          },
+          "starvation_deaths": {
+            "positive": 0,
+            "zero": 2,
+            "negative": 4,
+            "mean": -4.8333
+          },
+          "mean_soil": {
+            "positive": 6,
+            "zero": 0,
+            "negative": 0,
+            "mean": 0.0664
+          },
+          "extinct_cells": {
+            "positive": 0,
+            "zero": 1,
+            "negative": 5,
+            "mean": -2.5
+          }
+        }
+      },
+      "equilibrium": {
+        "n": 2,
+        "delta": {
+          "alive": {
+            "positive": 2,
+            "zero": 0,
+            "negative": 0,
+            "mean": 42.5
+          },
+          "births": {
+            "positive": 2,
+            "zero": 0,
+            "negative": 0,
+            "mean": 66.0
+          },
+          "deaths": {
+            "positive": 2,
+            "zero": 0,
+            "negative": 0,
+            "mean": 23.5
+          },
+          "starvation_deaths": {
+            "positive": 0,
+            "zero": 0,
+            "negative": 2,
+            "mean": -43.0
+          },
+          "mean_soil": {
+            "positive": 2,
+            "zero": 0,
+            "negative": 0,
+            "mean": 0.0655
+          },
+          "extinct_cells": {
+            "positive": 0,
+            "zero": 0,
+            "negative": 2,
+            "mean": -4.0
+          }
+        }
+      },
+      "saturation": {
+        "n": 4,
+        "delta": {
+          "alive": {
+            "positive": 4,
+            "zero": 0,
+            "negative": 0,
+            "mean": 4.75
+          },
+          "births": {
+            "positive": 4,
+            "zero": 0,
+            "negative": 0,
+            "mean": 11.5
+          },
+          "deaths": {
+            "positive": 4,
+            "zero": 0,
+            "negative": 0,
+            "mean": 6.75
+          },
+          "starvation_deaths": {
+            "positive": 0,
+            "zero": 4,
+            "negative": 0,
+            "mean": 0.0
+          },
+          "mean_soil": {
+            "positive": 4,
+            "zero": 0,
+            "negative": 0,
+            "mean": 0.0657
+          },
+          "extinct_cells": {
+            "positive": 0,
+            "zero": 4,
+            "negative": 0,
+            "mean": 0.0
+          }
+        }
+      }
+    }
+  }
+}

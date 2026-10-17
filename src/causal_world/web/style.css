@@ -108,3 +108,7 @@ select { background: #10151a; color: var(--fg); border: 1px solid var(--line); b
 .goals { margin-top: 16px; }
 .goals .problem { margin: 4px 0; }
 .badge.resolved { background: #1f6f43; color: #eafff2; }
+
+/* v0.10: a hypothesis must never look like an established fact. */
+.badge.hypothesis { border-style: dashed; }
+.tile.wild { opacity: .85; }

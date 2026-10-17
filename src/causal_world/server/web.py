@@ -103,11 +103,15 @@ def analyze(db_path: str, entity: str, field: str,
         # wrong, but whether the problems were actually solved — the
         # verdict takes the people and the land into account.
         state = StateView.from_journal(view)
-        cells = state.entities_with_prefix("cell:")
+        cells = [
+            c for c in state.entities_with_prefix("cell:")
+            if (state.get(c, "land_active") is None
+                or int(state.get(c, "land_active")))
+        ]
         regions = state.entities_with_prefix("region:")
         history = history_from_journal(
             view, cells or regions,
-            ["food_stock", "population", "soil_fertility"],
+            ["food_stock", "population", "soil_fertility", "births_total"],
         )
         verdicts = goal_verdicts(
             history, state, alerts, tick=state.max_tick(),

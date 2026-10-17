@@ -880,6 +880,15 @@ class SpatialRules(PlayerLifeRules):
                 "labor_diversion": float,
                 "water_aid": float,
                 "rest_until": int,
+                # v0.10 capacity policy: is the parcel part of the world
+                # (1) or wild land waiting for a claim (0); what the world
+                # answered to the last claim / terrace order; how many
+                # terraces a cell carries and what the last one cost.
+                "land_active": int,
+                "claim_state": int,
+                "terraces": int,
+                "terrace_state": int,
+                "land_cost": float,
             }
         )
 
@@ -907,8 +916,6 @@ class SpatialRules(PlayerLifeRules):
         addressable draws of the cell itself, so adding a cell never
         shifts another entity's genesis (invariant I8).
         """
-        from causal_world.world.generator import genesis_attr, genesis_transition
-
         head_count: dict[str, int] = {}
         for i in range(agent_count):
             cell = self._cell_of(i, region_count)
@@ -918,45 +925,65 @@ class SpatialRules(PlayerLifeRules):
         for r in range(region_count):
             for c in range(self.GRID_W * self.GRID_H):
                 entity = f"cell:{r}:{c}"
-                draws: list = []
-                soil = 0.25 + 0.45 * genesis_attr(rng, tick, entity, 0, draws)
-                rain = 0.85 + 0.30 * genesis_attr(rng, tick, entity, 1, draws)
-                pop = head_count.get(entity, 0)
-                # The food buffer is EXTENSIVE: it scales with the people
-                # the cell must feed (the same convention as the regions).
-                buffer_scale = max(1.0, pop / 5.0)
-                food = (
-                    90.0 + 60.0 * genesis_attr(rng, tick, entity, 2, draws)
-                ) * buffer_scale
-                fields = [
-                    ("region", f"region:{r}"),
-                    # The cells of the regions form ONE strip: the global
-                    # x of a cell is region_index * GRID_W + local x, so
-                    # the border cells of two regions are neighbours and
-                    # people can walk across a regional border.
-                    ("cell_x", r * self.GRID_W + (c % self.GRID_W)),
-                    ("cell_y", c // self.GRID_W),
-                    ("soil_fertility", soil),
-                    ("rain_factor", rain),
-                    ("food_stock", food),
-                    ("population", pop),
-                    ("workers", pop),
-                    ("pop_base", pop),
-                    # the neutral law of a cell
-                    ("labor_diversion", 0.0),
-                    ("water_aid", 0.0),
-                    ("rest_until", 0),
-                    ("nursery", 0.0),
-                    # the memory of the cell (v0.8): the situation layer
-                    # reads these to say WHEN a problem started
-                    ("empty_since", 0),
-                    ("births_total", 0),
-                    ("last_birth_tick", 0),
-                ]
                 transitions.append(
-                    genesis_transition(tick, entity, "genesis.cell", fields, draws)
+                    self._genesis_cell(
+                        rng, tick, entity, r, c,
+                        x=r * self.GRID_W + (c % self.GRID_W),
+                        y=c // self.GRID_W,
+                        population=head_count.get(entity, 0),
+                        active=True,
+                    )
                 )
         return transitions
+
+    def _genesis_cell(self, rng, tick, entity, region_index, index, *,
+                      x, y, population, active):
+        """One cell's genesis transition (also used for reserve land)."""
+        from causal_world.world.generator import genesis_attr, genesis_transition
+
+        draws: list = []
+        soil = 0.25 + 0.45 * genesis_attr(rng, tick, entity, 0, draws)
+        rain = 0.85 + 0.30 * genesis_attr(rng, tick, entity, 1, draws)
+        # The food buffer is EXTENSIVE: it scales with the people the cell
+        # must feed (the same convention as the regions).
+        buffer_scale = max(1.0, population / 5.0)
+        food = (
+            90.0 + 60.0 * genesis_attr(rng, tick, entity, 2, draws)
+        ) * buffer_scale
+        pop_base = population if active else 0
+        fields = [
+            ("region", f"region:{region_index}"),
+            # The cells of the regions form ONE strip: the global x of a
+            # cell is region_index * GRID_W + local x, so the border cells
+            # of two regions are neighbours and people can walk across a
+            # regional border.
+            ("cell_x", x),
+            ("cell_y", y),
+            ("soil_fertility", soil),
+            ("rain_factor", rain),
+            ("food_stock", food if active else 0.0),
+            ("population", population),
+            ("workers", population),
+            ("pop_base", pop_base),
+            # the neutral law of a cell
+            ("labor_diversion", 0.0),
+            ("water_aid", 0.0),
+            ("rest_until", 0),
+            ("nursery", 0.0),
+            # the memory of the cell (v0.8): the situation layer reads
+            # these to say WHEN a problem started
+            ("empty_since", 0),
+            ("births_total", 0),
+            ("last_birth_tick", 0),
+            # v0.10 capacity policy: wild land is part of the world's
+            # state from genesis, not a config change at claim time.
+            ("land_active", 1 if active else 0),
+            ("claim_state", 0),
+            ("terraces", 0),
+            ("terrace_state", 0),
+            ("land_cost", 0.0),
+        ]
+        return genesis_transition(tick, entity, "genesis.cell", fields, draws)
 
     def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
         fields = super().extra_genesis_fields(kind, rng, tick, entity, info)
@@ -1024,6 +1051,119 @@ class SpatialRules3(SpatialRules):
     GRID_H = 3
 
 
+class CapacityRules(SpatialRules):
+    """v0.10 — the capacity world: land that can be claimed, terraces.
+
+    v0.9 measured the wall every demographic lever hits: a cell cannot
+    grow past ``pop_base x (1 + soil)``. A nursery in a saturated world
+    bought +1 birth in 100 ticks. This ruleset makes the wall itself a
+    policy object, with a PRICE:
+
+    * **Reserve land.** Every region owns one row of WILD parcels
+      (``active = 0``). They exist in the state from genesis, with their
+      own soil, so claiming one is an ordinary committed transition —
+      never a hidden config change. Unclaimed land is ignored by the
+      ecology, the census, births, migration and the situation feed: it
+      is not a cell yet, it is land.
+    * **``claim``** activates a wild parcel: it becomes a real cell with
+      a small ``pop_base`` (a homestead, not a city), and the claim is
+      PAID from the region's richest cell. Insufficient stores do not
+      silently cancel the order: the world records the refusal in
+      ``claim_state`` and the journal, so the player sees WHY.
+    * **``terrace``** raises the capacity of a working cell
+      (``pop_base``) at a cost in food and soil: capacity is bought, not
+      granted. A cell can be terraced a bounded number of times.
+
+    Both levers are ordinary directives of the civic layer, so they
+    enter force on T+1, are versioned by the journal, and can be forked
+    in a counterfactual like every other law.
+    """
+
+    ruleset_version = "0.10.0"
+    description = (
+        "v0.10 game ruleset: the spatial living world plus a priced "
+        "capacity policy — claimable wild land and terraces."
+    )
+
+    #: Wild parcels per region (one row below the cultivated grid).
+    RESERVE_PER_REGION = 2
+    #: What a claimed parcel starts with: a homestead, not a city.
+    RESERVE_POP_BASE = 3
+    RESERVE_FOOD = 25.0
+    #: Price of a claim, paid from the richest working cell of the region.
+    CLAIM_COST = 90.0
+    #: Price of a terrace: food now, and the construction damages soil.
+    TERRACE_GAIN = 2
+    TERRACE_COST = 60.0
+    TERRACE_SOIL_COST = 0.04
+    #: How many terraces one cell may carry (a bounded lever).
+    TERRACE_MAX = 3
+
+    default_systems = [
+        "ClimateSystem",
+        "SpatialAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "SpatialAgentSystem",
+        "SenescenceSystem",
+        "SpatialBirthSystem",
+        "RuinSystem",
+        "ExplorationSystem",
+        "SpatialPlayerAgentSystem",
+        "CapacityDirectiveSystem",  # the v0.10 levers (claim / terrace)
+    ]
+
+    #: The prices of the capacity levers, as ruleset parameters: an
+    #: experiment varies the PRICE, never the system's code. The engine
+    #: copies only declared constants into the named system.
+    system_parameters = {
+        "CapacityDirectiveSystem": {
+            "CLAIM_COST": CLAIM_COST,
+            "TERRACE_COST": TERRACE_COST,
+            "TERRACE_GAIN": TERRACE_GAIN,
+            "TERRACE_SOIL_COST": TERRACE_SOIL_COST,
+            "TERRACE_MAX": TERRACE_MAX,
+            "RESERVE_POP_BASE": RESERVE_POP_BASE,
+            "RESERVE_FOOD": RESERVE_FOOD,
+        },
+    }
+
+    purposes = {
+        **SpatialRules.purposes,
+        "player.claim": (
+            "player enacting a CLAIM of wild land; the written fields on "
+            "the parcel (active, claim_state, pop_base) are the claim "
+            "itself, the price is a write on the donor cell"
+        ),
+        "player.terrace": (
+            "player building a TERRACE; the written fields on the cell "
+            "(pop_base, terraces, soil_fertility) are the build, the "
+            "price is a write on the same cell's stores"
+        ),
+    }
+
+    def extra_genesis_entities(self, rng, tick, region_count, agent_count):
+        transitions = super().extra_genesis_entities(
+            rng, tick, region_count, agent_count
+        )
+        # Wild land: one row below the cultivated grid of every region.
+        # It is a cell-shaped entity with active=0, so a claim is a write
+        # on an entity that has existed (and been journaled) since tick 0.
+        for r in range(region_count):
+            for k in range(self.RESERVE_PER_REGION):
+                index = self.GRID_W * self.GRID_H + k
+                entity = f"cell:{r}:{index}"
+                transitions.append(
+                    self._genesis_cell(
+                        rng, tick, entity, r, index,
+                        x=r * self.GRID_W + k,
+                        y=self.GRID_H,
+                        population=0,
+                        active=False,
+                    )
+                )
+        return transitions
+
+
 RULESETS.update(
     {
         "iron_health": IronHealthRules,
@@ -1041,6 +1181,7 @@ RULESETS.update(
         "player_civic": CivicRules,
         "player_spatial": SpatialRules,
         "player_spatial3": SpatialRules3,
+        "player_capacity": CapacityRules,
     }
 )
 

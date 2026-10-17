@@ -61,6 +61,8 @@ DIRECTIVE_AMEND = 0   # labour -> compost
 DIRECTIVE_WATER = 1   # irrigation (yield up, soil mined faster)
 DIRECTIVE_REST = 2    # fallow until a tick (harvest stops, soil heals)
 DIRECTIVE_NURSERY = 3  # v0.8: the nursery policy (conception + child health)
+DIRECTIVE_CLAIM = 4    # v0.10: claim a wild parcel (capacity policy)
+DIRECTIVE_TERRACE = 5  # v0.10: terraces on a working cell (capacity policy)
 
 #: The v0.7 card: the three levers a REGION knows.
 DIRECTIVE_NAMES = {
@@ -72,6 +74,12 @@ DIRECTIVE_NAMES = {
 DIRECTIVE_ALL_NAMES = {
     **DIRECTIVE_NAMES,
     DIRECTIVE_NURSERY: "nursery",
+}
+#: The v0.10 capacity card: the cell levers plus land and terraces.
+DIRECTIVE_CAPACITY_NAMES = {
+    **DIRECTIVE_ALL_NAMES,
+    DIRECTIVE_CLAIM: "claim",
+    DIRECTIVE_TERRACE: "terrace",
 }
 N_DIRECTIVES = len(DIRECTIVE_NAMES)
 
@@ -101,12 +109,14 @@ class Directive:
     param: float = 0.25
 
     def __post_init__(self) -> None:
-        if self.kind not in DIRECTIVE_ALL_NAMES:
+        if self.kind not in DIRECTIVE_ALL_NAMES and self.kind not in (
+            DIRECTIVE_CLAIM, DIRECTIVE_TERRACE,
+        ):
             raise ValueError(f"unknown directive kind {self.kind!r}")
 
     @property
     def name(self) -> str:
-        return DIRECTIVE_ALL_NAMES[self.kind]
+        return DIRECTIVE_CAPACITY_NAMES[self.kind]
 
     def to_dict(self) -> dict:
         return {"kind": self.kind, "name": self.name,
