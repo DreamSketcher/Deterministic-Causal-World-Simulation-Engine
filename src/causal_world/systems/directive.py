@@ -63,6 +63,7 @@ DIRECTIVE_REST = 2    # fallow until a tick (harvest stops, soil heals)
 DIRECTIVE_NURSERY = 3  # v0.8: the nursery policy (conception + child health)
 DIRECTIVE_CLAIM = 4    # v0.10: claim a wild parcel (capacity policy)
 DIRECTIVE_TERRACE = 5  # v0.10: terraces on a working cell (capacity policy)
+DIRECTIVE_RESETTLE = 6  # v0.11: move people into a cell (use the land)
 
 #: The v0.7 card: the three levers a REGION knows.
 DIRECTIVE_NAMES = {
@@ -81,6 +82,13 @@ DIRECTIVE_CAPACITY_NAMES = {
     DIRECTIVE_CLAIM: "claim",
     DIRECTIVE_TERRACE: "terrace",
 }
+#: The v0.11 resettlement card: the capacity levers plus one more.
+DIRECTIVE_RESETTLE_NAMES = {
+    **DIRECTIVE_CAPACITY_NAMES,
+    DIRECTIVE_RESETTLE: "resettle",
+}
+#: Every kind the library knows (the Directive dataclass gate).
+DIRECTIVE_KNOWN = frozenset(DIRECTIVE_RESETTLE_NAMES)
 N_DIRECTIVES = len(DIRECTIVE_NAMES)
 
 #: Cap on the amendment share of a region's labour (0..1).
@@ -109,14 +117,12 @@ class Directive:
     param: float = 0.25
 
     def __post_init__(self) -> None:
-        if self.kind not in DIRECTIVE_ALL_NAMES and self.kind not in (
-            DIRECTIVE_CLAIM, DIRECTIVE_TERRACE,
-        ):
+        if self.kind not in DIRECTIVE_KNOWN:
             raise ValueError(f"unknown directive kind {self.kind!r}")
 
     @property
     def name(self) -> str:
-        return DIRECTIVE_CAPACITY_NAMES[self.kind]
+        return DIRECTIVE_RESETTLE_NAMES[self.kind]
 
     def to_dict(self) -> dict:
         return {"kind": self.kind, "name": self.name,

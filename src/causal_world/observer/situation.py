@@ -56,6 +56,16 @@ LIMIT_NONE = "none"
 #: the law about who can have a child.
 BIRTH_MATURITY = 20
 
+#: v0.11 reading thresholds of the resettlement order. The DEFAULTS must
+#: match ``ResettlementRules``; the live session passes the actual
+#: ruleset parameters (an experiment may change the price, and the
+#: reading must change with it).
+RESETTLE_SOIL_MIN = 0.35
+RESETTLE_FOOD_PC_MIN = 3.0
+RESETTLE_FOOD_BASE = 4.0
+RESETTLE_FOOD_PER_STEP = 0.5
+RESETTLE_MAX_PER_ORDER = 12
+
 
 @dataclass(frozen=True)
 class Alert:
@@ -639,3 +649,119 @@ def situations(
 
 def to_dicts(alerts) -> list:
     return [a.to_dict() for a in alerts]
+
+
+# ----------------------------------------------------------------------
+# v0.11 — resettlement opportunities: room is not the same as habitable
+# ----------------------------------------------------------------------
+def resettle_opportunities(
+    view: "StateView",
+    tick: int | None = None,
+    *,
+    soil_min: float = RESETTLE_SOIL_MIN,
+    food_pc_min: float = RESETTLE_FOOD_PC_MIN,
+    cost_base: float = RESETTLE_FOOD_BASE,
+    cost_per_step: float = RESETTLE_FOOD_PER_STEP,
+    max_per_order: int = RESETTLE_MAX_PER_ORDER,
+) -> list[dict]:
+    """The cells a resettlement order could use, with the honest reason.
+
+    "There is room" is not enough: a cell that cannot feed the people it
+    already has, or whose soil is spent, is not a destination. This
+    reading mirrors the SYSTEM'S OWN arithmetic (same capacity rounding,
+    same donor ranking: largest surplus, then distance, then id), so the
+    card the player sees cannot promise a move the world will refuse.
+
+    Returns one row per active cell with room, sorted by id:
+
+    * ``destination``, ``region``, ``population``, ``capacity``, ``room``;
+    * ``soil``, ``food_pc``;
+    * ``source``, ``source_population``, ``distance``,
+      ``cost_per_migrant``, ``max_movers``;
+    * ``feasible`` and ``reason`` (``ok`` / ``soil`` / ``food`` /
+      ``no_donor`` / ``no_food``).
+
+    A row is a READING of the snapshot, not a promise: the law still
+    decides when the order is enacted.
+    """
+    del tick  # the view is already the world at one tick
+    cells = [
+        c for c in view.entities_with_prefix("cell:")
+        if _is_active(view, c)
+    ]
+    out: list[dict] = []
+    for dest in cells:
+        population = int(view.get(dest, "population", 0) or 0)
+        soil = float(view.get(dest, "soil_fertility", 0.0) or 0.0)
+        food = float(view.get(dest, "food_stock", 0.0) or 0.0)
+        pop_base = int(view.get(dest, "pop_base", 0) or 0)
+        capacity = int(round(pop_base * (1.0 + soil)))
+        room = capacity - population
+        if room < 1:
+            continue
+        food_pc = food / max(population, 1)
+        reason = "ok"
+        if soil < soil_min:
+            reason = "soil"
+        elif food_pc < food_pc_min:
+            # The reserve is required EVEN IN AN EMPTY CELL (the system
+            # divides by max(population, 1) too): a parcel that has just
+            # been claimed has no food yet, and an order sent there would
+            # be refused. The card must say so before the order exists.
+            reason = "food"
+
+        x = int(view.get(dest, "cell_x") or 0)
+        y = int(view.get(dest, "cell_y") or 0)
+        region = view.get(dest, "region")
+        donors = []
+        for cell in cells:
+            if cell == dest or view.get(cell, "region") != region:
+                continue
+            donor_pop = int(view.get(cell, "population", 0) or 0)
+            if donor_pop < 2:
+                continue
+            donor_soil = float(view.get(cell, "soil_fertility", 0.0) or 0.0)
+            donor_capacity = int(round(
+                int(view.get(cell, "pop_base", 0) or 0) * (1.0 + donor_soil)
+            ))
+            surplus = donor_pop - donor_capacity
+            distance = abs(x - int(view.get(cell, "cell_x") or 0)) + \
+                abs(y - int(view.get(cell, "cell_y") or 0))
+            cost = cost_base + cost_per_step * distance
+            donor_food = float(view.get(cell, "food_stock", 0.0) or 0.0)
+            affordable = int(donor_food // cost) if cost > 0 else 0
+            donors.append({
+                "cell": cell, "surplus": surplus, "distance": distance,
+                "cost": cost, "affordable": affordable,
+                "population": donor_pop,
+            })
+        donors.sort(key=lambda d: (-d["surplus"], d["distance"], d["cell"]))
+        paying = [d for d in donors if d["affordable"] >= 1]
+        donor = paying[0] if paying else None
+        if donor is None:
+            reason = "no_donor" if not donors else "no_food"
+
+        row = {
+            "destination": dest,
+            "region": region,
+            "population": population,
+            "capacity": capacity,
+            "room": room,
+            "soil": round(soil, 4),
+            "food_pc": round(food_pc, 2),
+            "feasible": reason == "ok",
+            "reason": reason,
+            "source": donor["cell"] if donor else None,
+            "source_population": donor["population"] if donor else None,
+            "distance": donor["distance"] if donor else None,
+            "cost_per_migrant": (
+                round(donor["cost"], 2) if donor else None
+            ),
+            "max_movers": (
+                min(room, donor["population"] - 1,
+                    donor["affordable"], max_per_order)
+                if donor else 0
+            ),
+        }
+        out.append(row)
+    return out

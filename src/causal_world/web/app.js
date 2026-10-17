@@ -175,7 +175,9 @@ function renderDecrees() {
     "<p>Приказ вступает в силу со следующего тика и пишется в журнал " +
     "как обычный переход: его можно найти в бюджете причин. " +
     "Для <b>claim</b> и <b>terrace</b> сила не нужна: цену платит мир " +
-    "(еда и почва), а ответ записывается в состояние клетки.</p>";
+    "(еда и почва), а ответ записывается в состояние клетки. " +
+    "У <b>resettle</b> сила — это число людей: источник мир выбирает " +
+    "сам и записывает, кто его потерял.</p>";
   const mk = (label, options, current) => {
     const sel = document.createElement("select");
     for (const [v, t] of options) {
@@ -215,6 +217,45 @@ function renderDecrees() {
   row.className = "row";
   row.append(kindSel, targetSel, paramInput, apply);
   box.appendChild(row);
+
+  // The resettlement card (v0.11): destinations the world finds with its
+  // own arithmetic. A row is a READING, not a promise — the law answers
+  // when the order is enacted.
+  const RESETTLE_WORDS = {
+    soil: "почва низкая", food: "нет запаса еды",
+    no_donor: "нет источника", no_food: "источнику нечем платить",
+  };
+  const resettleKind = Object.keys(state.decreeCard)
+    .find(k => state.decreeCard[k] === "resettle");
+  const cards = (state.world && state.world.resettle) || [];
+  if (resettleKind !== undefined && cards.length) {
+    const title = document.createElement("div");
+    title.className = "hint";
+    title.textContent = "Переселение: свободная ёмкость, пригодность и " +
+      "цена. Источник выбирает мир (самая перегруженная клетка).";
+    box.appendChild(title);
+    for (const r of cards.slice(0, 6)) {
+      const line = document.createElement("div");
+      line.className = "resettle-row";
+      const b = document.createElement("button");
+      if (r.feasible) {
+        b.textContent = `→ ${r.destination} · до ${r.max_movers} чел. · ` +
+          `${r.cost_per_migrant} еды/чел.`;
+        b.title = `свободно ${r.room}, источник ${r.source} ` +
+          `(${r.source_population} чел., расстояние ${r.distance})`;
+        b.onclick = () => {
+          kindSel.value = resettleKind;
+          targetSel.value = r.destination;
+          paramInput.value = r.max_movers;
+        };
+      } else {
+        b.textContent = `${r.destination} · ${RESETTLE_WORDS[r.reason] || r.reason}`;
+        b.disabled = true;
+      }
+      line.appendChild(b);
+      box.appendChild(line);
+    }
+  }
   const status = document.createElement("div");
   status.id = "order-status";
   status.className = "order-status";
@@ -456,7 +497,9 @@ function renderCells(svg, cells) {
     const label = c.id.replace("cell:", "");
     const sub = `почва ${(c.soil_fertility || 0).toFixed(2)} · ` +
       `еда ${Math.round(c.food_stock || 0)} · нас. ${c.population || 0}` +
-      ` · предел ${Math.round(c.capacity || 0)}`;
+      ` · предел ${Math.round(c.capacity || 0)}` +
+      (c.resettled_in ? ` · принял ${c.resettled_in}` : "") +
+      (c.resettled_out ? ` · отдал ${c.resettled_out}` : "");
     drawTile(g, cx, cy, tw, th, d, label, sub);
     svg.appendChild(g);
   }

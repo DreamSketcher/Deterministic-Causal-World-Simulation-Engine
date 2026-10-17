@@ -142,7 +142,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     civic_p.add_argument("--seed", type=int, default=7)
     civic_p.add_argument("--ruleset", default="player_spatial",
-                         help="player_capacity (v0.10 cells + land/terraces) | "
+                         help="player_resettle (v0.11 cells + land + "
+                              "resettlement) | player_capacity (v0.10) | "
                               "player_spatial (v0.8 cell world) | "
                               "player_civic (v0.7 region world) | "
                               "player_life (v0.6)")
@@ -594,15 +595,17 @@ def _cmd_civic(args: argparse.Namespace) -> int:
     )
     from causal_world.observer.hypothesis import Hypothesis
     from causal_world.systems.directive import (
-        DIRECTIVE_CAPACITY_NAMES,
+        DIRECTIVE_RESETTLE_NAMES,
         Directive,
     )
 
     # The card of the world about to be created: the capacity ruleset
-    # knows two levers more, and the CLI must not offer a lever the
-    # world cannot enact (nor hide one it can).
-    kinds = {name: code for code, name in DIRECTIVE_CAPACITY_NAMES.items()}
-    if args.ruleset not in ("player_capacity",):
+    # knows two levers more, the resettlement one a third. The CLI must
+    # not offer a lever the world cannot enact (nor hide one it can).
+    kinds = {name: code for code, name in DIRECTIVE_RESETTLE_NAMES.items()}
+    if args.ruleset != "player_resettle":
+        kinds.pop("resettle", None)
+    if args.ruleset not in ("player_capacity", "player_resettle"):
         kinds.pop("claim", None)
         kinds.pop("terrace", None)
     tmpdir = None
@@ -634,6 +637,14 @@ def _cmd_civic(args: argparse.Namespace) -> int:
             # These levers take no parameter: the whole tail is the
             # parcel ("10:claim:cell:0:4"), never silently cut to "cell:0".
             param, target = 0.0, ":".join(parts[2:])
+        elif kind == "resettle":
+            # The last field is the count; the rest is the destination
+            # ("10:resettle:cell:0:4:4" = up to 4 people into cell:0:4).
+            if len(parts) < 4:
+                print(f"error: bad --decree {spec!r} "
+                      f"(expected TICK:resettle:CELL:N)", file=sys.stderr)
+                return 2
+            param, target = float(parts[-1]), ":".join(parts[2:-1])
         else:
             param = float(parts[-1]) if len(parts) > 3 else 0.25
             target = ":".join(parts[2:-1]) if len(parts) > 3 else parts[2]
@@ -711,12 +722,18 @@ def _cmd_civic(args: argparse.Namespace) -> int:
                 print(f"  {cell['id']:<12} целина (не заявлена)  "
                       f"soil {cell['soil_fertility']:.3f}")
                 continue
+            moved = ""
+            if cell.get("resettled_in"):
+                moved = (f"  принял {cell['resettled_in']} "
+                         f"(из {cell.get('last_source')})")
+            elif cell.get("resettled_out"):
+                moved = f"  отдал {cell['resettled_out']}"
             print(f"  {cell['id']:<12} pop {cell['population']:>3}  "
                   f"soil {cell['soil_fertility']:.3f}  "
                   f"food {cell['food_stock']:7.1f}  "
                   f"law: отвод {law.get('labor_diversion', 0):.2f}, "
                   f"полив {law.get('water_aid', 0):.2f}, "
-                  f"ясли {law.get('nursery', 0):.2f}")
+                  f"ясли {law.get('nursery', 0):.2f}{moved}")
     if obs.get("situations"):
         print()
         print("situations (the world's own reading of itself):")

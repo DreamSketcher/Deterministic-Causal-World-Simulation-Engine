@@ -145,6 +145,12 @@ def observe(db_path: str, *, agent: str = "agent:0") -> dict:
                 "land_active": state.get(cell, "land_active"),
                 "claim_state": state.get(cell, "claim_state"),
                 "terraces": state.get(cell, "terraces"),
+                # v0.11: the resettlement facts of the cell (None in the
+                # older worlds, which read as "no resettlement").
+                "resettled_in": state.get(cell, "resettled_in"),
+                "resettled_out": state.get(cell, "resettled_out"),
+                "resettle_state": state.get(cell, "resettle_state"),
+                "last_source": state.get(cell, "last_source"),
                 "law": {
                     "labor_diversion": state.get(cell, "labor_diversion"),
                     "water_aid": state.get(cell, "water_aid"),

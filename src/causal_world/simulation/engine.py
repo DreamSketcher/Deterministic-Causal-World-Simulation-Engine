@@ -223,6 +223,8 @@ def create_world(
     )
     # v0.10 capacity policy: claimable wild land and terraces.
     from causal_world.systems.capacity import CapacityDirectiveSystem
+    # v0.11: using the opened land — a priced, atomic move of people.
+    from causal_world.systems.resettle import ResettlementDirectiveSystem
     from causal_world.world.generator import generate_genesis
     from causal_world.world.rules import DefaultWorldRules
 
@@ -260,6 +262,7 @@ def create_world(
         "SpatialDirectiveSystem": SpatialDirectiveSystem,
         "SpatialPlayerAgentSystem": SpatialPlayerAgentSystem,
         "CapacityDirectiveSystem": CapacityDirectiveSystem,
+        "ResettlementDirectiveSystem": ResettlementDirectiveSystem,
     }
     default_order = [
         "ClimateSystem",

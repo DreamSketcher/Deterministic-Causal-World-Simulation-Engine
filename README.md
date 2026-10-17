@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 318 tests
+python -m pytest          # 337 tests
 ```
 
 | spec test | where |
@@ -1014,6 +1014,130 @@ give independent confirmations; the window sensitivity is measured in one
 world; `growth_limit` names a closed gate now, it does not predict a
 birth.
 
+## v0.11 — Resettlement: using the land the player opened
+
+v0.10 ended on a measured failure: a claim creates room, but the people
+do not come. The world's own migration fires on HUNGER and moves to a
+neighbouring cell, so a fed world never uses the land it was given.
+Capability CREATION and capability USE were two mechanisms, and only one
+of them existed. This stage adds the second — a priced, atomic,
+intra-regional move of people, with both sides of the move recorded.
+
+### 1. The order says where and how many, not who
+
+`resettle` (`DIRECTIVE_RESETTLE = 6`) names a DESTINATION cell and a
+count (`0` = as many as the cell can take). The world chooses the donor
+deterministically: the most over-capacity cell of the SAME region, then
+the shortest distance, then the id. It never empties its source (at most
+`population - 1`) and records who paid:
+
+* `agent.cell` of every mover changes in the SAME transition;
+* the source loses population, workers and transport food;
+* the destination gains population, and records `resettled_in`,
+  `resettle_moved`, `resettle_cost`, `last_source`, `last_resettle_tick`;
+* the source records `resettled_out`.
+
+The resolver commits all of it or none, so a partial move is not
+representable. The price is `4.0 + 0.5 × distance` food per migrant,
+paid by the source cell; a source that cannot pay moves nobody.
+
+Answers are facts in the journal (`resettle_state`): `1` done, `-1` no
+room, `-2` wild land (claim first), `-3` not habitable (soil or food
+reserve), `-4` no transport food, `-5` no donor.
+
+### 2. Room is not the same as habitable
+
+`resettle_opportunities` builds the destination card the player sees,
+with the SAME arithmetic the system applies: room, soil ≥ 0.35,
+food ≥ 3.0 per head, donor, distance, price and the maximum number of
+people. A row is a reading, not a promise; the law still answers when
+the order is enacted. The web client lists the card and fills the order
+form from it; the CLI prints who accepted whom.
+
+The reserve is required even in an EMPTY cell (the law divides by
+`max(population, 1)`), and a claimed parcel starts with 25 food that
+spoils and is not replenished until workers live there. So the card
+turns from "ok" to "no reserve" if the player waits: new land must be
+settled while its reserve lasts. This is also where a live run caught a
+real mismatch — the card said `ok` where the law refused with `-3` — and
+the check was fixed in the observer, not relaxed in the law.
+
+### 3. The verdict has two sides
+
+A `resettle` goal lives on the destination, but a move can improve the
+destination while draining the source. `evaluate` reads `last_source`
+and the source's population history: if the source lost more than 20 %
+of its people, the verdict is `resolved_with_cost` with the numbers in
+the reason. The evidence cites both the move's `resettled_in` transition
+and the source's population transition.
+
+The horizon lesson of v0.10 stays visible: in the single-seed run one
+new cell was populated, got `resolved` on its 20-tick window, and was
+abandoned again later — the feed shows the OLD verdict and the NEW
+`active` episode side by side. A verdict is a statement about its
+horizon; the current state is shown next to it, not replaced by it.
+
+### 4. Counterfactual: claim alone still does nothing
+
+`experiments/v011_resettle.py` — seed 7, 54 agents, the v0.8 protocol to
+tick 400, then 200 ticks in three arms:
+
+| arm | alive | births | capacity | moved | food paid | occupied cells |
+|---|---:|---:|---:|---:|---:|---:|
+| control | 73 | 13 | 83 | 0 | 0 | 8/8 |
+| claim | 73 | 13 | 92 | 0 | 180 | 8/10 |
+| resettle | 80 | 20 | 92 | 8 | 218 | 9/10 |
+
+Claim alone reproduces the v0.10 failure. With the move, births rise by
+seven; 8 people are actually moved into the opened land, and 3 of them
+are still living there at the end of the arm (the rest died or migrated
+— visible in the journal). The move's transitions change the sum of cell
+populations by **+0** and write **no** capacity field: resettlement
+redistributes people, it never creates them or the land's ceiling.
+
+### 5. The grid, repeated: one variable, all regimes
+
+`experiments/v011_grid.py` — the same 12 points (seeds 7/11/23/31 ×
+36/54/72), 600 ticks, FOUR worlds per point: no orders (regime control),
+the v0.8 protocol, protocol + claims, protocol + claims + resettlement.
+
+| regime | points | Δ claim: alive | Δ resettle: alive | Δ resettle: births | Δ resettle: occupied cells |
+|---|---:|---:|---:|---:|---:|
+| degradation | 5 | +0.0 | +5.6 | +5.6 | +1.0 |
+| equilibrium | 2 | +0.0 | +5.5 | +5.5 | +1.5 |
+| saturation | 5 | +0.0 | +8.2 | +8.2 | +2.0 |
+
+In saturation the moves write zero capacity fields and change the sum of
+population by `+0`; capacity itself stays put (`64 → 64`, `92 → 92`, …;
+the one `120 → 119` is a soil drift, not a write of the transition). The
+extra people come from BIRTHS inside the capacity that already existed,
+not from a new ceiling. The baseline
+also cross-checks the v0.10 grid: all 12 protocol worlds match it
+number for number, so the new ruleset is inert when its lever is unused.
+
+Commands:
+
+```
+python3 experiments/v011_resettle.py
+python3 experiments/v011_grid.py --ticks 600
+python3 -m causal_world civic --ruleset player_resettle --ticks 40 \
+        --decree 5:claim:cell:0:4 --decree 10:resettle:cell:0:4:4
+python3 -m causal_world serve --host 0.0.0.0 --port 8811
+```
+
+Tests: **337** — `tests/test_v011_resettle.py` (19: atomic move, agent
+conservation, price from the source, refusals, deterministic donor,
+source-side verdict, opportunity card, no capacity writes, same seed
+same world, server card). The v0.6 frozen world still hashes
+bit-for-bit.
+
+Honest limits: the move is intra-regional (cross-region caravans need
+trade and corridors that the model does not have); one protocol and one
+strain of orders; "starvation death" is still a proxy; movers are chosen
+by hunger, not by household, so children can be sent; and the extra
+births in the grid are a demographic response, not proof that the new
+settlement itself will persist.
+
 ## Roadmap
 
 ```
@@ -1047,7 +1171,11 @@ v0.10 Capacity policy: wild land claimed by a priced transition, terraces
       that buy capacity with food and soil, a named growth limit, and a
       measured verdict window; resettlement is measured as missing, not
       shipped (this branch)
-v0.11 100k+ agents: memory layout, sparse state, batching,
+v0.11 Resettlement: a priced, atomic, intra-regional move of people;
+      the destination card names room, habitability, donor and price;
+      verdicts account for both the destination and the source; the
+      lever is inert when unused (this branch)
+v0.12 100k+ agents: memory layout, sparse state, batching,
       spatial partitioning, parallel execution, compressed provenance
 v1.0  Large artificial world
 ```

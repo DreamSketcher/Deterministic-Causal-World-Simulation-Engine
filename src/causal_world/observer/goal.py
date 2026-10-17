@@ -354,6 +354,16 @@ def evaluate(
                                        goal.opened_tick) or 0)
     births_close = int(history.value_at(goal.scope, "births_total", at) or 0)
 
+    # A resettlement has TWO sides. The goal lives on the destination, but
+    # a verdict that ignores what the source lost would call any move a
+    # success — exactly the "improve one number" trap the review named.
+    source = None
+    if goal.kind == "resettle":
+        recorded = view.get(goal.scope, "last_source")
+        if (isinstance(recorded, str) and recorded.startswith("cell:")
+                and recorded != goal.scope):
+            source = recorded
+
     here = [a for a in alerts if a.scope == goal.scope]
     family = SIGNAL_FAMILY[goal.kind]
     related: list[str] = []
@@ -447,6 +457,23 @@ def evaluate(
                 births_open=births_open, births_close=births_close,
             )
 
+    if source is not None:
+        source_open = history.value_at(source, "population", goal.opened_tick)
+        source_close = history.value_at(source, "population", at)
+        if (
+            source_open is not None and source_close is not None
+            and int(source_open) > 0
+            and int(source_close) / int(source_open) < COST_POP_SHARE
+        ):
+            return Verdict(
+                goal, "resolved_with_cost",
+                f"{goal.scope} принял людей, но источник {source} потерял "
+                f"{int(source_open)} → {int(source_close)}: переселение "
+                f"оплачено людьми источника, а не только едой",
+                pop_open, pop_close, soil_open, soil_close,
+                tuple(related), tuple(evidence),
+            )
+
     # "Transferred" is a statement about a PROBLEM MOVING between places.
     # A birth stall is not a place-bound problem, and it has its own
     # verdict above; it must never fall through to this reading.
@@ -516,6 +543,29 @@ def _evidence_for(goal: Goal, history: FieldHistory, view: StateView, at: int):
                 "field": field_name,
                 "value": view.get(goal.scope, field_name),
             })
+    if goal.kind == "resettle":
+        # Cite the move itself (the counter lives on the destination) and
+        # the source's population transition: the verdict rests on both.
+        sid = view.source(goal.scope, "resettled_in")
+        if sid is not None:
+            out.append({
+                "tid": sid,
+                "tick": view.tick_of(goal.scope, "resettled_in"),
+                "entity": goal.scope,
+                "field": "resettled_in",
+                "value": view.get(goal.scope, "resettled_in"),
+            })
+        source = view.get(goal.scope, "last_source")
+        if isinstance(source, str) and source.startswith("cell:"):
+            sid = view.source(source, "population")
+            if sid is not None:
+                out.append({
+                    "tid": sid,
+                    "tick": view.tick_of(source, "population"),
+                    "entity": source,
+                    "field": "population",
+                    "value": view.get(source, "population"),
+                })
     return out
 
 

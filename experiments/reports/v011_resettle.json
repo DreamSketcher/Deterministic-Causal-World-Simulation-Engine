@@ -1,0 +1,479 @@
+{
+  "config": {
+    "seed": 7,
+    "ticks": 600,
+    "saturate_at": 400,
+    "window": 200,
+    "ruleset": "player_resettle",
+    "ruleset_version": "0.11.0"
+  },
+  "parcels": [
+    "cell:0:4",
+    "cell:1:4"
+  ],
+  "arms": {
+    "control": {
+      "name": "control",
+      "alive_start": 81,
+      "alive": 73,
+      "births": 13,
+      "deaths": 23,
+      "starvation_deaths": 1,
+      "capacity_start": 82.95780651199422,
+      "capacity": 82.95780543233317,
+      "saturation": 0.8799654188000967,
+      "mean_soil": 0.5362556561556231,
+      "food": 2350.7888721179957,
+      "paid_food": 0.0,
+      "claims": 0,
+      "refusals": 0,
+      "moves": 0,
+      "moved_people": 0,
+      "move_cost": 0.0,
+      "capacity_writes": 0,
+      "total_delta_in_moves": 0,
+      "occupied_cells": 8,
+      "active_cells": 8,
+      "cells": {
+        "cell:0:0": {
+          "population": 8,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:1": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:2": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:3": {
+          "population": 7,
+          "capacity": 8.82,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:0": {
+          "population": 9,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:1": {
+          "population": 11,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:2": {
+          "population": 10,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:3": {
+          "population": 8,
+          "capacity": 9.61,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        }
+      },
+      "card": [],
+      "goals": {
+        "active": 2,
+        "settling": 1,
+        "resolved": 5,
+        "resolved_with_cost": 2,
+        "collapsed": 0,
+        "transferred": 0,
+        "total": 10
+      },
+      "goal_details": [],
+      "source_drops": []
+    },
+    "claim": {
+      "name": "claim",
+      "alive_start": 81,
+      "alive": 73,
+      "births": 13,
+      "deaths": 23,
+      "starvation_deaths": 1,
+      "capacity_start": 82.95780651199422,
+      "capacity": 91.53962992263556,
+      "saturation": 0.7974688128157797,
+      "mean_soil": 0.5150653412666297,
+      "food": 2348.2776114302665,
+      "paid_food": 180.0,
+      "claims": 2,
+      "refusals": 0,
+      "moves": 0,
+      "moved_people": 0,
+      "move_cost": 0.0,
+      "capacity_writes": 0,
+      "total_delta_in_moves": 0,
+      "occupied_cells": 8,
+      "active_cells": 10,
+      "cells": {
+        "cell:0:0": {
+          "population": 8,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:1": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:2": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:3": {
+          "population": 7,
+          "capacity": 8.82,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:4": {
+          "population": 0,
+          "capacity": 4.44,
+          "soil": 0.4786,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:0": {
+          "population": 9,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:1": {
+          "population": 11,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:2": {
+          "population": 10,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:3": {
+          "population": 8,
+          "capacity": 9.61,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:4": {
+          "population": 0,
+          "capacity": 4.15,
+          "soil": 0.382,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        }
+      },
+      "card": [
+        {
+          "destination": "cell:0:4",
+          "region": "region:0",
+          "population": 0,
+          "capacity": 4,
+          "room": 4,
+          "soil": 0.4786,
+          "food_pc": 24.5,
+          "feasible": true,
+          "reason": "ok",
+          "source": "cell:0:2",
+          "source_population": 11,
+          "distance": 1,
+          "cost_per_migrant": 4.5,
+          "max_movers": 4
+        },
+        {
+          "destination": "cell:1:4",
+          "region": "region:1",
+          "population": 0,
+          "capacity": 4,
+          "room": 4,
+          "soil": 0.382,
+          "food_pc": 25.0,
+          "feasible": true,
+          "reason": "ok",
+          "source": "cell:1:2",
+          "source_population": 11,
+          "distance": 1,
+          "cost_per_migrant": 4.5,
+          "max_movers": 4
+        }
+      ],
+      "goals": {
+        "active": 4,
+        "settling": 1,
+        "resolved": 5,
+        "resolved_with_cost": 2,
+        "collapsed": 0,
+        "transferred": 0,
+        "total": 12
+      },
+      "goal_details": [
+        {
+          "scope": "cell:0:4",
+          "kind": "resettle",
+          "status": "active",
+          "reason": "abandoned в cell:0:4 продолжается (с тика 402, острота 1.00)",
+          "confidence": "established"
+        },
+        {
+          "scope": "cell:1:4",
+          "kind": "resettle",
+          "status": "active",
+          "reason": "abandoned в cell:1:4 продолжается (с тика 403, острота 1.00)",
+          "confidence": "established"
+        }
+      ],
+      "source_drops": []
+    },
+    "resettle": {
+      "name": "resettle",
+      "alive_start": 81,
+      "alive": 80,
+      "births": 20,
+      "deaths": 23,
+      "starvation_deaths": 1,
+      "capacity_start": 82.95780651199422,
+      "capacity": 91.591057972958,
+      "saturation": 0.8734477117146062,
+      "mean_soil": 0.5167796096225414,
+      "food": 2468.965357023377,
+      "paid_food": 218.0,
+      "claims": 2,
+      "refusals": 0,
+      "moves": 4,
+      "moved_people": 8,
+      "move_cost": 38.0,
+      "capacity_writes": 0,
+      "total_delta_in_moves": 0,
+      "occupied_cells": 9,
+      "active_cells": 10,
+      "cells": {
+        "cell:0:0": {
+          "population": 8,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:1": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:0:2": {
+          "population": 10,
+          "capacity": 10.29,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 2,
+          "last_source": "none"
+        },
+        "cell:0:3": {
+          "population": 7,
+          "capacity": 8.82,
+          "soil": 0.4706,
+          "resettled_in": 0,
+          "resettled_out": 2,
+          "last_source": "none"
+        },
+        "cell:0:4": {
+          "population": 3,
+          "capacity": 4.41,
+          "soil": 0.4712,
+          "resettled_in": 4,
+          "resettled_out": 0,
+          "last_source": "cell:0:3"
+        },
+        "cell:1:0": {
+          "population": 10,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:1": {
+          "population": 10,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 0,
+          "last_source": "none"
+        },
+        "cell:1:2": {
+          "population": 10,
+          "capacity": 11.21,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 2,
+          "last_source": "none"
+        },
+        "cell:1:3": {
+          "population": 11,
+          "capacity": 9.61,
+          "soil": 0.6019,
+          "resettled_in": 0,
+          "resettled_out": 2,
+          "last_source": "none"
+        },
+        "cell:1:4": {
+          "population": 0,
+          "capacity": 4.22,
+          "soil": 0.4065,
+          "resettled_in": 4,
+          "resettled_out": 0,
+          "last_source": "cell:1:3"
+        }
+      },
+      "card": [
+        {
+          "destination": "cell:0:4",
+          "region": "region:0",
+          "population": 0,
+          "capacity": 4,
+          "room": 4,
+          "soil": 0.4786,
+          "food_pc": 24.5,
+          "feasible": true,
+          "reason": "ok",
+          "source": "cell:0:2",
+          "source_population": 11,
+          "distance": 1,
+          "cost_per_migrant": 4.5,
+          "max_movers": 4
+        },
+        {
+          "destination": "cell:1:4",
+          "region": "region:1",
+          "population": 0,
+          "capacity": 4,
+          "room": 4,
+          "soil": 0.382,
+          "food_pc": 25.0,
+          "feasible": true,
+          "reason": "ok",
+          "source": "cell:1:2",
+          "source_population": 11,
+          "distance": 1,
+          "cost_per_migrant": 4.5,
+          "max_movers": 4
+        }
+      ],
+      "goals": {
+        "active": 5,
+        "settling": 2,
+        "resolved": 8,
+        "resolved_with_cost": 2,
+        "collapsed": 1,
+        "transferred": 0,
+        "total": 18
+      },
+      "goal_details": [
+        {
+          "scope": "cell:0:4",
+          "kind": "resettle",
+          "status": "resolved",
+          "reason": "abandoned ушёл, население 0 → 4, почва 0.48 → 0.48: система цела",
+          "confidence": "established"
+        },
+        {
+          "scope": "cell:1:4",
+          "kind": "resettle",
+          "status": "resolved",
+          "reason": "abandoned ушёл, население 0 → 4, почва 0.38 → 0.40: система цела",
+          "confidence": "established"
+        },
+        {
+          "scope": "cell:1:4",
+          "kind": "resettle",
+          "status": "active",
+          "reason": "abandoned в cell:1:4 продолжается (с тика 438, острота 1.00)",
+          "confidence": "established"
+        }
+      ],
+      "source_drops": [
+        {
+          "source": "cell:0:2",
+          "before": 9,
+          "after": 10,
+          "sent": 2
+        },
+        {
+          "source": "cell:0:3",
+          "before": 10,
+          "after": 7,
+          "sent": 2
+        },
+        {
+          "source": "cell:1:2",
+          "before": 11,
+          "after": 10,
+          "sent": 2
+        },
+        {
+          "source": "cell:1:3",
+          "before": 9,
+          "after": 11,
+          "sent": 2
+        }
+      ]
+    }
+  }
+}

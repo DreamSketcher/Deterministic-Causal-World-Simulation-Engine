@@ -937,8 +937,13 @@ class SpatialRules(PlayerLifeRules):
         return transitions
 
     def _genesis_cell(self, rng, tick, entity, region_index, index, *,
-                      x, y, population, active):
-        """One cell's genesis transition (also used for reserve land)."""
+                      x, y, population, active, extra_fields=()):
+        """One cell's genesis transition (also used for reserve land).
+
+        ``extra_fields`` lets a descendant ruleset add ITS fields to the
+        same genesis transition without changing the fields of this
+        ruleset: the v0.6/v0.8/v0.10 genesis transitions stay identical.
+        """
         from causal_world.world.generator import genesis_attr, genesis_transition
 
         draws: list = []
@@ -983,6 +988,7 @@ class SpatialRules(PlayerLifeRules):
             ("terrace_state", 0),
             ("land_cost", 0.0),
         ]
+        fields.extend(extra_fields)
         return genesis_transition(tick, entity, "genesis.cell", fields, draws)
 
     def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
@@ -1164,6 +1170,118 @@ class CapacityRules(SpatialRules):
         return transitions
 
 
+class ResettlementRules(CapacityRules):
+    """v0.11 — resettlement: using the land the player opened.
+
+    v0.10 ended on a measured failure: a claim creates room, but the
+    people do not come, because the world's own migration fires on
+    hunger and moves to a neighbouring cell. Capability CREATION and
+    capability USE were two mechanisms, and only one existed.
+
+    This ruleset adds the second, inside the capacity world:
+
+    * the ``resettle`` order names a destination cell and a count
+      (0 = as many as the cell can take). The world picks the donor
+      deterministically — the most over-capacity cell of the SAME
+      region, then the shortest distance, then the id;
+    * one committed transition moves the agents (``agent.cell``), the
+      source's population and food, and the destination's population;
+      the price is transport food per migrant, growing with distance;
+    * a destination must be habitable BEFORE it receives people: room,
+      soil and a food reserve of its own;
+    * fields written by the system (``resettled_in``, ``resettled_out``,
+      ``resettle_state``, ``resettle_moved``, ``resettle_cost``,
+      ``last_source``, ``last_resettle_tick``) exist from genesis, so
+      every write is a change of an existing fact, never a creation.
+
+    Scope limit, stated in the code rather than discovered in a report:
+    resettlement is INTRA-regional in v0.11. A cross-region caravan
+    needs trade and corridors, which the model does not have yet; faking
+    it would also make the region totals stale for a tick.
+    """
+
+    ruleset_version = "0.11.0"
+    description = (
+        "v0.11 game ruleset: the capacity world plus resettlement — a "
+        "priced, atomic, intra-regional move of people into habitable "
+        "cells, with the source's loss recorded."
+    )
+
+    #: The prices of the resettlement order (a transport price per head).
+    RESETTLE_FOOD_BASE = 4.0
+    RESETTLE_FOOD_PER_STEP = 0.5
+    RESETTLE_SOIL_MIN = 0.35
+    RESETTLE_FOOD_PC_MIN = 3.0
+    RESETTLE_MAX_PER_ORDER = 12
+
+    default_systems = [
+        "ClimateSystem",
+        "SpatialAgricultureSystem",
+        "ImmuneDiseaseSystem",
+        "SpatialAgentSystem",
+        "SenescenceSystem",
+        "SpatialBirthSystem",
+        "RuinSystem",
+        "ExplorationSystem",
+        "SpatialPlayerAgentSystem",
+        "ResettlementDirectiveSystem",  # v0.10 levers + resettle
+    ]
+
+    system_parameters = {
+        **CapacityRules.system_parameters,
+        "ResettlementDirectiveSystem": {
+            "CLAIM_COST": CapacityRules.CLAIM_COST,
+            "TERRACE_COST": CapacityRules.TERRACE_COST,
+            "TERRACE_GAIN": CapacityRules.TERRACE_GAIN,
+            "TERRACE_SOIL_COST": CapacityRules.TERRACE_SOIL_COST,
+            "TERRACE_MAX": CapacityRules.TERRACE_MAX,
+            "RESERVE_POP_BASE": CapacityRules.RESERVE_POP_BASE,
+            "RESERVE_FOOD": CapacityRules.RESERVE_FOOD,
+            "RESETTLE_FOOD_BASE": RESETTLE_FOOD_BASE,
+            "RESETTLE_FOOD_PER_STEP": RESETTLE_FOOD_PER_STEP,
+            "RESETTLE_SOIL_MIN": RESETTLE_SOIL_MIN,
+            "RESETTLE_FOOD_PC_MIN": RESETTLE_FOOD_PC_MIN,
+            "RESETTLE_MAX_PER_ORDER": RESETTLE_MAX_PER_ORDER,
+        },
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._field_types.update(
+            {
+                # v0.11 resettlement: the counters and the last answer.
+                "resettled_in": int,
+                "resettled_out": int,
+                "resettle_state": int,
+                "resettle_moved": int,
+                "resettle_cost": float,
+                "last_source": str,
+                "last_resettle_tick": int,
+            }
+        )
+
+    def _genesis_cell(self, *args, **kwargs):
+        """Add the resettlement facts to every cell at genesis.
+
+        A field written later must exist from tick 0 (the kernel forbids
+        mid-run creation), and wild parcels are cells too: they can be a
+        destination the moment they are claimed.
+        """
+        return super()._genesis_cell(
+            *args,
+            extra_fields=(
+                ("resettled_in", 0),
+                ("resettled_out", 0),
+                ("resettle_state", 0),
+                ("resettle_moved", 0),
+                ("resettle_cost", 0.0),
+                ("last_source", "none"),
+                ("last_resettle_tick", 0),
+            ),
+            **kwargs,
+        )
+
+
 RULESETS.update(
     {
         "iron_health": IronHealthRules,
@@ -1182,6 +1300,7 @@ RULESETS.update(
         "player_spatial": SpatialRules,
         "player_spatial3": SpatialRules3,
         "player_capacity": CapacityRules,
+        "player_resettle": ResettlementRules,
     }
 )
 

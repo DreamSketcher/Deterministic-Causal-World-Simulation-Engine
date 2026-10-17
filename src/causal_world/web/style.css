@@ -112,3 +112,7 @@ select { background: #10151a; color: var(--fg); border: 1px solid var(--line); b
 /* v0.10: a hypothesis must never look like an established fact. */
 .badge.hypothesis { border-style: dashed; }
 .tile.wild { opacity: .85; }
+
+.resettle-row { margin: 4px 0; }
+.resettle-row button { text-align: left; }
+.resettle-row button:disabled { opacity: 0.55; cursor: default; }

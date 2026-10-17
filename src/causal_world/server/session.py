@@ -49,6 +49,7 @@ from causal_world.observer.situation import (
     FieldHistory,
     StateView,
     growth_limit,
+    resettle_opportunities,
     situations,
 )
 from causal_world.player import DecisionChannel, attach_player_channel
@@ -522,6 +523,25 @@ class Session:
                     st.get(cell, "terraces")
                     if st.has(cell, "terraces") else 0
                 ),
+                # v0.11: what the resettlement orders did to this cell.
+                # Absent fields read as zero, so older worlds draw the
+                # same map and never invent a resettlement.
+                "resettled_in": (
+                    st.get(cell, "resettled_in")
+                    if st.has(cell, "resettled_in") else 0
+                ),
+                "resettled_out": (
+                    st.get(cell, "resettled_out")
+                    if st.has(cell, "resettled_out") else 0
+                ),
+                "resettle_state": (
+                    st.get(cell, "resettle_state")
+                    if st.has(cell, "resettle_state") else 0
+                ),
+                "last_source": (
+                    st.get(cell, "last_source")
+                    if st.has(cell, "last_source") else None
+                ),
             }
             if row["land_active"]:
                 row["limit"] = growth_limit(
@@ -550,7 +570,30 @@ class Session:
             "total_agents": len(st.entities_with_prefix("agent:")),
             "situations": [a.to_dict() for a in alerts],
             "goals": self._goals(alerts),
+            # v0.11: the destinations a resettlement order could use,
+            # read with the SAME arithmetic the system will apply.
+            "resettle": self._resettle_view(st_view),
         }
+
+    def _resettle_view(self, view: StateView) -> list[dict]:
+        """The resettlement card: room, habitability, donor and price.
+
+        Empty for worlds without the resettlement system, so a v0.10
+        client sees no card rather than a card of zeros.
+        """
+        for system in self.sim.systems:
+            if system.name != "ResettlementDirectiveSystem":
+                continue
+            return resettle_opportunities(
+                view,
+                int(self.sim.state.tick),
+                soil_min=system.RESETTLE_SOIL_MIN,
+                food_pc_min=system.RESETTLE_FOOD_PC_MIN,
+                cost_base=system.RESETTLE_FOOD_BASE,
+                cost_per_step=system.RESETTLE_FOOD_PER_STEP,
+                max_per_order=system.RESETTLE_MAX_PER_ORDER,
+            )
+        return []
 
     def _sample_history(self) -> None:
         """Remember the few fields the goal layer reads — one sample a tick.
