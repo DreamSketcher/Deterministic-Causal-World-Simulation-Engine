@@ -146,6 +146,22 @@ class Simulation:
         }
 
 
+def _ruleset_name_of(rules) -> str:
+    """The registry name of a ruleset instance (for the archive meta).
+
+    The ruleset object does not know its own registry key (it only knows
+    its version), so the name is resolved by matching the version — the
+    same rule the takeover path uses to map an archive back to a world.
+    """
+    from causal_world.world.rules import RULESETS
+
+    version = rules.ruleset_version
+    for name, cls in RULESETS.items():
+        if cls.ruleset_version == version:
+            return name
+    return version
+
+
 def create_world(
     seed: int,
     system_order: list[str] | None = None,
@@ -191,6 +207,20 @@ def create_world(
     from causal_world.systems.exploration import ExplorationSystem
     from causal_world.systems.senescence import SenescenceSystem
     from causal_world.systems.player import PlayerAgentSystem
+    # v0.7 civic layer: the player enacts region-scoped laws; additive
+    # registration only — the resolver/step logic and the kernel are
+    # untouched. Research and v0.6 game worlds never name them.
+    from causal_world.systems.civic import CivicAgricultureSystem
+    from causal_world.systems.directive import DirectiveSystem
+    # v0.8 spatial layer: cells, a per-worker soil law, a per-adult birth
+    # law. Additive registration only — the kernel is untouched.
+    from causal_world.systems.spatial import (
+        SpatialAgentSystem,
+        SpatialAgricultureSystem,
+        SpatialBirthSystem,
+        SpatialDirectiveSystem,
+        SpatialPlayerAgentSystem,
+    )
     from causal_world.world.generator import generate_genesis
     from causal_world.world.rules import DefaultWorldRules
 
@@ -218,6 +248,15 @@ def create_world(
         "ExplorationSystem": ExplorationSystem,
         "SenescenceSystem": SenescenceSystem,
         "PlayerAgentSystem": PlayerAgentSystem,
+        # v0.7 civic layer (game ruleset opts in via default_systems).
+        "CivicAgricultureSystem": CivicAgricultureSystem,
+        "DirectiveSystem": DirectiveSystem,
+        # v0.8 spatial layer (game ruleset opts in via default_systems).
+        "SpatialAgricultureSystem": SpatialAgricultureSystem,
+        "SpatialAgentSystem": SpatialAgentSystem,
+        "SpatialBirthSystem": SpatialBirthSystem,
+        "SpatialDirectiveSystem": SpatialDirectiveSystem,
+        "SpatialPlayerAgentSystem": SpatialPlayerAgentSystem,
     }
     default_order = [
         "ClimateSystem",
@@ -252,6 +291,11 @@ def create_world(
         archive.set_meta("agents", agents)
         archive.set_meta("ruleset_version", rules.ruleset_version)
         archive.set_meta("rng_version", rules.rng_version)
+        # The NAME of the ruleset (not only its version): the query index
+        # uses it as an identity key and the CLI labels comparisons with
+        # it, so an archive must be self-describing. Additive meta only —
+        # the journal hash covers transitions, not meta.
+        archive.set_meta("ruleset_name", _ruleset_name_of(rules))
 
     systems = [registry[name]() for name in names]
     simulation = Simulation(seed, systems, rules, rng, journal=journal, index=index)

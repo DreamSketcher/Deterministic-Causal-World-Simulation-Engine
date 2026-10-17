@@ -650,6 +650,380 @@ class PlayerLifeRules(CompostRules):
         return violations
 
 
+class CivicRules(PlayerLifeRules):
+    """v0.7 game ruleset — the CIVIC world: the player steers the world.
+
+    v0.6's ``player_life`` made the player an agent inside a world: seven
+    personal actions (work / migrate / explore / heal / trade / rest /
+    idle), one decision per live tick, recorded in the journal and
+    replayable. That is a survival game. The v0.7 direction is different:
+    the WORLD is the object, and the player is steward, researcher and
+    law-maker at once.
+
+    This ruleset keeps the v0.6 world intact (compost survival base +
+    heredity + world memory + the personal action card) and adds exactly
+    one thing: **the civic layer** —
+
+    * ``DirectiveSystem`` (priority 45) enacts the player's DECREES. A
+      decree names a region and a lever (amend / water / rest) and is
+      committed as an ordinary transition ``player.directive`` that writes
+      the region's law parameters. The player is therefore a law-maker
+      whose laws are auditable like any other cause.
+    * ``CivicAgricultureSystem`` computes each region's ecology from its
+      base law PLUS the decrees enacted for it (one writer per field:
+      decrees write the parameters, the law reads them).
+
+    The base law stays the v0.3.3-G compost law, so a civic world with no
+    decrees behaves exactly like a compost world. Every difference in an
+    experiment is therefore attributable to the DECREES and not to a
+    different physics — the attribution discipline of the whole repo.
+
+    The three law parameters (``labor_diversion``, ``water_aid``,
+    ``rest_until``) are created at GENESIS, because the resolver forbids
+    creating fields mid-run (I3: every future field exists as a
+    placeholder). The moment a decree enters force is DERIVED, not
+    configured: a decree enacted at tick T is visible to the law from
+    tick T+1, because all systems of a tick read the same snapshot
+    (I4/I5). The law in force at tick t is therefore
+    ``base ruleset version + the region's decree ledger up to t-1`` —
+    reconstructible, hence comparable across runs.
+
+    Research worlds are untouched: they declare neither the new fields
+    nor the new systems, so their genesis and journals stay
+    bit-identical.
+    """
+
+    ruleset_version = "0.7.0"
+    description = (
+        "v0.7 game ruleset: the v0.6 living world + the civic layer — the "
+        "player enacts region-scoped laws (amend / water / rest) that enter "
+        "force on the next tick; the base compost law is unchanged."
+    )
+
+    default_systems = [
+        "ClimateSystem",
+        "CivicAgricultureSystem",  # base compost law + the enacted decrees
+        "ImmuneDiseaseSystem",
+        "AgentSystem",
+        "SenescenceSystem",
+        "BirthSystem",
+        "RuinSystem",
+        "ExplorationSystem",
+        "PlayerAgentSystem",  # the personal card (v0.6) still exists
+        "DirectiveSystem",  # the civic layer (v0.7)
+    ]
+
+    purposes = {
+        **PlayerLifeRules.purposes,
+        "player.directive": (
+            "player-enacted civic decree; value is the directive KIND "
+            "(amend / water / rest), never a probability — the magnitude "
+            "lives in the written law parameter (old -> new)"
+        ),
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._field_types.update(
+            {
+                # region law parameters written by DirectiveSystem
+                "labor_diversion": float,
+                "water_aid": float,
+                "rest_until": int,
+            }
+        )
+
+    def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
+        fields = super().extra_genesis_fields(kind, rng, tick, entity, info)
+        if kind == "region":
+            # Neutral law: no diversion, no irrigation, no fallow.
+            fields.extend(
+                [
+                    ("labor_diversion", 0.0),
+                    ("water_aid", 0.0),
+                    ("rest_until", 0),
+                ]
+            )
+        return fields
+
+    def validate_transition(
+        self, transition: Transition, snapshot: Snapshot
+    ) -> list[str]:
+        violations = super().validate_transition(transition, snapshot)
+        for w in transition.writes:
+            if w.field in ("labor_diversion", "water_aid") and isinstance(
+                w.new, (int, float)
+            ):
+                if not 0.0 <= w.new <= 1.0:
+                    violations.append(
+                        f"invariant_violation:{w.entity}.{w.field}_must_be_in_[0,1]"
+                    )
+            if w.field == "rest_until" and isinstance(w.new, int):
+                if w.new < 0:
+                    violations.append(
+                        f"invariant_violation:{w.entity}.rest_until_must_be_>=_0"
+                    )
+        return violations
+
+class SpatialRules(PlayerLifeRules):
+    """v0.8 game ruleset — the SPATIAL living world (the vertical slice).
+
+    The v0.7 civic world made the WORLD the object of the game, but it
+    was a world of REGIONS: one soil, one food stock, one population per
+    region, and the map could only show blocks. The measured diagnosis
+    (``experiments/reports/v08_demography.md``) also showed the world
+    could not survive its own horizon: the birth supply was a
+    per-REGION event, and the compost law returned nutrients in
+    proportion to the POPULATION while the degradation was flat — so
+    every death lowered the soil, which starved the survivors. The world
+    died at ~tick 250 no matter what the player did.
+
+    v0.8 is therefore a MODEL change, composed as rules over the frozen
+    kernel:
+
+    * **Cells.** A region owns a GRID of cells; each cell has its own
+      soil, food, people, climate factor and LAW. Cells differ in
+      rainfall (a genesis draw), so the map is heterogeneous and the
+      player's choices are spatial. Food is local: a cell's people eat
+      that cell's stores, and migration moves people to a better
+      neighbouring cell.
+    * **Soil per worker, not per region.** Degradation and the nutrient
+      return both scale with the labour applied to the field, so the
+      equilibrium soil is a property of the labour regime and NOT of the
+      head count — the death spiral of v0.7 is gone by construction.
+    * **Births per adult.** Conception is a per-adult probability gated
+      by the cell's food and carrying capacity, so the supply of
+      newborns scales with the number of reproductive adults.
+    * **A nursery policy** (``nursery``): more conceptions and healthier
+      children in a cell. It changes reproduction and child health, not
+      the death rate — a policy inside the model, not a compensation
+      bolted onto mortality.
+    * **The reserve of lives.** The dormant pool that births activate is
+      sized for the horizon (ratio 4): with a per-adult birth law the
+      pool must cover the turnover of a long run, and its exhaustion is
+      an observable end-state ("the world is full").
+
+    The v0.6/v0.7 worlds are untouched: they name neither the new
+    systems nor the new fields, so their genesis and journals stay
+    bit-identical (the freeze).
+    """
+
+    ruleset_version = "0.8.0"
+    description = (
+        "v0.8 game ruleset: the spatial living world — a grid of cells "
+        "with its own soil, food, people and law; a per-worker soil law; "
+        "a per-adult birth law; the nursery policy."
+    )
+
+    #: The grid of cells inside one region.
+    GRID_W = 2
+    GRID_H = 2
+
+    #: The reserve of lives (the dormant pool births activate). Sized for
+    #: the horizon: with a per-adult birth law, the pool must cover the
+    #: turnover of a long run. Measured: a stable world replaces ~0.25
+    #: of its population per 100 ticks, so 6x the genesis head count
+    #: covers ~2400 ticks of play. Its exhaustion is an observable end
+    #: state ("the world is full"), not a silent failure.
+    dormant_pool_ratio = 6.0
+
+    #: The world starts AFTER a plague: the survivors carry the memory of
+    #: it, so the first wave is a threat and not an instant massacre.
+    IMMUNE_MEMORY_BASELINE = 0.45
+
+    #: Which systems the world runs. The spatial law replaces the
+    #: region-level one; the disease, the ruins, the exploration and the
+    #: personal card of v0.6 stay.
+    default_systems = [
+        "ClimateSystem",
+        "SpatialAgricultureSystem",  # per-cell ecology (v0.8 soil law)
+        "ImmuneDiseaseSystem",
+        "SpatialAgentSystem",  # per-cell census, metabolism, migration
+        "SenescenceSystem",
+        "SpatialBirthSystem",  # per-adult conception (v0.8 demography)
+        "RuinSystem",
+        "ExplorationSystem",
+        "SpatialPlayerAgentSystem",  # the v0.6 card, taught to live in a cell
+        "SpatialDirectiveSystem",  # the cell laws (amend/water/rest/nursery)
+    ]
+
+    purposes = {
+        **PlayerLifeRules.purposes,
+        "player.directive": (
+            "player-enacted civic decree; value is the directive KIND "
+            "(amend / water / rest / nursery), never a probability — the "
+            "magnitude lives in the written law parameter (old -> new)"
+        ),
+        "birth.conceive": (
+            "per-adult conception roll in a cell; threshold is the "
+            "per-adult conception probability (food- and nursery-gated), "
+            "so the supply of newborns scales with the adults"
+        ),
+    }
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._field_types.update(
+            {
+                # cell fields
+                "cell": str,  # an agent's cell
+                "cell_x": int,
+                "cell_y": int,
+                "rain_factor": float,
+                "nursery": float,
+                # the memory of the cell: when it was emptied, when it
+                # last produced a child
+                "empty_since": int,
+                "births_total": int,
+                "last_birth_tick": int,
+                # the law parameters of a cell (written by the decrees)
+                "labor_diversion": float,
+                "water_aid": float,
+                "rest_until": int,
+            }
+        )
+
+    # ------------------------------------------------------------------
+    # Layout
+    # ------------------------------------------------------------------
+    def _cell_of(self, agent_index: int, region_count: int) -> str:
+        """The cell an agent is born in (must match the generator).
+
+        The generator assigns agents to regions round-robin
+        (``region:i % region_count``); the cells of a region are filled
+        in the same order, so the assignment is a pure function of the
+        agent index — no draws, no state.
+        """
+        region = agent_index % max(1, region_count)
+        cell_index = (agent_index // max(1, region_count)) % (self.GRID_W * self.GRID_H)
+        return f"cell:{region}:{cell_index}"
+
+    def extra_genesis_entities(self, rng, tick, region_count, agent_count):
+        """The cells of the spatial world (a new entity kind at genesis).
+
+        The cells are born through the normal genesis path — ordinary
+        transitions with recorded draws — so they carry provenance from
+        tick 0 like every other entity. Their soil and rainfall are
+        addressable draws of the cell itself, so adding a cell never
+        shifts another entity's genesis (invariant I8).
+        """
+        from causal_world.world.generator import genesis_attr, genesis_transition
+
+        head_count: dict[str, int] = {}
+        for i in range(agent_count):
+            cell = self._cell_of(i, region_count)
+            head_count[cell] = head_count.get(cell, 0) + 1
+
+        transitions = []
+        for r in range(region_count):
+            for c in range(self.GRID_W * self.GRID_H):
+                entity = f"cell:{r}:{c}"
+                draws: list = []
+                soil = 0.25 + 0.45 * genesis_attr(rng, tick, entity, 0, draws)
+                rain = 0.85 + 0.30 * genesis_attr(rng, tick, entity, 1, draws)
+                pop = head_count.get(entity, 0)
+                # The food buffer is EXTENSIVE: it scales with the people
+                # the cell must feed (the same convention as the regions).
+                buffer_scale = max(1.0, pop / 5.0)
+                food = (
+                    90.0 + 60.0 * genesis_attr(rng, tick, entity, 2, draws)
+                ) * buffer_scale
+                fields = [
+                    ("region", f"region:{r}"),
+                    # The cells of the regions form ONE strip: the global
+                    # x of a cell is region_index * GRID_W + local x, so
+                    # the border cells of two regions are neighbours and
+                    # people can walk across a regional border.
+                    ("cell_x", r * self.GRID_W + (c % self.GRID_W)),
+                    ("cell_y", c // self.GRID_W),
+                    ("soil_fertility", soil),
+                    ("rain_factor", rain),
+                    ("food_stock", food),
+                    ("population", pop),
+                    ("workers", pop),
+                    ("pop_base", pop),
+                    # the neutral law of a cell
+                    ("labor_diversion", 0.0),
+                    ("water_aid", 0.0),
+                    ("rest_until", 0),
+                    ("nursery", 0.0),
+                    # the memory of the cell (v0.8): the situation layer
+                    # reads these to say WHEN a problem started
+                    ("empty_since", 0),
+                    ("births_total", 0),
+                    ("last_birth_tick", 0),
+                ]
+                transitions.append(
+                    genesis_transition(tick, entity, "genesis.cell", fields, draws)
+                )
+        return transitions
+
+    def extra_genesis_fields(self, kind, rng, tick, entity, info=None):
+        fields = super().extra_genesis_fields(kind, rng, tick, entity, info)
+        info = info or {}
+        if kind == "agent":
+            dormant = bool(info.get("dormant", False))
+            if dormant:
+                fields.append(("cell", "none"))
+            else:
+                fields.append(
+                    (
+                        "cell",
+                        self._cell_of(
+                            int(info.get("index", 0)),
+                            int(info.get("region_count", 1)),
+                        ),
+                    )
+                )
+            # The world starts after a plague: replace the naive immune
+            # memory of the v0.6 hook with the memory of the survivors.
+            fields = [f for f in fields if f[0] != "immune_memory"]
+            fields.append(
+                (
+                    "immune_memory",
+                    0.0 if dormant else self.IMMUNE_MEMORY_BASELINE,
+                )
+            )
+        return fields
+
+    def validate_transition(
+        self, transition: Transition, snapshot: Snapshot
+    ) -> list[str]:
+        violations = super().validate_transition(transition, snapshot)
+        for w in transition.writes:
+            if w.field in ("labor_diversion", "water_aid", "nursery") and isinstance(
+                w.new, (int, float)
+            ):
+                if not 0.0 <= w.new <= 1.0:
+                    violations.append(
+                        f"invariant_violation:{w.entity}.{w.field}_must_be_in_[0,1]"
+                    )
+            if w.field == "rest_until" and isinstance(w.new, int):
+                if w.new < 0:
+                    violations.append(
+                        f"invariant_violation:{w.entity}.rest_until_must_be_>=_0"
+                    )
+        return violations
+
+
+class SpatialRules3(SpatialRules):
+    """The v0.8 spatial world on a 3x3 grid of cells per region.
+
+    A different world shape is a different ruleset (the version is part
+    of the fingerprint), so the comparison of a 2x2 and a 3x3 world is
+    an experiment, not a configuration change.
+    """
+
+    ruleset_version = "0.8.0-s3"
+    description = (
+        "v0.8 game ruleset: the spatial living world on a 3x3 grid of "
+        "cells per region."
+    )
+
+    GRID_W = 3
+    GRID_H = 3
+
+
 RULESETS.update(
     {
         "iron_health": IronHealthRules,
@@ -664,6 +1038,9 @@ RULESETS.update(
         "fertile_migration": FertileMigrationRules,
         "fertile_migration_only": FertileMigrationOnlyRules,
         "player_life": PlayerLifeRules,
+        "player_civic": CivicRules,
+        "player_spatial": SpatialRules,
+        "player_spatial3": SpatialRules3,
     }
 )
 

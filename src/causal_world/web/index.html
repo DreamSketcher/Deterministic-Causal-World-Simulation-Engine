@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Causal World — живая карта</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>Causal World <span class="v">v0.8</span></h1>
+  <div class="modes">
+    <button id="mode-map" class="on">Живая карта</button>
+    <button id="mode-analysis">Аналитический режим</button>
+  </div>
+  <div class="status" id="status">подключение…</div>
+</header>
+
+<main>
+  <section id="pane-map">
+    <div class="controls">
+      <label>seed <input id="seed" type="number" value="7"></label>
+      <label>правила <select id="ruleset">
+        <option value="player_spatial">v0.8 пространственный мир</option>
+        <option value="player_civic">v0.7 мир регионов</option>
+        <option value="player_life">v0.6 жизнь</option>
+      </select></label>
+      <label>регионы <input id="regions" type="number" value="2" min="1" max="8"></label>
+      <label>агенты <input id="agents" type="number" value="54" min="10" max="400"></label>
+      <button id="new-world">Новый мир</button>
+      <label class="chk"><input id="autoplay" type="checkbox" checked> авто-ход</label>
+    </div>
+
+    <div class="card-row" id="card-row"></div>
+
+    <div class="map-wrap">
+      <svg id="map" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="legend">
+        <span class="lg"><i class="sw soil"></i>почва</span>
+        <span class="lg"><i class="sw food"></i>запасы еды</span>
+        <span class="lg"><i class="sw pop"></i>население</span>
+        <span class="lg"><i class="sw law"></i>действующий устав</span>
+      </div>
+    </div>
+
+    <div class="problems" id="problems"></div>
+
+    <div class="decrees" id="decrees"></div>
+  </section>
+
+  <section id="pane-analysis" hidden>
+    <div class="controls">
+      <label>область <select id="an-entity"></select></label>
+      <label>поле <select id="an-field">
+        <option value="soil_fertility">soil_fertility</option>
+        <option value="food_stock">food_stock</option>
+        <option value="population">population</option>
+        <option value="disease_load">disease_load</option>
+      </select></label>
+      <button id="an-run">Пересчитать</button>
+    </div>
+    <div id="an-body"><p class="hint">Нажмите «Пересчитать» — анализ читает архив, а не память.</p></div>
+  </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 142 tests
+python -m pytest          # 252 tests
 ```
 
 | spec test | where |
@@ -647,6 +647,159 @@ sources, backward/forward trace causality + depth/`max_nodes` caps +
 no-loops, `execute()` is a lazy id-ordered generator, delta_profile
 drill-down, archive-untouched hash).
 
+## v0.7 — Living world: the player governs the world, not only their avatar
+
+The design, the cycle and the prototype plan live in
+**`experiments/proposals/v07_living_world_design.md`** (also in Russian).
+This section is the operational summary.
+
+v0.6 made the player one agent inside a world. v0.7 makes the **world**
+the object: the player is a steward, a researcher and a law-maker at once.
+The kernel is untouched; everything below is a ruleset, a system, or a
+read-only observer over the recorded journal.
+
+**Three new layers.**
+
+1. **Civic layer — the player issues laws.** A *decree* is a normal
+   committed transition (`player.directive`) that changes the law
+   parameters of ONE region; the law systems read them, so a decree
+   never competes with the ecology for a field. Three kinds, each a
+   measured trade-off: `amend` (labour to compost: soil 0.50 → ~0.76,
+   −25 % harvest), `water` (irrigation: +rain, soil mined faster),
+   `rest` (fallow: the soil heals, the people eat the stores). A decree
+   enacted at tick T enters force at **T+1** — derived from the one
+   snapshot per tick, not configured. New ruleset `player_civic` (0.7.0);
+   without decrees it is bit-identical to the base law.
+2. **Counterfactual sandbox — determinism as a gameplay advantage.**
+   `sandbox.py` reads the decision stream AND the decree ledger back out
+   of an archive, re-runs the world with **one** changed decision, and
+   compares the two runs with the same `CausalComparator` the lab uses:
+   divergence tick (+ transition id), survivors, soil deltas, structural
+   budget diff. The base of a counterfactual is the *recorded* world — a
+   fork that changed two factors at once would be a lie.
+3. **Hypothesis verdicts — fact, confirmed link, hypothesis.** A player's
+   claim is *tested* against the record: `confirmed` (the edge exists),
+   `refuted` (it does not), or `unresolved` (the record does not settle
+   it). Never a narrative, never a silent upgrade of a guess into a fact.
+
+**The loop, in one command:**
+
+```bash
+python -m causal_world civic --seed 7 --regions 3 --agents 100 --ticks 120 \
+    --decree 20:amend:region:0:0.25 \
+    --hypothesis CivicAgricultureSystem:agriculture.harvest:region:0:soil_fertility \
+    --fork-at 50 --fork-action 0
+```
+
+OBSERVE (budgets, regime, series) → UNDERSTAND (a claim, tested against
+the journal) → INTERVENE (a decree and/or a decision, through ordinary
+transitions) → VERIFY (the counterfactual, diffed mechanically).
+
+**The living map and the analytical mode** (one port, three roles):
+
+```bash
+python -m causal_world serve --port 8765 --db-dir runs/
+#   http://localhost:8765/   map + analytical mode
+#   ws://localhost:8765/ws   the v0.6 session protocol (unchanged)
+#   /analyze?entity=region:0&field=soil_fertility   read-only analysis
+```
+
+The map draws what the server sent in the frame's `world` section (the
+section the v0.6 contract already prescribed in §1.5); the analytical
+mode reads the **archive**, not the server's memory, and answers with
+budgets, confirmed links (by transition id) and the dynamics. Clicking a
+region on the map opens its budget; the two views cite the same ids.
+
+Tests: 233 → **252** (`tests/test_v07_civic.py`: the decree is a
+committed transition, in force on T+1, scoped to one region; the base law
+is untouched; the ledger is recoverable from the archive alone; a fork
+changes exactly one factor and keeps the base ledger; hypothesis verdicts
+are confirmed/refuted/unresolved; rejected transitions are not facts).
+
+## v0.8 — Spatial living world: cells, a stable horizon, a world that speaks
+
+The design, the measurements and the honest limits live in
+**`experiments/proposals/v08_spatial_demography_design.md`** (Russian).
+This section is the operational summary.
+
+v0.7 gave the player a *world of regions* — one soil, one food stock, one
+population per region — and the world had a measured defect: it died at
+**tick 248** whatever the player did. The diagnosis
+(`experiments/reports/v08_demography.md`) is in the record, and the
+probes are unambiguous: ageing is not the killer, disease is not the
+killer, and **raising the birth rate ×10 does not save the world either**
+(exit tick 257). The killer is structural: the compost law returned
+nutrients in proportion to the POPULATION while the degradation was
+flat, so every death lowered the soil, which lowered the harvest, which
+starved the survivors — a spiral.
+
+v0.8 changes the MODEL, as new rulesets over the frozen kernel:
+
+1. **Cells.** A region owns a grid of cells (`cell:{region}:{index}`),
+   each with its own soil, food store, people, rainfall factor and
+   **law**. Food is local; migration moves people to the better
+   *neighbouring* cell. The cells are born through the normal genesis
+   path (`extra_genesis_entities`), so they carry provenance from tick 0.
+2. **Soil per worker, not per head.** Degradation and the nutrient
+   return both scale with the labour applied to the field, so the
+   equilibrium soil (0.47) is a property of the labour regime and **not
+   of the head count** — a cell whose people died keeps its land. The
+   v0.7 death spiral is gone by construction (measured: a cell with 11
+   people and a cell with 0 both sit at soil ≈ 0.47).
+3. **Births per adult.** Conception is a per-adult probability gated by
+   the cell's food and carrying capacity, so the supply of newborns
+   scales with the number of adults (54 agents → 23 births / 200 ticks,
+   108 agents → 47). The dormant pool is sized for the horizon (6×) and
+   its exhaustion is an observable end state, not a silent failure.
+4. **Nursery — a model policy, not a mortality compensation.** A cell's
+   `nursery` raises the conception rate and the newborn's health; it does
+   **not** touch the death rate. The journal shows the new threshold:
+   `birth.conceive` at 0.04 in the nursery cell against 0.02 next door.
+5. **The situation layer — the world speaks about itself.**
+   `observer/situation.py` computes a feed of problems (famine, hunger,
+   surplus, thin soil, abandoned cell, birth stall, exhausted reserve of
+   lives) from the state — each with a severity, the tick it has been
+   true since, and the **transition ids** the claim rests on. It is
+   silent when the world is healthy. The same code serves the live world
+   and the recorded archive.
+
+**The measured vertical slice** (seed 7, 2 regions, 54 agents, 8 cells,
+900 ticks — the same world twice, one difference: the player's decrees):
+
+| | without decrees | with decrees |
+|---|---|---|
+| alive at tick 900 | 37 | **80** |
+| births | 105 | **206** |
+| deaths by hunger | 37 | **0** |
+| the poor region | extinct by tick ~120 | alive (39 people) |
+
+The decrees: `amend 0.15` on the four cells of the poor region at ticks
+20–23, then `water 1.0` on the same cells at ticks 24–27 (the channel
+holds **one** order per tick — two orders in one tick overwrite each
+other, silently).
+
+```bash
+python -m causal_world civic --seed 7 --ruleset player_spatial \
+    --regions 2 --agents 54 --ticks 300 \
+    --decree 20:amend:cell:1:0:0.15 --decree 24:water:cell:1:0:1.0
+```
+
+New rulesets: `player_spatial` (0.8.0, 2×2 cells per region) and
+`player_spatial3` (0.8.0-s3, 3×3 — a different world shape is a
+different ruleset, not a setting). The map draws the cells; the frame
+carries the cells and the situation feed; the analytical mode reads the
+archive and answers for a **cell** (its own soil curve, its budget, its
+confirmed links by transition id).
+
+The v0.6 world is bit-identical (pinned hashes, asserted in the suite);
+the v0.7 world is untouched (the spatial systems are a separate ruleset).
+
+Tests: 252 → **273** (`tests/test_v08_spatial.py`: the grid genesis, the
+per-worker soil equilibrium, the per-adult birth law, the nursery
+threshold, one-cell decrees in force on T+1, informed migration, the
+situation layer with real evidence, the server frame, the frozen v0.6
+world).
+
 ## Roadmap
 
 ```
@@ -665,8 +818,14 @@ v0.4  Observer: causal budgets, regime classifier, comparator,
 v0.5  Causal query engine: indexed, streaming, composable queries over
       the frozen journal — read-only, cache is derived (this branch)
 v0.6  Biography generator
-v0.7  LLM as causal-trace interpreter (observer adapter only)
-v0.8  100k+ agents: memory layout, sparse state, batching,
+v0.7  Living world: civic layer (player-issued, region-scoped laws),
+      counterfactual sandbox, hypothesis verdicts, living map + analytical
+      mode; LLM as causal-trace interpreter (observer adapter only)
+v0.8  Spatial living world: cells with their own soil, food, people
+      and law; soil per worker (no death spiral); births per adult;
+      the nursery policy; the situation feed — the world that says what
+      is wrong (this branch)
+v0.9  100k+ agents: memory layout, sparse state, batching,
       spatial partitioning, parallel execution, compressed provenance
 v1.0  Large artificial world
 ```

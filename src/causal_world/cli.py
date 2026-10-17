@@ -136,6 +136,34 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--db-dir", default=".", help="where life-<session>.db live")
 
+    civic_p = sub.add_parser(
+        "civic",
+        help="v0.7: the civic loop — observe, understand, intervene, verify",
+    )
+    civic_p.add_argument("--seed", type=int, default=7)
+    civic_p.add_argument("--ruleset", default="player_spatial",
+                         help="player_spatial (v0.8 cell world) | "
+                              "player_civic (v0.7 region world) | "
+                              "player_life (v0.6)")
+    civic_p.add_argument("--regions", type=int, default=2)
+    civic_p.add_argument("--agents", type=int, default=54)
+    civic_p.add_argument("--ticks", type=int, default=120)
+    civic_p.add_argument("--db", default=None,
+                         help="archive path (default: a temp file)")
+    civic_p.add_argument("--decree", action="append", default=[],
+                         metavar="TICK:KIND:REGION[:PARAM]",
+                         help="enact a decree: e.g. 20:amend:region:0:0.25")
+    civic_p.add_argument("--fork-at", type=int, default=None,
+                         help="world tick at which the counterfactual "
+                              "changes the decision")
+    civic_p.add_argument("--fork-action", type=int, default=6,
+                         help="the decision the counterfactual plays instead")
+    civic_p.add_argument("--hypothesis", default=None,
+                         metavar="SYSTEM:OPERATION:ENTITY:FIELD",
+                         help="a claim to test against the record")
+    civic_p.add_argument("--json", action="store_true",
+                         help="print the raw report as JSON")
+
     p = sub.add_parser("play", help="step 5: interactive life client")
     p.add_argument("--url", default="ws://127.0.0.1:8765")
     p.add_argument("--seed", type=int, default=7)
@@ -551,6 +579,159 @@ def _cmd_play(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_civic(args: argparse.Namespace) -> int:
+    """The v0.7 loop: observe -> understand -> intervene -> verify."""
+    import tempfile
+    from pathlib import Path
+
+    from causal_world.game import (
+        GameWorld,
+        chronicle,
+        intervene_and_verify,
+        observe,
+        understand,
+    )
+    from causal_world.observer.hypothesis import Hypothesis
+    from causal_world.systems.directive import (
+        DIRECTIVE_ALL_NAMES,
+        Directive,
+    )
+
+    kinds = {name: code for code, name in DIRECTIVE_ALL_NAMES.items()}
+    tmpdir = None
+    if args.db:
+        db_path = args.db
+    else:
+        tmpdir = tempfile.mkdtemp(prefix="civic-")
+        db_path = str(Path(tmpdir) / "world.db")
+
+    world = GameWorld(
+        seed=args.seed, ruleset=args.ruleset, regions=args.regions,
+        agents=args.agents, db_path=db_path,
+    )
+    decrees = {}
+    for spec in args.decree:
+        # TICK:KIND:TARGET[:PARAM] — the target may itself contain colons
+        # ("cell:1:0"), so it is parsed from the middle: the first field
+        # is the tick, the last is the parameter, the kind is the second.
+        parts = spec.split(":")
+        if len(parts) < 3:
+            print(f"error: bad --decree {spec!r} "
+                  f"(expected TICK:KIND:TARGET[:PARAM])", file=sys.stderr)
+            return 2
+        tick, kind = int(parts[0]), parts[1]
+        param = float(parts[-1]) if len(parts) > 3 else 0.25
+        target = ":".join(parts[2:-1]) if len(parts) > 3 else parts[2]
+        if kind not in kinds:
+            print(f"error: unknown decree kind {kind!r} "
+                  f"(have {', '.join(sorted(kinds))})", file=sys.stderr)
+            return 2
+        decrees[tick] = Directive(kinds[kind], target, param)
+
+    for tick in range(args.ticks):
+        if tick in decrees:
+            world.decree(tick, decrees[tick].kind, decrees[tick].region,
+                         decrees[tick].param)
+        world.act(6)  # idle: the personal card is the v0.6 one
+    world.close()
+
+    report = {"db": db_path}
+    report["observation"] = observe(db_path)
+
+    if args.hypothesis:
+        # The entity may itself contain a colon ("region:0"), so the
+        # claim is split from the LEFT: system, operation, then the rest
+        # is "<entity>:<field>".
+        head, _, tail = args.hypothesis.partition(":")
+        system, _, rest = tail.partition(":")
+        entity, _, field_name = rest.rpartition(":")
+        if not (head and system and entity and field_name):
+            print("error: --hypothesis expects SYSTEM:OPERATION:ENTITY:FIELD",
+                  file=sys.stderr)
+            return 2
+        report["hypothesis"] = understand(
+            db_path,
+            Hypothesis(text=args.hypothesis, system=head, operation=system,
+                       entity=entity, field=field_name),
+        ).to_dict()
+
+    if args.fork_at is not None:
+        result = intervene_and_verify(
+            db_path, fork_at=args.fork_at, action=args.fork_action,
+            fork_db=str(Path(db_path).with_name(Path(db_path).stem + ".fork.db")),
+        )
+        report["counterfactual"] = {
+            "diverged_at_tick": result.diverged_at_tick,
+            "diverged_transition": result.diverged_transition,
+            "base_alive": result.base_alive,
+            "fork_alive": result.fork_alive,
+            "soil_diffs": result.soil_diffs,
+            "budget_diffs": result.budget_diffs,
+            "loop_diff": result.loop_diff,
+        }
+
+    report["chronicle"] = chronicle(db_path)
+
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+        return 0
+
+    obs = report["observation"]
+    print(f"world: {db_path}  (seed {obs['seed']}, ruleset {obs['ruleset']}, "
+          f"ticks {obs['ticks'][0]}..{obs['ticks'][1]})")
+    print(f"regime: {obs['regime']['type']}  soil trajectory: "
+          f"{obs['regime']['soil_trajectory']}  dominant death: "
+          f"{obs['regime']['dominant_death_cause']}")
+    print(f"population: {obs['final_region_population']}")
+    print(f"soil:       {obs['final_region_soil']}")
+    if obs.get("cells"):
+        print()
+        print("cells:")
+        for cell in obs["cells"]:
+            law = cell.get("law") or {}
+            print(f"  {cell['id']:<12} pop {cell['population']:>3}  "
+                  f"soil {cell['soil_fertility']:.3f}  "
+                  f"food {cell['food_stock']:7.1f}  "
+                  f"law: отвод {law.get('labor_diversion', 0):.2f}, "
+                  f"полив {law.get('water_aid', 0):.2f}, "
+                  f"ясли {law.get('nursery', 0):.2f}")
+    if obs.get("situations"):
+        print()
+        print("situations (the world's own reading of itself):")
+        for s in obs["situations"]:
+            print(f"  [{s['severity']:.2f}] {s['kind']:<12} {s['message']}")
+    print()
+    print("budgets (region:0):")
+    for field, rep in obs["budgets"].items():
+        print(f"  {field}: net {rep['net']:+.6f}")
+        for e in rep["inflows"]:
+            print(f"    + {e['system']}.{e['operation']:<24} "
+                  f"{e['total_delta']:+.6f} x{e['count']}")
+        for e in rep["outflows"]:
+            print(f"    - {e['system']}.{e['operation']:<24} "
+                  f"{e['total_delta']:+.6f} x{e['count']}")
+    if "hypothesis" in report:
+        h = report["hypothesis"]
+        print()
+        print(f"hypothesis [{h['hypothesis']['text']}]: {h['verdict']}")
+        print(f"  {h['reason']}")
+        if h["supporting"]:
+            print(f"  supporting transitions: {h['supporting'][:10]}")
+    if "counterfactual" in report:
+        c = report["counterfactual"]
+        print()
+        print(f"counterfactual: diverged at tick {c['diverged_at_tick']} "
+              f"(T{c['diverged_transition']})")
+        print(f"  alive base/fork: {c['base_alive']} / {c['fork_alive']}")
+        for region, delta in c["soil_diffs"].items():
+            print(f"  soil {region}: {delta:+.6f}")
+        if c["loop_diff"]:
+            print(f"  loop: {c['loop_diff']}")
+    print()
+    print(report["chronicle"]["markdown"])
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -568,6 +749,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_serve(args)
     if args.command == "play":
         return _cmd_play(args)
+    if args.command == "civic":
+        return _cmd_civic(args)
     parser.error(f"unknown command {args.command}")
     return 2
 

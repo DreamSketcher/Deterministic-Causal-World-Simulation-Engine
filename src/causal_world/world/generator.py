@@ -50,6 +50,13 @@ def _attr(
     return value
 
 
+#: Public alias — a ruleset that creates its OWN genesis entities (v0.8
+#: spatial cells) must draw the same way the generator does: the same
+#: purpose, the same address (tick, entity, index) and the same recorded
+#: draw, so the journal of a genesis entity is as auditable as any other.
+genesis_attr = _attr
+
+
 def _genesis_transition(
     tick: int,
     entity: str,
@@ -70,6 +77,10 @@ def _genesis_transition(
         random_draws=list(draws),
         priority=0,
     )
+
+
+#: Public alias (see ``genesis_attr``).
+genesis_transition = _genesis_transition
 
 
 def generate_genesis(
@@ -166,7 +177,18 @@ def generate_genesis(
             ("immunity", immunity),
             ("risk_tolerance", risk_tolerance),
         ]
-        fields.extend(extra_fields("agent", entity, {}))
+        fields.extend(
+            extra_fields(
+                "agent",
+                entity,
+                {
+                    "index": i,
+                    "region": f"region:{i % region_count}",
+                    "region_count": region_count,
+                    "dormant": False,
+                },
+            )
+        )
         transitions.append(
             _genesis_transition(tick, entity, "genesis.agent", fields, draws)
         )
@@ -197,7 +219,18 @@ def generate_genesis(
         ]
         # ``{"dormant": True}`` lets the ruleset hook give blank placeholders
         # (e.g. max_health 0.0) instead of live genesis values.
-        fields.extend(extra_fields("agent", entity, {"dormant": True}))
+        fields.extend(
+            extra_fields(
+                "agent",
+                entity,
+                {
+                    "index": agent_count + j,
+                    "region": "none",
+                    "region_count": region_count,
+                    "dormant": True,
+                },
+            )
+        )
         transitions.append(
             _genesis_transition(tick, entity, "genesis.agent.dormant", fields, [])
         )
@@ -220,5 +253,16 @@ def generate_genesis(
                 transitions.append(
                     _genesis_transition(tick, entity, "genesis.ruin", fields, [])
                 )
+
+    # ---- extra genesis entities (v0.8 spatial cells) ----------------------
+    # A ruleset may create entities of its OWN (the v0.8 spatial world
+    # creates the CELLS its people live in). The hook returns ordinary
+    # genesis transitions, so the cells are born through the same
+    # resolve/commit path as everything else and carry provenance from
+    # tick 0. Absent hook -> no extra entities -> the genesis of every
+    # existing ruleset stays bit-identical.
+    extra_entities = getattr(rules, "extra_genesis_entities", None)
+    if extra_entities is not None:
+        transitions.extend(extra_entities(rng, tick, region_count, agent_count))
 
     return transitions

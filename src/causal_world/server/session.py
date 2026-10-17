@@ -44,8 +44,14 @@ from causal_world import create_world
 from causal_world.observer.biography import build_biography
 from causal_world.observer.deaths import DeathClassifier
 from causal_world.observer.journal import JournalView
+from causal_world.observer.situation import StateView, situations
 from causal_world.player import DecisionChannel, attach_player_channel
 from causal_world.server import continuity
+from causal_world.systems.directive import (
+    Directive,
+    DirectiveChannel,
+    DirectiveSystem,
+)
 from causal_world.systems.player import ACTION_NAMES, N_ACTIONS
 from causal_world.world.rules import get_ruleset
 
@@ -116,6 +122,13 @@ class Session:
         self.channel = DecisionChannel()
         attach_player_channel(self.sim, self.channel, self.config["controlled"])
         self.controlled = self.config["controlled"]
+        # The civic layer (v0.7): if the world runs the directive system,
+        # the player may also enact laws. A world without it simply has
+        # no decree channel — the ruleset, not the transport, decides.
+        self.decrees = DirectiveChannel()
+        for system in self.sim.systems:
+            if isinstance(system, DirectiveSystem):
+                system.channel = self.decrees
 
         self.decisions: dict[int, int] = {}
         self.frames: dict[int, dict] = {}
@@ -210,6 +223,18 @@ class Session:
         self.sim.journal.set_meta(key, value)
 
     # ------------------------------------------------------------- views ---
+    def _decree_card(self) -> dict:
+        """The levers this world offers (empty without a civic layer).
+
+        The card comes from the world's own directive system, so a v0.7
+        world offers three levers and a v0.8 spatial world four — the
+        client never has to know the difference.
+        """
+        for system in self.sim.systems:
+            if isinstance(system, DirectiveSystem):
+                return system.kinds()
+        return {}
+
     def welcome(self) -> dict:
         return {
             "type": "welcome",
@@ -221,6 +246,10 @@ class Session:
             "config": dict(self.config),  # server authority: echoed, not set
             "db_path": self.db_path,
             "action_card": dict(ACTION_NAMES),
+            # The civic card (v0.7/v0.8): empty for a world without the
+            # civic layer, so the client knows the difference between "no
+            # laws exist" and "laws exist but none offered".
+            "decree_card": self._decree_card(),
             "life": {
                 "n": self.life_n,
                 "agent": self.controlled,
@@ -235,7 +264,16 @@ class Session:
         return out
 
     # ------------------------------------------------------------ decide ---
-    def decide(self, seq: int, action: int) -> dict:
+    def decide(self, seq: int, action: int,
+               decree: dict | None = None) -> dict:
+        """Apply one decision (and optionally one decree) and step the world.
+
+        The decree is scheduled for the tick AFTER this one: a decree
+        enacted in the same tick as a step would be read by the law
+        systems from the very same snapshot, and the moment a law enters
+        force must stay derived (one coherent snapshot per tick), not
+        depend on message ordering inside a tick.
+        """
         with self._lock:
             if self.state == "finalized":
                 raise ProtocolError("finalized", "life is over and finalized", seq)
@@ -254,6 +292,12 @@ class Session:
                     {"resync": {"last_seq": self.last_seq}},
                 )
             # — from here the step happens; §1 order —
+            # The decree is validated BEFORE the decision is delivered: a
+            # refused decree must not consume the seq (the client's next
+            # message would otherwise be answered as a replay of a
+            # decision that never happened).
+            if decree is not None:
+                self._schedule_decree(decree)
             self.channel.deliver(action)
             self.decisions[seq] = action
             self.sim.step()
@@ -263,6 +307,60 @@ class Session:
             self.last_seq = seq
             self._advance()
             return frame
+
+    def _schedule_decree(self, decree: dict) -> None:
+        """Schedule a civic decree for the next tick (validated first).
+
+        A world without the civic layer refuses the decree instead of
+        silently dropping it — a law the player thinks they enacted but
+        which never happened is exactly the kind of lie this repo
+        refuses to tell.
+
+        The TARGET of a decree is whatever the world's law works on: a
+        region in the v0.7 world, a cell in the v0.8 spatial world. The
+        target must exist — a decree addressed to nothing is refused,
+        not silently ignored.
+        """
+        directive_system = next(
+            (s for s in self.sim.systems if isinstance(s, DirectiveSystem)), None
+        )
+        if directive_system is None:
+            raise ProtocolError(
+                "no_civic_layer",
+                "this world runs no directive system: the chosen ruleset "
+                "has no civic layer, so decrees cannot be enacted",
+                None,
+                {"ruleset": self.config["ruleset"]},
+            )
+        kind = decree.get("kind")
+        target = decree.get("target") or decree.get("region")
+        param = float(decree.get("param", 0.25))
+        if not isinstance(kind, int) or kind not in directive_system.KIND_NAMES:
+            raise ProtocolError(
+                "malformed",
+                f"decree kind must be one of {sorted(directive_system.KIND_NAMES)}",
+                None,
+            )
+        if not isinstance(target, str) or not target:
+            raise ProtocolError("malformed", "decree target must be an entity id",
+                                None)
+        if target not in self._decree_targets(directive_system):
+            raise ProtocolError(
+                "unknown_target",
+                f"no such decree target in this world: {target!r}",
+                None,
+                {
+                    "target_prefix": directive_system.TARGET_PREFIX,
+                    "rule": "the target must exist in the world",
+                },
+            )
+        self.decrees.schedule(self.sim.state.tick + 1, Directive(kind, target, param))
+
+    def _decree_targets(self, directive_system) -> set:
+        """The entities this world's law can be written upon."""
+        return set(
+            self.sim.state.entities_with_prefix(directive_system.TARGET_PREFIX)
+        )
 
     def _render(self, seq: int) -> dict:
         st = self.sim.state
@@ -280,6 +378,11 @@ class Session:
                 f: st.get(self.controlled, f)
                 for f in ("hunger", "health", "region", "last_action")
             },
+            # The world view (contract §1.5: "the world section of the
+            # frame is read from sim.state, view-only"). It is a READ of
+            # the live state — never a write — and it is what lets a
+            # client draw the living map without a second protocol.
+            "world": self._world_view(),
             "journal": {
                 "total": total,
                 "committed": committed,
@@ -287,6 +390,103 @@ class Session:
                 "hash": self.sim.journal.hash(),
             },
         }
+
+    def _world_view(self) -> dict:
+        """The world as the client may see it (view-only).
+
+        Read straight from ``sim.state``; no computation, no history. The
+        civic law parameters are included when the world runs the civic
+        layer, so the map can show WHICH law a region (or a cell) lives
+        under. The v0.8 spatial world adds the CELLS: the map is a grid
+        of cells, each with its own soil, food, people and law.
+
+        The SITUATIONS (the computed problem feed of v0.8) come with the
+        frame: they are derived from the same state and cite the
+        transition ids they rest on.
+        """
+        st = self.sim.state
+        regions = []
+        for region in st.entities_with_prefix("region:"):
+            row = {
+                "id": region,
+                "population": st.get(region, "population"),
+                "workers": st.get(region, "workers"),
+                "soil_fertility": st.get(region, "soil_fertility"),
+                "food_stock": st.get(region, "food_stock"),
+                "temperature": st.get(region, "temperature"),
+                "rainfall": st.get(region, "rainfall"),
+                "disease_load": st.get(region, "disease_load"),
+            }
+            if st.has(region, "labor_diversion"):
+                row["law"] = {
+                    "labor_diversion": st.get(region, "labor_diversion"),
+                    "water_aid": st.get(region, "water_aid"),
+                    "rest_until": st.get(region, "rest_until"),
+                    "resting": int(st.get(region, "rest_until") or 0) > st.tick,
+                }
+            regions.append(row)
+
+        cells = []
+        for cell in st.entities_with_prefix("cell:"):
+            row = {
+                "id": cell,
+                "region": st.get(cell, "region"),
+                "x": st.get(cell, "cell_x"),
+                "y": st.get(cell, "cell_y"),
+                "population": st.get(cell, "population"),
+                "workers": st.get(cell, "workers"),
+                "soil_fertility": st.get(cell, "soil_fertility"),
+                "food_stock": st.get(cell, "food_stock"),
+                "rain_factor": st.get(cell, "rain_factor"),
+            }
+            if st.has(cell, "labor_diversion"):
+                row["law"] = {
+                    "labor_diversion": st.get(cell, "labor_diversion"),
+                    "water_aid": st.get(cell, "water_aid"),
+                    "rest_until": st.get(cell, "rest_until"),
+                    "nursery": st.get(cell, "nursery"),
+                    "resting": int(st.get(cell, "rest_until") or 0) > st.tick,
+                }
+            cells.append(row)
+
+        alive = sum(
+            1 for a in st.entities_with_prefix("agent:")
+            if st.get(a, "alive")
+        )
+        return {
+            "tick": st.tick,
+            "regions": regions,
+            "cells": cells,
+            "alive_agents": alive,
+            "total_agents": len(st.entities_with_prefix("agent:")),
+            "situations": self._situations(),
+        }
+
+    def _situations(self) -> list:
+        """The problem feed of the world (v0.8), computed from the state.
+
+        Read-only and cheap: the values come from the live state and
+        their provenance (the transition that last wrote them) from the
+        state's own index. The history-based readings (how long a cell
+        has been empty) are served by the analysis endpoint, where a full
+        pass over the journal is affordable.
+        """
+        try:
+            view = StateView.from_state(
+                self.sim.state,
+                tick_of=lambda tid: self._tick_of(tid),
+            )
+            return [a.to_dict() for a in situations(view, current_tick=self.sim.state.tick)]
+        except Exception:
+            return []  # a failed feed never breaks the frame
+
+    def _tick_of(self, tid: int | None) -> int | None:
+        if tid is None:
+            return None
+        try:
+            return self.sim.journal.by_id(tid).tick
+        except Exception:
+            return None
 
     def _alive(self) -> bool:
         return bool(self.sim.state.get(self.controlled, "alive"))
