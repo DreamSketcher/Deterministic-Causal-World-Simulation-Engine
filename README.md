@@ -90,7 +90,7 @@ src/causal_world/
 ├── query/         index.py query.py             (v0.5, read-only cache)
 ├── world/         generator.py rules.py
 ├── cli.py         __main__.py
-tests/             13 test modules + helpers.py (142 tests)
+tests/             31 test modules + helpers.py
 experiments/       survival.py compare_rulesets.py observer_demo.py
                    query_demo.py _regen_archive.py
                    reports/   (v0.2 … v0.5 write-ups)
@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 337 tests
+python -m pytest          # 345 tests
 ```
 
 | spec test | where |
@@ -1134,10 +1134,121 @@ bit-for-bit.
 
 Honest limits: the move is intra-regional (cross-region caravans need
 trade and corridors that the model does not have); one protocol and one
-strain of orders; "starvation death" is still a proxy; movers are chosen
-by hunger, not by household, so children can be sent; and the extra
-births in the grid are a demographic response, not proof that the new
-settlement itself will persist.
+strain of orders; "starvation death" is still a proxy; the mover rule is
+"least hungry first", which in a fed world degenerates to id order (v0.11.1
+measures it), and children can be sent. The +600 horizon is checked in
+v0.11.1: the settlement persists in 6 of 8 new cells, as descendants,
+not as founders.
+
+## v0.11.1 — before scaling: three checks
+
+The v0.11 chain is closed, but the review named what it does not prove:
+a settlement can appear and vanish, the world chooses WHO leaves by a
+rule nobody had measured, and the first scaling step must be a profile.
+This stage adds no law to the world; it measures all three and writes
+down the order of v0.12.
+
+### 1. The long horizon: a settlement, not a founder effect
+
+`experiments/v011_settlement.py` — the same three arms as the v0.11
+counterfactual, but the player leaves after tick 416 and the world is
+watched to tick 1020 (600+ ticks without a single order). Four seeds.
+
+* **6 of 8** new cells still have people at +600. The two that emptied
+  did so with **zero deaths inside the cell**: their people migrated
+  away, which is a different outcome and is reported separately.
+* At +200 the movers are alive 23/33 (70%) and the stayers 215/321
+  (67%): on this horizon the move is not deadlier than staying.
+* The settlement is **descendants, not founders**: 0/33 movers and
+  0/321 stayers are alive at +600; the cells hold 1–4 people born there.
+  The settlement survives; it does not grow.
+* The move costs the source less than the noise of natural history in
+  every seed: the end population of the donor cell differs from the
+  SAME cell in the claim arm by −1…+3.
+* Δ resettle − claim in alive at +600: +3, +11, +8, +3 (mean +6.2) —
+  the direction of the short window holds, the size is smaller.
+
+Report: `experiments/reports/v011_settlement.md`.
+
+### 2. Who leaves: the policy is measurable, and the default is not "hunger"
+
+`experiments/v011_selection.py` replaces ONE method (`_choose_movers`)
+and keeps donor, count, price, destination and seed identical, across
+four policies and four seeds:
+
+| policy | moved | children | mean age | alive at +200 | survival |
+|---|---:|---:|---:|---:|---:|
+| `hungry` (world default) | 33 | 1 | 79.4 | 26 | 79% |
+| `youngest` | 34 | 14 | 26.7 | 34 | 100% |
+| `oldest` | 30 | 0 | 134.2 | 12 | 40% |
+| `random` (hash, no RNG stream) | 33 | 4 | 82.5 | 27 | 82% |
+
+The important measurement is not that the youngest survive best — age is
+the main mortality factor, so that comparison is confounded by
+construction. It is that **in all four seeds, every candidate had hunger
+0.0**. The "least hungry first" rule therefore degenerates to the id
+tie-break: the world is not choosing the hungry, it is choosing the
+lowest id and calling it hunger. A child can leave alone (41% of movers
+under `youngest`), because the model has no households.
+
+No household model is introduced. The question was measured on the
+current model; the next step is to decide whether the tie-break is
+intended, not to hide it behind a new subsystem.
+
+Report: `experiments/reports/v011_selection.md`; the extreme cases
+(donor of one person, a source of two, equal donors, a child mover) are
+pinned in `tests/test_v011_selection.py` (8 tests).
+
+### 3. Profile: the analytics wall is closer than the engine wall
+
+`experiments/v012_profile.py` builds each size in a SEPARATE process and
+measures genesis, the phases of a tick, peak RSS, archive growth and the
+cost of reading:
+
+| living at start | slots | tick, s | commit, s | peak RSS, MB | archive, MB/tick |
+|---:|---:|---:|---:|---:|---:|
+| 500 | 3.5k | 0.17 | 0.02 | 55 | 1.6 |
+| 1000 | 7k | 0.31 | 0.06 | 86 | 3.2 |
+| 2000 | 14k | 0.69 | 0.10 | 143 | 6.4 |
+| 4000 | 28k | 1.49 | 0.15 | 256 | 13.0 |
+| 8000 | 56k | 2.96 | 0.18 | 479 | 26.1 |
+| 16000 | 112k | 6.24 | 0.38 | 871 | 52.7 |
+
+At 16k living the tick is 50% systems, 18% journal record, 6% journal
+commit, 2% snapshot, 2% resolver. No single system dominates: the cost
+is linear and spread. The projection to 100k LIVING (700k slots) is
+41 s/tick, 5.3 GB peak RSS and 330 MB/tick of archive — the memory wall
+is below the machine's 3.8 GB, so the first v0.12 checkpoint is
+**failed by the current representation**, with numbers rather than an
+opinion.
+
+The reader is worse. `StateView.from_state` takes 4.6 s at 500 living
+and 17.7 s at 1000; the exponent is 1.94 — quadratic, because
+`fields_of` scans the whole state per entity. At 100k one frame would
+take ~37 hours; at the 54-agent demo it is ~62 ms, which is why the
+game feels fine until it does not. This is a defect of the observer, not
+of the model: the same dictionary can be built in one pass without
+changing a value, but the fix must come with an equivalence test (v0.12,
+stage 2), not before it.
+
+Reports: `experiments/reports/v012_profile.md`; the stage document is
+`experiments/proposals/v11_1_prescale_checks.md` (Russian), the v0.12
+plan is `experiments/proposals/v12_scaling_design.md`, and the playtest
+protocol (not executed here) is
+`experiments/proposals/v011_playtest_protocol.md`.
+
+Tests: **345** — the v0.11 suite plus `tests/test_v011_selection.py`
+(8: default policy, age is not an input, one-method override, donor
+ranking, a one-person cell is not a donor, a move never empties its
+source, the source is recorded).
+
+Commands:
+
+```
+python3 experiments/v011_settlement.py
+python3 experiments/v011_selection.py
+python3 experiments/v012_profile.py --ticks 3
+```
 
 ## Roadmap
 
@@ -1175,9 +1286,16 @@ v0.10 Capacity policy: wild land claimed by a priced transition, terraces
 v0.11 Resettlement: a priced, atomic, intra-regional move of people;
       the destination card names room, habitability, donor and price;
       verdicts account for both the destination and the source; the
-      lever is inert when unused (this branch)
-v0.12 100k+ agents: memory layout, sparse state, batching,
-      spatial partitioning, parallel execution, compressed provenance
+      lever is inert when unused
+v0.11.1 Pre-scaling checks: the +600 settlement horizon, the mover
+      policy (the hunger rule degenerates to id order), and a profile
+      that puts the analytics wall in front of the engine wall
+      (this branch)
+v0.12 Scaling, measured: stage 1 profile (done) → stage 2 bottleneck
+      (observer one-pass first, then state/snapshot and journal) →
+      stage 3 equivalence (canonical digest must match). Checkpoint:
+      100k living pass a fixed horizon with tick time, peak RSS and
+      journal growth published; analytics ≤ 250 ms/frame
 v1.0  Large artificial world
 ```
 

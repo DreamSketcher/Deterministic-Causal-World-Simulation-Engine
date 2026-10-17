@@ -157,12 +157,14 @@ class ResettlementDirectiveSystem(CapacityDirectiveSystem):
             return b.build()
 
         # WHO goes: the least hungry first (they can survive the trip),
-        # ties by id. An explicit sort, never collection order.
+        # ties by id. An explicit sort, never collection order. The rule
+        # lives in one overridable method so an experiment can measure a
+        # DIFFERENT policy without touching the world's default law.
         agents = [
             a for a in context.entities("agent:")
             if snapshot.get(a, "alive") and snapshot.get(a, "cell") == source
         ]
-        agents.sort(key=lambda a: (float(snapshot.get(a, "hunger") or 0.0), a))
+        agents = self._choose_movers(agents, snapshot)
         movers = min(movers, len(agents))
         if movers < 1:
             b.write(target, "resettle_state", RESETTLE_NO_DONOR)
@@ -191,6 +193,21 @@ class ResettlementDirectiveSystem(CapacityDirectiveSystem):
         return b.build()
 
     # ------------------------------------------------------------------
+    def _choose_movers(self, agents: list[str], snapshot) -> list[str]:
+        """Order the candidates of one source; the first N are the movers.
+
+        Default: the least hungry first (they can survive the trip), ties
+        by id. Deterministic and independent of collection order. This is
+        the world's law, not a suggestion: an experiment that wants to
+        compare another policy must override THIS method and say so in
+        its report. The default is kept as a method (and not inlined)
+        precisely so that such a comparison changes one thing.
+        """
+        return sorted(
+            agents,
+            key=lambda a: (float(snapshot.get(a, "hunger") or 0.0), a),
+        )
+
     def _donors(self, snapshot, region: str, target: str, context):
         """Rank the region's donors deterministically.
 
