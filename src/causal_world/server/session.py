@@ -496,7 +496,10 @@ class Session:
     def _world_view(self, view) -> dict:
         """The world as the client may see it (view-only).
 
-        Read straight from ``sim.state``; no computation, no history. The
+        Reads the frame's ``CellSlice`` — the same object the situations,
+        goals and the resettlement card are computed from. No history, no
+        writes, and no full ``StateView``: a frame pays for the cells it
+        draws, not for every entity in the world (v0.12/2b). The
         civic law parameters are included when the world runs the civic
         layer, so the map can show WHICH law a region (or a cell) lives
         under. The v0.8 spatial world adds the CELLS: the map is a grid
