@@ -213,14 +213,17 @@ class StateView:
         can look a transition up by id); without it the alerts carry the
         transition ids but not their ticks.
         """
-        values = {}
-        for entity in state.entities():
-            for name in state.fields_of(entity):
-                values[(entity, name)] = (
-                    state.get(entity, name),
-                    state.get_source(entity, name),
-                    None,
-                )
+        # One pass over the stored pairs. The old version iterated the
+        # entities and called fields_of() for each, which scans the whole
+        # state per entity; the result was quadratic in the number of
+        # pairs (v0.12 profile: 4.6 s at 500 living, 17.8 s at 1000).
+        # Same keys, same values, same provenance — see
+        # tests/test_v012_reader.py, which pins the mapping against the
+        # old loop.
+        values = {
+            key: (value, state.provenance.get(key), None)
+            for key, value in state.data.items()
+        }
         view = cls(values, ticks=False)
         view._tick_of_tid = tick_of
         return view

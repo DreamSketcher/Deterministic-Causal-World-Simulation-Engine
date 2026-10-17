@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 345 tests
+python -m pytest          # 348 tests
 ```
 
 | spec test | where |
@@ -1205,30 +1205,34 @@ pinned in `tests/test_v011_selection.py` (8 tests).
 measures genesis, the phases of a tick, peak RSS, archive growth and the
 cost of reading:
 
-| living at start | slots | tick, s | commit, s | peak RSS, MB | archive, MB/tick |
+| living at start | slots | tick, s | commit, s | peak RSS, MB | journal, MB/tick |
 |---:|---:|---:|---:|---:|---:|
-| 500 | 3.5k | 0.17 | 0.02 | 55 | 1.6 |
-| 1000 | 7k | 0.31 | 0.06 | 86 | 3.2 |
-| 2000 | 14k | 0.69 | 0.10 | 143 | 6.4 |
-| 4000 | 28k | 1.49 | 0.15 | 256 | 13.0 |
-| 8000 | 56k | 2.96 | 0.18 | 479 | 26.1 |
-| 16000 | 112k | 6.24 | 0.38 | 871 | 52.7 |
+| 500 | 3.5k | 0.15 | 0.02 | 57 | 0.4 |
+| 1000 | 7k | 0.31 | 0.04 | 84 | 0.7 |
+| 2000 | 14k | 0.66 | 0.10 | 145 | 1.5 |
+| 4000 | 28k | 1.49 | 0.18 | 256 | 2.9 |
+| 8000 | 56k | 2.99 | 0.25 | 464 | 5.9 |
+| 16000 | 112k | 6.10 | 0.33 | 878 | 12.0 |
 
-At 16k living the tick is 50% systems, 18% journal record, 6% journal
-commit, 2% snapshot, 2% resolver. No single system dominates: the cost
-is linear and spread. The projection to 100k LIVING (700k slots) is
-41 s/tick, 5.3 GB peak RSS and 330 MB/tick of archive — the memory wall
-is below the machine's 3.8 GB, so the first v0.12 checkpoint is
-**failed by the current representation**, with numbers rather than an
-opinion.
+`journal, MB/tick` is the logical payload of the records, not the file
+growth; the SQLite file is ~3x larger and includes genesis.
+
+A tick at 16k living is 48% prefix scans of the state, 20% the spatial
+system, 14% disease, 14% journal record, 8% id assignment. No single
+law dominates: the repeating scan `entities_with_prefix` — 14 calls per
+tick, each walking all 1.57M (entity, field) pairs — is the largest
+single line. The projection to 100k LIVING (700k slots) is 40 s/tick,
+5.5 GB peak RSS and 75 MB/tick of records (245 MB/tick of archive file);
+the memory wall is below the machine's 4.1 GB, so the first v0.12
+checkpoint is **failed by the current representation**, with numbers
+rather than an opinion.
 
 The reader is worse. `StateView.from_state` takes 4.6 s at 500 living
-and 17.7 s at 1000; the exponent is 1.94 — quadratic, because
+and 17.8 s at 1000; the exponent is 2.17 — quadratic, because
 `fields_of` scans the whole state per entity. At 100k one frame would
-take ~37 hours; at the 54-agent demo it is ~62 ms, which is why the
-game feels fine until it does not. This is a defect of the observer, not
-of the model: the same dictionary can be built in one pass without
-changing a value, but the fix must come with an equivalence test (v0.12,
+take ~108 hours — not milliseconds. This is a defect of the observer, not of
+the model: the same dictionary can be built in one pass without changing
+a value, but the fix must come with an equivalence test (v0.12,
 stage 2), not before it.
 
 Reports: `experiments/reports/v012_profile.md`; the stage document is
@@ -1237,10 +1241,12 @@ plan is `experiments/proposals/v12_scaling_design.md`, and the playtest
 protocol (not executed here) is
 `experiments/proposals/v011_playtest_protocol.md`.
 
-Tests: **345** — the v0.11 suite plus `tests/test_v011_selection.py`
+Tests: **348** — the v0.11 suite plus `tests/test_v011_selection.py`
 (8: default policy, age is not an input, one-method override, donor
 ranking, a one-person cell is not a donor, a move never empties its
-source, the source is recorded).
+source, the source is recorded) and `tests/test_v012_reader.py`
+(3: the one-pass view equals the old mapping, the v0.11 cell fields are
+kept, reading does not change the state hash).
 
 Commands:
 
@@ -1249,6 +1255,29 @@ python3 experiments/v011_settlement.py
 python3 experiments/v011_selection.py
 python3 experiments/v012_profile.py --ticks 3
 ```
+
+## v0.12 — stage 2a: the reader, one pass
+
+The profile named `StateView.from_state` as a quadratic defect of the
+observer. The fix is a single pass over the stored pairs instead of
+`fields_of()` per entity; the mapping is unchanged, key for key, value
+for value, provenance included.
+
+| living | pairs | before | after | speed-up |
+|---:|---:|---:|---:|---:|
+| 500 | 49k | 4.71 s | 0.016 s | 287× |
+| 1000 | 98k | 17.78 s | 0.037 s | 482× |
+| 2000 | 196k | 88.71 s | 0.104 s | 853× |
+
+`tests/test_v012_reader.py` pins the equality against the old
+implementation and checks that reading does not touch the state hash.
+Report: `experiments/reports/v012_reader.md`.
+
+The quadratic wall is gone, but 100k is not: a full view is a dict of
+~9.8M pairs, which even linearly takes seconds. The next step is a
+CELL-SCOPED read — a frame needs one cell and its neighbourhood, not the
+whole world. That is still a read, not a new model, and it will come
+with the same equivalence check.
 
 ## Roadmap
 
