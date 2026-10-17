@@ -1111,9 +1111,10 @@ In saturation the moves write zero capacity fields and change the sum of
 population by `+0`; capacity itself stays put (`64 → 64`, `92 → 92`, …;
 the one `120 → 119` is a soil drift, not a write of the transition). The
 extra people come from BIRTHS inside the capacity that already existed,
-not from a new ceiling. The baseline
-also cross-checks the v0.10 grid: all 12 protocol worlds match it
-number for number, so the new ruleset is inert when its lever is unused.
+not from a new ceiling. The grid also cross-checks v0.10: all 12
+PROTOCOL worlds (the v0.8 orders, no capacity lever) match it number for
+number, so the new ruleset is inert when its lever is unused. The regime
+itself is read from the BASELINE arm — a world with no orders at all.
 
 Commands:
 

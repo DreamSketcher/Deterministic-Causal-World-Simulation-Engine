@@ -25,8 +25,10 @@ transition:
   creation of people);
 * writes no capacity field (``pop_base``, ``soil_fertility``,
   ``land_active``);
-and it cross-checks the baseline against the v0.10 grid: the added
-ruleset must not change the dynamics when the new lever is not used.
+and its PROTOCOL arm (the v0.8 orders, no capacity lever) is cross-
+checked against the v0.10 grid: the added ruleset must not change the
+dynamics when the new lever is not used. The regime itself is read from
+the BASELINE arm — a world with no orders at all.
 
 Usage:
     python3 experiments/v011_grid.py --ticks 600 \
@@ -435,9 +437,10 @@ def render(report: dict, args) -> str:
               f"неиспользуемом рычаге.")
         else:
             a("Это и есть проверка «рычаг не нажат — мир не изменился»: "
-              "новый ruleset добавил клетки-целину, поля и систему, но "
-              "при тех же приказах базовый мир v0.10 воспроизводится "
-              "число в число.")
+              "новый ruleset добавил поля и систему, но плечо protocol "
+              "(те же приказы v0.8, без рычага ёмкости) совпадает с "
+              "миром v0.10 число в число. Режим при этом читается по "
+              "плечу baseline — миру вообще без приказов.")
     a("")
     a("## Что это доказывает")
     a("")
