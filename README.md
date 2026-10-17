@@ -1320,11 +1320,12 @@ v0.11.1 Pre-scaling checks: the +600 settlement horizon, the mover
       policy (the hunger rule degenerates to id order), and a profile
       that puts the analytics wall in front of the engine wall
       (this branch)
-v0.12 Scaling, measured: stage 1 profile (done) → stage 2 bottleneck
-      (observer one-pass first, then state/snapshot and journal) →
-      stage 3 equivalence (canonical digest must match). Checkpoint:
-      100k living pass a fixed horizon with tick time, peak RSS and
-      journal growth published; analytics ≤ 250 ms/frame
+v0.12 Scaling, measured: stage 1 profile (done) → stage 2a observer
+      one-pass (done: 17.8 s → 37 ms at 1000 living, equivalence test)
+      → 2b cell-scoped read → 2c state/snapshot → 2d journal → stage 3
+      equivalence (canonical digest must match). Checkpoint: 100k
+      living pass a fixed horizon with tick time, peak RSS and journal
+      growth published; analytics ≤ 250 ms/frame
 v1.0  Large artificial world
 ```
 
