@@ -90,7 +90,7 @@ src/causal_world/
 ├── query/         index.py query.py             (v0.5, read-only cache)
 ├── world/         generator.py rules.py
 ├── cli.py         __main__.py
-tests/             34 test modules + helpers.py
+tests/             35 test modules + helpers.py
 experiments/       survival.py compare_rulesets.py observer_demo.py
                    query_demo.py _regen_archive.py
                    reports/   (v0.2 … v0.5 write-ups)
@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 369 tests
+python -m pytest          # 383 tests
 ```
 
 | spec test | where |
@@ -1326,9 +1326,11 @@ Cost (`experiments/reports/v012_slice.md`, 2 CPU / 4.1 GB):
 | 4000 | 392k | 360 | 1.592 | 0.0095 | 0.182 |
 
 The frame is two orders of magnitude cheaper. The whole tick is 7–9×
-cheaper: the index advance pays for deserialising the tick's transitions
-from the archive, which is stage 2d's problem, not a reason to bring the
-full view back.
+cheaper in this measurement, where the journal is in memory. On the
+SQLite archive the index advance paid for deserialising the whole tick;
+stage 2d removed the reads and draws from that path with
+`writes_at_tick` (3.4× cheaper) — enough to stop paying for what the
+index does not use, not enough to make a 100k tick's own writes free.
 
 ## v0.12 — stage 2c: the state keeps its own index
 
@@ -1394,6 +1396,113 @@ Reports: `experiments/reports/v012_state.md` (prefix scan vs index,
 rebuild vs advance, restart) and `experiments/reports/v012_profile_stage2.md`
 (the same protocol after the change).
 
+## v0.12 — stage 2d: the journal is batched, indexed and measured
+
+Stage 2d is accepted in three independent groups, not one "faster"
+number. A representation change that speeds up storage but changes what
+the journal means is a failure, so the groups are tested separately:
+
+| group | what must hold |
+|---|---|
+| logical history | the same ordered transitions, ids, causal sources, ticks, values and replay; `journal.hash()` equals the golden reference AFTER EVERY TICK |
+| physical storage | batches and indexes lose no records; the derived index rebuilt from the journal alone equals the incrementally maintained one after every tick |
+| access | indexed queries return the same rows in the same order as the sequential scan; replay to a tick reproduces state and journal prefix; a restart restores the index and does not diverge |
+
+`journal.hash()` is not used as the only proof: the tests compare every
+transition field by field with the in-memory journal, because a hash
+collision is possible and an index error need not touch the hash at all.
+
+What changed:
+
+* `record()` stages transitions and writes one batch per table with
+  `executemany` inside the SAME open transaction. The canonical hash
+  chain still advances per transition at the commit boundary. The first
+  record of a cycle is flushed at once, so SQLite's write lock is taken
+  where the single-row writer took it (the second-writer test is
+  unchanged), and a batch is invisible to readers until commit.
+* `add()` stages the causal-index rows: latest writer, history of a
+  field, read dependents.
+* `idx_transitions_tick` makes a tick query read one tick instead of the
+  whole journal.
+* `writes_at_tick()` returns `(tid, entity, field, new)` for COMMITTED
+  writes only, without building `Transition`/`StateRead`/`RandomDraw`.
+  The 2b cell index now advances from this projection, not from full
+  transitions.
+* `transitions_for_entity/field` are answered by the `history` index;
+  a non-COMMITTED status falls back to a scan, because rejected
+  proposals never enter the index. `at_tick`/`between_ticks` are on the
+  read-only `JournalView` too.
+* `rebuild_index()` + `index_digest()` prove the index is derived and
+  checkable; `replay_until(tick)` replays the world to an arbitrary tick
+  read-only and verifies the journal prefix.
+
+Acceptance, as tests (`tests/test_v012_journal.py`, 14):
+
+| criterion | what is pinned |
+|---|---|
+| journal identity | the archived golden matches state hash, journal hash and transition count after every tick |
+| history content | every transition equals the in-memory one; a batch of one and a batch of a million produce the same rows and hash |
+| derived index | full rebuild equals the incremental index (digest and counts) after every tick; a reopen restores it without a rebuild; if the derived tables are deleted, the journal alone rebuilds them |
+| query equivalence | id, tick, range, entity and field equal the linear scan in the same order, through the writer and through the read-only view |
+| rejected rows | rejected transitions are in the journal, absent from the index, and found by the scan fallback |
+| commit boundary | a batch is invisible to a second connection until commit; a SQLite rollback cannot resurrect staged rows |
+| replay | `replay_until(k)` gives the same state hash and journal prefix, including `k=0` (genesis and the first step share tick 0, so the zero-step prefix is recorded as additive meta); `replay_head` still gives the full archive |
+| restart | the index digest survives; three ticks after a restart equal three ticks of a world that never stopped |
+| frame path | `writes_at_tick` equals the full-transition projection; the cell index advanced from it equals a fresh rebuild |
+
+Cost, the same protocol as stages 1/2c (2 CPU / 4.1 GB, seed 7,
+`player_resettle`, 2 regions, 3 ticks; genesis committed before timing
+so the first tick is not charged for it):
+
+| living | tick + commit before, s | after, s | record before, s | record after, s | add before, s | add after, s |
+|---:|---:|---:|---:|---:|---:|---:|
+| 500 | 0.106 | 0.095 | 0.030 | 0.023 | 0.023 | 0.001 |
+| 1000 | 0.225 | 0.238 | 0.061 | 0.061 | 0.048 | 0.002 |
+| 2000 | 0.489 | 0.447 | 0.135 | 0.099 | 0.097 | 0.063 |
+| 4000 | 0.990 | 0.932 | 0.250 | 0.201 | 0.198 | 0.124 |
+
+The write side is a few percent, and at 1000 the sign is within run
+noise. That is the honest result: `record` is dominated by two canonical
+JSON serializations per transition (the stored payload and the hash
+record), not by the number of SQL statements. The profile at 16k living
+still shows `record` at 26% of the tick and `canonical_json` at 14%;
+`sqlite3.execute` disappeared from the top list (it was 17%). A change
+that would halve it means changing the journal format or the hash
+definition, and neither is a 2d decision.
+
+The read side is where the stage pays. Queries measured on a 12-tick
+journal, with the same SQL forced through a scan (`+tick`) for the
+before column:
+
+| living | one tick: index, s | one tick: scan, s | tick writes: projection, s | tick writes: scan, s | entity: index, s | entity: scan, s |
+|---:|---:|---:|---:|---:|---:|---:|
+| 500 | 0.017 | 0.019 | 0.006 | 0.007 | 0.0015 | 0.76 |
+| 1000 | 0.036 | 0.042 | 0.011 | 0.015 | 0.0014 | 1.46 |
+| 2000 | 0.078 | 0.086 | 0.023 | 0.031 | 0.0015 | 3.00 |
+| 4000 | 0.176 | 0.190 | 0.052 | 0.067 | 0.0017 | 6.55 |
+
+The entity and field queries went from a full journal scan to one index
+lookup (hundreds to thousands of times cheaper). The frame path is the
+`writes_at_tick` column: 3.4× cheaper than full transitions, because it
+does not build reads, draws or `Transition` objects. A tick query still
+deserialises its own tick — the index removes OTHER ticks, not the cost
+of the tick itself. A multi-tick range with `ORDER BY id` is slightly
+SLOWER through the tick index (0.776 s vs 0.731 s at 4000): the index
+forces a sort, and that is published rather than hidden. This is the
+remaining wall for 2e and the 100k checkpoint, not a reason to claim a
+win.
+
+Storage at 4000 living: 88.7 MB file, of which the new tick index is
+0.47 MB; the causal index (`latest_writer` + `history` + `dependents`)
+is still comparable to the journal itself. No attempt was made to shrink
+it in 2d — the stage measures it. Profile at 16k living: tick 4.121 →
+3.846 s, tick + commit 4.392 → 4.224 s (−3.8%), peak RSS 873 → 888 MB
+(+1.7%, staging buffers and the tick index). 100k was not run.
+
+Reports: `experiments/reports/v012_journal.md` (three groups, before and
+after) and `experiments/reports/v012_profile_stage3.md` (the same
+protocol after 2d).
+
 ## Roadmap
 
 ```
@@ -1438,10 +1547,13 @@ v0.11.1 Pre-scaling checks: the +600 settlement horizon, the mover
 v0.12 Scaling, measured: stage 1 profile (done) → 2a observer one-pass
       (done) → 2b cell slice (done: frame 118× cheaper, 6 criteria in
       tests) → 2c state/snapshot (done: golden per tick, tick 32%
-      cheaper, groups derived and checked) → 2d journal → 2e long archive → 2f
-      pool as a ruleset question → 100k × 20. Checkpoint: 100k living
-      pass a fixed horizon with tick time, peak RSS and journal growth
-      published; analytics ≤ 250 ms/frame
+      cheaper, groups derived and checked) → 2d journal (done: batches,
+      tick index, write projection; history unchanged) → checkpoint
+      100k × 20 with simulation, index update, frame and history storage
+      measured separately → 2e/2f only if the checkpoint names them →
+      resettlement policy as a separate ruleset variant. Checkpoint:
+      100k living pass a fixed horizon with tick time, peak RSS and
+      journal growth published; analytics ≤ 250 ms/frame
 v1.0  Large artificial world
 ```
 

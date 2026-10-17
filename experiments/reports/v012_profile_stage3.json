@@ -1,0 +1,774 @@
+{
+ "config": {
+  "ticks": 3,
+  "sizes": [
+   500,
+   1000,
+   2000,
+   4000,
+   8000,
+   16000
+  ],
+  "label": "шаг 2d — тот же профиль после батчей, индекса по тику и проекции записей"
+ },
+ "machine": {
+  "cpu": 2,
+  "ram_gb": 4.1,
+  "ram_mb": 4131,
+  "disk_gb": 18.2,
+  "python": "3.11.2"
+ },
+ "pool_ratio": 6,
+ "runs": [
+  {
+   "agents": 500,
+   "entities": 3516,
+   "agent_entities": 3500,
+   "alive": 500,
+   "pairs": 49374,
+   "genesis_s": 0.632,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 0.067,
+     "commit_s": 0.064,
+     "db_mb": 19.2,
+     "logical_mb": 0.34,
+     "transitions": 4285,
+     "committed": 4280,
+     "rejected": 5
+    },
+    {
+     "tick": 2,
+     "step_s": 0.072,
+     "commit_s": 0.019,
+     "db_mb": 19.2,
+     "logical_mb": 0.36,
+     "transitions": 5119,
+     "committed": 5110,
+     "rejected": 9
+    },
+    {
+     "tick": 3,
+     "step_s": 0.072,
+     "commit_s": 0.034,
+     "db_mb": 20.5,
+     "logical_mb": 0.38,
+     "transitions": 6006,
+     "committed": 5995,
+     "rejected": 11
+    }
+   ],
+   "db_genesis_mb": 7.3,
+   "db_final_mb": 20.5,
+   "logical_total_mb": 3.6,
+   "peak_mb": 57.3,
+   "transitions_total": 6946,
+   "committed": 6930,
+   "rejected": 16,
+   "snapshot_s": 0.003,
+   "step_cum_s": 0.185,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 0.185,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:242)",
+     "cum_s": 0.059,
+     "calls": 940
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.038,
+     "calls": 1
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.038,
+     "calls": 2820
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.036,
+     "calls": 4702
+    },
+    {
+     "name": "dumps (__init__.py:183)",
+     "cum_s": 0.036,
+     "calls": 2820
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.034,
+     "calls": 1
+    },
+    {
+     "name": "proposal_sort_key (transition.py:74)",
+     "cum_s": 0.033,
+     "calls": 940
+    },
+    {
+     "name": "_canonical_bytes (archive.py:236)",
+     "cum_s": 0.032,
+     "calls": 940
+    },
+    {
+     "name": "encode (encoder.py:183)",
+     "cum_s": 0.03,
+     "calls": 2820
+    },
+    {
+     "name": "iterencode (encoder.py:205)",
+     "cum_s": 0.025,
+     "calls": 2820
+    },
+    {
+     "name": "read (base.py:64)",
+     "cum_s": 0.024,
+     "calls": 6831
+    },
+    {
+     "name": "canonical_token (canonical.py:21)",
+     "cum_s": 0.024,
+     "calls": 26627
+    },
+    {
+     "name": "_flush (archive.py:382)",
+     "cum_s": 0.022,
+     "calls": 1
+    }
+   ],
+   "observe_s": 0.83,
+   "reader_s": 0.016,
+   "situations": 0,
+   "situations_s": 0.303
+  },
+  {
+   "agents": 1000,
+   "entities": 7016,
+   "agent_entities": 7000,
+   "alive": 1000,
+   "pairs": 98374,
+   "genesis_s": 1.174,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 0.14,
+     "commit_s": 0.084,
+     "db_mb": 38.4,
+     "logical_mb": 0.69,
+     "transitions": 8548,
+     "committed": 8539,
+     "rejected": 9
+    },
+    {
+     "tick": 2,
+     "step_s": 0.143,
+     "commit_s": 0.05,
+     "db_mb": 39.7,
+     "logical_mb": 0.72,
+     "transitions": 10190,
+     "committed": 10173,
+     "rejected": 17
+    },
+    {
+     "tick": 3,
+     "step_s": 0.152,
+     "commit_s": 0.053,
+     "db_mb": 41.0,
+     "logical_mb": 0.75,
+     "transitions": 11945,
+     "committed": 11919,
+     "rejected": 26
+    }
+   ],
+   "db_genesis_mb": 15.7,
+   "db_final_mb": 42.4,
+   "logical_total_mb": 7.1,
+   "peak_mb": 83.7,
+   "transitions_total": 13808,
+   "committed": 13771,
+   "rejected": 37,
+   "snapshot_s": 0.009,
+   "step_cum_s": 0.383,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 0.383,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:242)",
+     "cum_s": 0.115,
+     "calls": 1863
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.089,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.071,
+     "calls": 9311
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.07,
+     "calls": 5589
+    },
+    {
+     "name": "dumps (__init__.py:183)",
+     "cum_s": 0.067,
+     "calls": 5589
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.066,
+     "calls": 1
+    },
+    {
+     "name": "proposal_sort_key (transition.py:74)",
+     "cum_s": 0.065,
+     "calls": 1863
+    },
+    {
+     "name": "_canonical_bytes (archive.py:236)",
+     "cum_s": 0.059,
+     "calls": 1863
+    },
+    {
+     "name": "_flush (archive.py:382)",
+     "cum_s": 0.058,
+     "calls": 1
+    },
+    {
+     "name": "commit (archive.py:406)",
+     "cum_s": 0.058,
+     "calls": 1
+    },
+    {
+     "name": "encode (encoder.py:183)",
+     "cum_s": 0.056,
+     "calls": 5589
+    },
+    {
+     "name": "get (snapshot.py:55)",
+     "cum_s": 0.052,
+     "calls": 72674
+    },
+    {
+     "name": "canonical_token (canonical.py:21)",
+     "cum_s": 0.048,
+     "calls": 52732
+    }
+   ],
+   "observe_s": 1.649,
+   "reader_s": 0.045,
+   "situations": 0,
+   "situations_s": 0.609
+  },
+  {
+   "agents": 2000,
+   "entities": 14016,
+   "agent_entities": 14000,
+   "alive": 2000,
+   "pairs": 196374,
+   "genesis_s": 2.433,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 0.336,
+     "commit_s": 0.12,
+     "db_mb": 77.4,
+     "logical_mb": 1.39,
+     "transitions": 17076,
+     "committed": 17060,
+     "rejected": 16
+    },
+    {
+     "tick": 2,
+     "step_s": 0.382,
+     "commit_s": 0.045,
+     "db_mb": 79.9,
+     "logical_mb": 1.46,
+     "transitions": 20361,
+     "committed": 20331,
+     "rejected": 30
+    },
+    {
+     "tick": 3,
+     "step_s": 0.434,
+     "commit_s": 0.045,
+     "db_mb": 82.6,
+     "logical_mb": 1.52,
+     "transitions": 23858,
+     "committed": 23811,
+     "rejected": 47
+    }
+   ],
+   "db_genesis_mb": 34.3,
+   "db_final_mb": 85.4,
+   "logical_total_mb": 14.3,
+   "peak_mb": 145.5,
+   "transitions_total": 27570,
+   "committed": 27500,
+   "rejected": 70,
+   "snapshot_s": 0.02,
+   "step_cum_s": 0.813,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 0.813,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:242)",
+     "cum_s": 0.211,
+     "calls": 3712
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.172,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.14,
+     "calls": 18544
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.131,
+     "calls": 1
+    },
+    {
+     "name": "proposal_sort_key (transition.py:74)",
+     "cum_s": 0.128,
+     "calls": 3712
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.127,
+     "calls": 11136
+    },
+    {
+     "name": "dumps (__init__.py:183)",
+     "cum_s": 0.121,
+     "calls": 11136
+    },
+    {
+     "name": "_canonical_bytes (archive.py:236)",
+     "cum_s": 0.109,
+     "calls": 3712
+    },
+    {
+     "name": "encode (encoder.py:183)",
+     "cum_s": 0.1,
+     "calls": 11136
+    },
+    {
+     "name": "read (base.py:64)",
+     "cum_s": 0.094,
+     "calls": 27041
+    },
+    {
+     "name": "_drain (archive.py:298)",
+     "cum_s": 0.092,
+     "calls": 3
+    },
+    {
+     "name": "canonical_token (canonical.py:21)",
+     "cum_s": 0.092,
+     "calls": 104973
+    },
+    {
+     "name": "<method 'executemany' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 0.091,
+     "calls": 9
+    }
+   ],
+   "observe_s": 3.488,
+   "reader_s": 0.091,
+   "situations": 0,
+   "situations_s": 1.18
+  },
+  {
+   "agents": 4000,
+   "entities": 28016,
+   "agent_entities": 28000,
+   "alive": 4000,
+   "pairs": 392374,
+   "genesis_s": 5.207,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 0.738,
+     "commit_s": 0.249,
+     "db_mb": 156.3,
+     "logical_mb": 2.82,
+     "transitions": 34168,
+     "committed": 34138,
+     "rejected": 30
+    },
+    {
+     "tick": 2,
+     "step_s": 0.831,
+     "commit_s": 0.119,
+     "db_mb": 161.7,
+     "logical_mb": 2.95,
+     "transitions": 40763,
+     "committed": 40704,
+     "rejected": 59
+    },
+    {
+     "tick": 3,
+     "step_s": 0.999,
+     "commit_s": 0.11,
+     "db_mb": 167.2,
+     "logical_mb": 3.07,
+     "transitions": 47778,
+     "committed": 47676,
+     "rejected": 102
+    }
+   ],
+   "db_genesis_mb": 71.7,
+   "db_final_mb": 173.1,
+   "logical_total_mb": 28.9,
+   "peak_mb": 263.4,
+   "transitions_total": 55195,
+   "committed": 55041,
+   "rejected": 154,
+   "snapshot_s": 0.049,
+   "step_cum_s": 1.792,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 1.792,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:242)",
+     "cum_s": 0.409,
+     "calls": 7417
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.388,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.309,
+     "calls": 37040
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.286,
+     "calls": 1
+    },
+    {
+     "name": "read (base.py:64)",
+     "cum_s": 0.282,
+     "calls": 54039
+    },
+    {
+     "name": "proposal_sort_key (transition.py:74)",
+     "cum_s": 0.278,
+     "calls": 7417
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.252,
+     "calls": 22251
+    },
+    {
+     "name": "dumps (__init__.py:183)",
+     "cum_s": 0.24,
+     "calls": 22251
+    },
+    {
+     "name": "get (snapshot.py:55)",
+     "cum_s": 0.22,
+     "calls": 290388
+    },
+    {
+     "name": "_canonical_bytes (archive.py:236)",
+     "cum_s": 0.206,
+     "calls": 7417
+    },
+    {
+     "name": "encode (encoder.py:183)",
+     "cum_s": 0.199,
+     "calls": 22251
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 0.198,
+     "calls": 1
+    },
+    {
+     "name": "canonical_token (canonical.py:21)",
+     "cum_s": 0.188,
+     "calls": 209691
+    }
+   ],
+   "observe_s": 6.863,
+   "reader_s": null,
+   "situations": null,
+   "situations_s": null
+  },
+  {
+   "agents": 8000,
+   "entities": 56016,
+   "agent_entities": 56000,
+   "alive": 8000,
+   "pairs": 784374,
+   "genesis_s": 11.134,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 1.685,
+     "commit_s": 0.208,
+     "db_mb": 291.5,
+     "logical_mb": 5.64,
+     "transitions": 68185,
+     "committed": 68122,
+     "rejected": 63
+    },
+    {
+     "tick": 2,
+     "step_s": 1.857,
+     "commit_s": 0.143,
+     "db_mb": 301.8,
+     "logical_mb": 5.9,
+     "transitions": 81265,
+     "committed": 81142,
+     "rejected": 123
+    },
+    {
+     "tick": 3,
+     "step_s": 1.859,
+     "commit_s": 0.148,
+     "db_mb": 312.9,
+     "logical_mb": 6.14,
+     "transitions": 95200,
+     "committed": 94980,
+     "rejected": 220
+    }
+   ],
+   "db_genesis_mb": 266.2,
+   "db_final_mb": 324.5,
+   "logical_total_mb": 58.0,
+   "peak_mb": 479.5,
+   "transitions_total": 109913,
+   "committed": 109603,
+   "rejected": 310,
+   "snapshot_s": 0.137,
+   "step_cum_s": 3.533,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 3.533,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:242)",
+     "cum_s": 0.827,
+     "calls": 14713
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.658,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.616,
+     "calls": 73482
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.571,
+     "calls": 1
+    },
+    {
+     "name": "proposal_sort_key (transition.py:74)",
+     "cum_s": 0.556,
+     "calls": 14713
+    },
+    {
+     "name": "read (base.py:64)",
+     "cum_s": 0.503,
+     "calls": 107452
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.494,
+     "calls": 44139
+    },
+    {
+     "name": "dumps (__init__.py:183)",
+     "cum_s": 0.47,
+     "calls": 44139
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 0.456,
+     "calls": 1
+    },
+    {
+     "name": "get (snapshot.py:55)",
+     "cum_s": 0.424,
+     "calls": 580241
+    },
+    {
+     "name": "_canonical_bytes (archive.py:236)",
+     "cum_s": 0.412,
+     "calls": 14713
+    },
+    {
+     "name": "encode (encoder.py:183)",
+     "cum_s": 0.39,
+     "calls": 44139
+    },
+    {
+     "name": "add (archive.py:627)",
+     "cum_s": 0.378,
+     "calls": 14713
+    }
+   ],
+   "observe_s": 14.326,
+   "reader_s": null,
+   "situations": null,
+   "situations_s": null
+  },
+  {
+   "agents": 16000,
+   "entities": 112016,
+   "agent_entities": 112000,
+   "alive": 16000,
+   "pairs": 1568374,
+   "genesis_s": 23.997,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 3.301,
+     "commit_s": 0.416,
+     "db_mb": 457.3,
+     "logical_mb": 11.44,
+     "transitions": 136297,
+     "committed": 136185,
+     "rejected": 112
+    },
+    {
+     "tick": 2,
+     "step_s": 4.111,
+     "commit_s": 0.353,
+     "db_mb": 478.5,
+     "logical_mb": 12.0,
+     "transitions": 162388,
+     "committed": 162148,
+     "rejected": 240
+    },
+    {
+     "tick": 3,
+     "step_s": 4.125,
+     "commit_s": 0.364,
+     "db_mb": 500.8,
+     "logical_mb": 12.47,
+     "transitions": 190205,
+     "committed": 189791,
+     "rejected": 414
+    }
+   ],
+   "db_genesis_mb": 406.1,
+   "db_final_mb": 524.9,
+   "logical_total_mb": 117.2,
+   "peak_mb": 887.5,
+   "transitions_total": 219597,
+   "committed": 218988,
+   "rejected": 609,
+   "snapshot_s": 0.215,
+   "step_cum_s": 7.426,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 7.426,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:242)",
+     "cum_s": 1.897,
+     "calls": 29392
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 1.544,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 1.157,
+     "calls": 146772
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 1.059,
+     "calls": 1
+    },
+    {
+     "name": "proposal_sort_key (transition.py:74)",
+     "cum_s": 1.027,
+     "calls": 29392
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 1.025,
+     "calls": 88176
+    },
+    {
+     "name": "dumps (__init__.py:183)",
+     "cum_s": 0.978,
+     "calls": 88176
+    },
+    {
+     "name": "get (snapshot.py:55)",
+     "cum_s": 0.922,
+     "calls": 1160348
+    },
+    {
+     "name": "add (archive.py:627)",
+     "cum_s": 0.881,
+     "calls": 29392
+    },
+    {
+     "name": "_canonical_bytes (archive.py:236)",
+     "cum_s": 0.873,
+     "calls": 29392
+    },
+    {
+     "name": "encode (encoder.py:183)",
+     "cum_s": 0.819,
+     "calls": 88176
+    },
+    {
+     "name": "_drain (archive.py:298)",
+     "cum_s": 0.793,
+     "calls": 13
+    },
+    {
+     "name": "<method 'executemany' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 0.781,
+     "calls": 49
+    }
+   ],
+   "observe_s": 28.316,
+   "reader_s": null,
+   "situations": null,
+   "situations_s": null
+  }
+ ]
+}

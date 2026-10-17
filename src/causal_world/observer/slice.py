@@ -35,8 +35,18 @@ every slice pair against the full view.
 
 from __future__ import annotations
 
+from typing import Any, NamedTuple
+
 from causal_world.kernel.transition import TransitionStatus
 from causal_world.observer.situation import StateView
+
+
+class _WriteView(NamedTuple):
+    """The three fields ``apply_write`` reads, without a StateChange."""
+    entity: str
+    field: str
+    new: Any
+
 
 _AGENT = "agent:"
 _CELL = "cell:"
@@ -138,6 +148,15 @@ class WorldIndex:
         writes would make the index disagree with the world. The filter
         is the same one the engine's commit step used.
         """
+        writes_at_tick = getattr(journal, "writes_at_tick", None)
+        if callable(writes_at_tick):
+            # SqliteArchive: the journal already holds the tick index, so
+            # ask for the committed writes only. This skips rejected rows
+            # and the reads/draws of every transition — the profile named
+            # that deserialisation as the frame bottleneck (v0.12/2d).
+            for _tid, entity, field_name, new in writes_at_tick(tick):
+                self.apply_write(_WriteView(entity, field_name, new))
+            return
         at_tick = getattr(journal, "at_tick", None)
         if callable(at_tick):
             transitions = at_tick(tick)

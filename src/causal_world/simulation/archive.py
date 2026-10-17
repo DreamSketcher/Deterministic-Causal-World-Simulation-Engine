@@ -92,6 +92,11 @@ _SCHEMA = [
     )""",
     """CREATE INDEX IF NOT EXISTS idx_transitions_op_status
        ON transitions(operation, status)""",
+    # v0.12/2d: a tick query is a range on this column; without the index
+    # every reader parsed the WHOLE journal (0.65 s at 4k living) just to
+    # pick one tick's transitions.
+    """CREATE INDEX IF NOT EXISTS idx_transitions_tick
+       ON transitions(tick)""",
     """CREATE TABLE IF NOT EXISTS meta(
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -102,6 +107,13 @@ _SCHEMA = [
 #: dies, bounds the loss window to a few dozen ticks, and is invisible to
 #: determinism (commits never change recorded content or ordering).
 COMMIT_EVERY = 50_000
+
+#: v0.12/2d: how many rows one ``executemany`` carries. Batching changes
+#: WHEN statements reach SQLite, never WHAT is recorded or in which order:
+#: rows are staged in the same id order and the canonical hash chain keeps
+#: advancing per transition. A test pins that a batch of one row and a
+#: batch of ten thousand produce the same journal hash and the same rows.
+BATCH_ROWS = 4096
 
 
 def _payload_of(t: Transition) -> str:
@@ -179,6 +191,19 @@ class SqliteArchive:
         self._branch = self._hasher.copy()
         self._pending: list[bytes] = []
         self._since_commit = 0
+        # --- write batches (2d). Rows are staged in record order and are
+        # handed to SQLite by _drain() with executemany. They live in the
+        # SAME open transaction as a single-row write did, so a reader on
+        # another connection sees them exactly at commit, as before.
+        self._pending_inserts: list[tuple] = []
+        self._pending_latest: list[tuple[str, str, int]] = []
+        self._pending_history: list[tuple[str, str, int]] = []
+        self._pending_dependents: list[tuple[int, int]] = []
+        #: id of the last row actually handed to SQLite (not merely staged).
+        #: It lets _drain() notice that the archive lost rows it had
+        #: already received — an external ROLLBACK — BEFORE new rows are
+        #: added on top: the batch is dropped and the chain reseeds.
+        self._inserted_id: int | None = None
         # Reopening an existing archive restores counters from the DB, so
         # len/counts/by_id work on a persisted world without re-running it.
         self._restore_counters()
@@ -193,6 +218,7 @@ class SqliteArchive:
         ).fetchone()
         self._total = int(row["n"])
         self._last_id = int(row["last_id"]) or None
+        self._inserted_id = self._last_id
         committed_row = self._conn.execute(
             "SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS last_id "
             "FROM transitions WHERE status='COMMITTED'"
@@ -221,25 +247,35 @@ class SqliteArchive:
                 f"journal records must be ascending by id "
                 f"(got T{transition.id} after T{self._last_id})"
             )
-        self._last_id = transition.id
-        self._conn.execute(
-            "INSERT INTO transitions VALUES (?,?,?,?,?,?,?,?)",
-            (
-                transition.id,
-                transition.tick,
-                transition.system,
-                transition.operation,
-                transition.priority,
-                transition.status.value,
-                transition.reject_reason,
-                _payload_of(transition),
-            ),
+        # Build and validate the row BEFORE anything is recorded. The
+        # single-row writer let SQLite raise NOT NULL violations inside
+        # record(); a batch would defer that error to a later flush, so
+        # the same constraints are checked here and the chain/counters
+        # are touched only after the row is known to be recordable.
+        row = (
+            transition.id,
+            transition.tick,
+            transition.system,
+            transition.operation,
+            transition.priority,
+            transition.status.value,
+            transition.reject_reason,
+            _payload_of(transition),
         )
-        # The INSERT above is in the open transaction; the canonical bytes
-        # join the pending tail only after it succeeded. The committed
-        # hasher is NOT advanced here — only _flush() may do that, at the
-        # commit boundary (P3 contract).
+        for index, column in ((0, "id"), (1, "tick"), (2, "system"),
+                              (3, "operation"), (4, "priority"),
+                              (5, "status"), (7, "payload")):
+            if row[index] is None:
+                raise sqlite3.IntegrityError(
+                    f"NOT NULL constraint failed: transitions.{column}"
+                )
         chunk = self._canonical_bytes(transition)
+        self._last_id = transition.id
+        # The row is staged in the open transaction; the canonical bytes
+        # join the pending tail with it. The committed hasher is NOT
+        # advanced here — only _flush() may do that, at the commit
+        # boundary (P3 contract).
+        self._pending_inserts.append(row)
         self._pending.append(chunk)
         self._branch.update(chunk)
         self._total += 1
@@ -248,9 +284,96 @@ class SqliteArchive:
             self._last_committed_id = transition.id
         elif transition.status is TransitionStatus.REJECTED:
             self._rejected += 1
+        # The first record of a commit cycle is flushed at once: it takes
+        # SQLite's write lock exactly when the single-row writer did, so a
+        # second writer is still locked out at the same point. The rest of
+        # the cycle is batched.
+        first_in_cycle = self._since_commit == 0
         self._since_commit += 1
+        if first_in_cycle or len(self._pending_inserts) >= BATCH_ROWS:
+            self._drain()
         if self._since_commit >= COMMIT_EVERY:
             self._flush()
+
+    def _drain(self) -> None:
+        """Hand staged rows to SQLite, in record order, in one batch each.
+
+        This is a transport change only. The rows are the same rows a
+        single-row write produced, in the same order; the transaction is
+        the same open transaction. On error the buffers are dropped and
+        the chain is marked stale, exactly like an uncertain COMMIT: the
+        archive, not the in-memory tail, becomes the authority.
+        """
+        if not (self._pending_inserts or self._pending_latest
+                or self._pending_history or self._pending_dependents):
+            return
+        if not self._conn.in_transaction:
+            # The transaction these rows were staged into is gone (an
+            # external ROLLBACK, or someone called COMMIT behind our
+            # back). The rows are NOT part of the archive: drop them and
+            # let the chain rebuild from the file — the same self-healing
+            # path an uncertain COMMIT takes.
+            self._pending_inserts.clear()
+            self._pending_latest.clear()
+            self._pending_history.clear()
+            self._pending_dependents.clear()
+            self._pending.clear()
+            self._since_commit = 0
+            self._needs_seed = True
+            return
+        # Before adding rows, verify the archive still has everything we
+        # already handed it (the MAX(id) frontier). A vanished row means
+        # this batch was staged against a transaction that no longer
+        # exists; it is not part of history and must not be inserted on
+        # top of a rolled-back archive.
+        frontier = int(self._conn.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM transitions"
+        ).fetchone()[0])
+        if frontier != (self._inserted_id or 0):
+            self._pending_inserts.clear()
+            self._pending_latest.clear()
+            self._pending_history.clear()
+            self._pending_dependents.clear()
+            self._pending.clear()
+            self._since_commit = 0
+            self._needs_seed = True
+            return
+        try:
+            if self._pending_inserts:
+                batch = self._pending_inserts
+                self._conn.executemany(
+                    "INSERT INTO transitions VALUES (?,?,?,?,?,?,?,?)", batch
+                )
+                self._inserted_id = batch[-1][0]
+                self._pending_inserts.clear()
+            if self._pending_latest:
+                self._conn.executemany(
+                    "INSERT INTO latest_writer VALUES (?,?,?) "
+                    "ON CONFLICT(entity, field) DO UPDATE SET tid=excluded.tid",
+                    self._pending_latest,
+                )
+                self._pending_latest.clear()
+            if self._pending_history:
+                self._conn.executemany(
+                    "INSERT OR IGNORE INTO history VALUES (?,?,?)",
+                    self._pending_history,
+                )
+                self._pending_history.clear()
+            if self._pending_dependents:
+                self._conn.executemany(
+                    "INSERT OR IGNORE INTO dependents VALUES (?,?)",
+                    self._pending_dependents,
+                )
+                self._pending_dependents.clear()
+        except sqlite3.Error:
+            self._pending_inserts.clear()
+            self._pending_latest.clear()
+            self._pending_history.clear()
+            self._pending_dependents.clear()
+            self._pending.clear()
+            self._since_commit = 0
+            self._needs_seed = True
+            raise
 
     def _commit_tx(self) -> None:
         self._conn.execute("COMMIT")
@@ -261,6 +384,7 @@ class SqliteArchive:
         hasher ingests the pending tail only after COMMIT returned without
         error. A failed/uncertain COMMIT marks the chain stale; the next
         hash() restores it from the archive."""
+        self._drain()
         if not self._since_commit:
             return
         try:
@@ -268,8 +392,12 @@ class SqliteArchive:
         except sqlite3.Error:
             self._needs_seed = True
             raise
-        for chunk in self._pending:
-            self._hasher.update(chunk)
+        # One update per chunk was O(records) calls into hashlib; joining
+        # in bounded groups keeps the order and the bytes identical while
+        # cutting the Python crossing. The canonical definition is the
+        # same: sha256 over newline-joined records in id order.
+        for i in range(0, len(self._pending), 1024):
+            self._hasher.update(b"".join(self._pending[i:i + 1024]))
         self._pending = []
         self._since_commit = 0
         # after a successful flush the projection IS the committed chain
@@ -289,6 +417,7 @@ class SqliteArchive:
         itself (canonical scan, id order). Runs on the first hash() of a
         reopened archive and after an uncertain transaction outcome —
         never as a per-frame operation."""
+        self._drain()
         hasher = hashlib.sha256()
         for transition in self:
             hasher.update(self._canonical_bytes(transition))
@@ -299,6 +428,7 @@ class SqliteArchive:
         self._needs_seed = False
 
     def _ensure_synced(self) -> None:
+        self._drain()
         if not self._needs_seed:
             # O(log n) sentinel (B-tree seek on the INTEGER PRIMARY KEY):
             # if the table's id frontier no longer matches what the chain
@@ -322,12 +452,14 @@ class SqliteArchive:
         return self._total, self._committed, self._rejected
 
     def has(self, transition_id: int) -> bool:
+        self._drain()
         row = self._conn.execute(
             "SELECT 1 FROM transitions WHERE id=?", (transition_id,)
         ).fetchone()
         return row is not None
 
     def by_id(self, transition_id: int) -> Transition:
+        self._drain()
         row = self._conn.execute(
             "SELECT * FROM transitions WHERE id=?", (transition_id,)
         ).fetchone()
@@ -339,6 +471,7 @@ class SqliteArchive:
         return self.by_id(transition_id)
 
     def __iter__(self) -> Iterator[Transition]:
+        self._drain()
         cursor = self._conn.execute("SELECT * FROM transitions ORDER BY id")
         while True:
             rows = cursor.fetchmany(500)
@@ -348,6 +481,7 @@ class SqliteArchive:
                 yield _transition_from_row(row)
 
     def committed(self) -> Iterator[Transition]:
+        self._drain()
         cursor = self._conn.execute(
             "SELECT * FROM transitions WHERE status='COMMITTED' ORDER BY id"
         )
@@ -359,6 +493,7 @@ class SqliteArchive:
                 yield _transition_from_row(row)
 
     def rejected(self) -> Iterator[Transition]:
+        self._drain()
         cursor = self._conn.execute(
             "SELECT * FROM transitions WHERE status='REJECTED' ORDER BY id"
         )
@@ -370,13 +505,101 @@ class SqliteArchive:
                 yield _transition_from_row(row)
 
     def at_tick(self, tick: int) -> list[Transition]:
+        self._drain()
         rows = self._conn.execute(
             "SELECT * FROM transitions WHERE tick=? ORDER BY id", (tick,)
         ).fetchall()
         return [_transition_from_row(row) for row in rows]
 
+    def writes_at_tick(self, tick: int) -> list[tuple[int, str, str, object]]:
+        """Committed writes of one tick as ``(tid, entity, field, new)``.
+
+        A READ PROJECTION for consumers that only apply writes (the cell
+        index): it uses the tick index, skips rejected proposals and
+        never builds ``Transition``/``StateRead``/``RandomDraw`` objects.
+        The order is the ``at_tick()`` order — transition id, then the
+        recorded write order — so an index advanced from this projection
+        is the same index advanced from full transitions (pinned in
+        ``tests/test_v012_journal.py``).
+        """
+        self._drain()
+        out: list[tuple[int, str, str, object]] = []
+        rows = self._conn.execute(
+            "SELECT id, payload FROM transitions "
+            "WHERE tick=? AND status='COMMITTED' ORDER BY id",
+            (tick,),
+        )
+        for row in rows:
+            if not row["payload"]:
+                continue
+            for entity, field_name, _old, new in json.loads(row["payload"])["writes"]:
+                out.append((row["id"], entity, field_name, new))
+        return out
+
+    def between_ticks(self, lo: int, hi: int) -> list[Transition]:
+        """Transitions of ticks ``lo..hi`` inclusive, id order (tick index)."""
+        self._drain()
+        rows = self._conn.execute(
+            "SELECT * FROM transitions WHERE tick BETWEEN ? AND ? ORDER BY id",
+            (lo, hi),
+        ).fetchall()
+        return [_transition_from_row(row) for row in rows]
+
+    def transitions_for_entity(self, entity: str, status: str = "COMMITTED"):
+        """Transitions that write ``entity``, id order.
+
+        COMMITTED is answered from the derived ``history`` index — the
+        same rows the sequential scan would keep, in the same order. Any
+        other status falls back to the scan, because rejected proposals
+        never enter the index.
+        """
+        self._drain()
+        if status == "COMMITTED":
+            rows = self._conn.execute(
+                "SELECT * FROM transitions WHERE status='COMMITTED' "
+                "AND id IN (SELECT tid FROM history WHERE entity=?) "
+                "ORDER BY id",
+                (entity,),
+            ).fetchall()
+            return [_transition_from_row(row) for row in rows]
+        wanted = TransitionStatus[status]
+        out = []
+        for row in self._conn.execute("SELECT * FROM transitions ORDER BY id"):
+            transition = _transition_from_row(row)
+            if (transition.status is wanted
+                    and any(w.entity == entity for w in transition.writes)):
+                out.append(transition)
+        return out
+
+    def transitions_for_field(self, entity: str, field_name: str,
+                              status: str = "COMMITTED"):
+        """Transitions that write one field of one entity, id order.
+
+        COMMITTED is answered by the ``history`` primary key; other
+        statuses scan, for the same reason as above.
+        """
+        self._drain()
+        if status == "COMMITTED":
+            rows = self._conn.execute(
+                "SELECT * FROM transitions WHERE status='COMMITTED' "
+                "AND id IN (SELECT tid FROM history "
+                "           WHERE entity=? AND field=?) ORDER BY id",
+                (entity, field_name),
+            ).fetchall()
+            return [_transition_from_row(row) for row in rows]
+        wanted = TransitionStatus[status]
+        out = []
+        for row in self._conn.execute("SELECT * FROM transitions ORDER BY id"):
+            transition = _transition_from_row(row)
+            if (transition.status is wanted
+                    and any(w.entity == entity and w.field == field_name
+                            for w in transition.writes)):
+                out.append(transition)
+        return out
+
     def iter_operations(self, operations) -> Iterator[Transition]:
         """Stream committed transitions of the given operations, id order."""
+        self._drain()
         ops = sorted(operations)
         marks = ",".join("?" for _ in ops)
         cursor = self._conn.execute(
@@ -405,23 +628,97 @@ class SqliteArchive:
         if t.status is not TransitionStatus.COMMITTED:
             return  # rejected transitions never wrote state (spec §17)
         for w in t.writes:
-            self._conn.execute(
-                "INSERT INTO latest_writer VALUES (?,?,?) "
-                "ON CONFLICT(entity, field) DO UPDATE SET tid=excluded.tid",
-                (w.entity, w.field, t.id),
-            )
-            self._conn.execute(
-                "INSERT OR IGNORE INTO history VALUES (?,?,?)",
-                (w.entity, w.field, t.id),
-            )
+            row = (w.entity, w.field, t.id)
+            self._pending_latest.append(row)
+            self._pending_history.append(row)
         for r in t.reads:
             if r.source_transition is not None:
-                self._conn.execute(
-                    "INSERT OR IGNORE INTO dependents VALUES (?,?)",
-                    (r.source_transition, t.id),
+                self._pending_dependents.append((r.source_transition, t.id))
+        if len(self._pending_history) >= BATCH_ROWS:
+            self._drain()
+
+    # ------------------------------------------------------------------
+    # Derived-index maintenance (v0.12/2d): the index is an INDEX. It can
+    # be deleted and rebuilt from the journal alone; the digest is over
+    # the rows, not over the journal hash, so a rebuild can be compared
+    # with the incrementally maintained index without touching history.
+    # ------------------------------------------------------------------
+    def index_counts(self) -> dict[str, int]:
+        self._drain()
+        return {
+            table: int(self._conn.execute(
+                f"SELECT COUNT(*) FROM {table}"
+            ).fetchone()[0])
+            for table in ("latest_writer", "history", "dependents")
+        }
+
+    def index_digest(self) -> str:
+        """SHA-256 over the derived index rows (sorted), not the journal."""
+        self._drain()
+        hasher = hashlib.sha256()
+        for table, columns in (
+            ("latest_writer", "entity, field, tid"),
+            ("history", "entity, field, tid"),
+            ("dependents", "source, target"),
+        ):
+            hasher.update((table + "\n").encode("utf-8"))
+            cursor = self._conn.execute(
+                f"SELECT {columns} FROM {table} ORDER BY {columns}"
+            )
+            for row in cursor:
+                hasher.update(canonical_json([row[i] for i in range(len(row))])
+                              .encode("utf-8"))
+                hasher.update(b"\n")
+        return hasher.hexdigest()
+
+    def rebuild_index(self) -> dict[str, int]:
+        """Drop the derived index and rebuild it from ``transitions`` only.
+
+        Committed transitions are scanned in id order, so the last write
+        of a (entity, field) is the row ``latest_writer`` ends with — the
+        same result the incremental ``add()`` produces. Streamed in
+        batches: a rebuild of a long archive does not materialise the
+        index in Python memory.
+        """
+        self._drain()
+        for table in ("latest_writer", "history", "dependents"):
+            self._conn.execute(f"DELETE FROM {table}")
+        latest: list[tuple] = []
+        history: list[tuple] = []
+        dependents: list[tuple] = []
+        def flush() -> None:
+            if latest:
+                self._conn.executemany(
+                    "INSERT INTO latest_writer VALUES (?,?,?) "
+                    "ON CONFLICT(entity, field) DO UPDATE SET tid=excluded.tid",
+                    latest,
                 )
+                latest.clear()
+            if history:
+                self._conn.executemany(
+                    "INSERT OR IGNORE INTO history VALUES (?,?,?)", history
+                )
+                history.clear()
+            if dependents:
+                self._conn.executemany(
+                    "INSERT OR IGNORE INTO dependents VALUES (?,?)", dependents
+                )
+                dependents.clear()
+
+        for transition in self.committed():
+            for w in transition.writes:
+                latest.append((w.entity, w.field, transition.id))
+                history.append((w.entity, w.field, transition.id))
+            for r in transition.reads:
+                if r.source_transition is not None:
+                    dependents.append((r.source_transition, transition.id))
+            if len(history) >= BATCH_ROWS:
+                flush()
+        flush()
+        return self.index_counts()
 
     def writer_of(self, entity: str, field_name: str) -> int | None:
+        self._drain()
         row = self._conn.execute(
             "SELECT tid FROM latest_writer WHERE entity=? AND field=?",
             (entity, field_name),
@@ -429,6 +726,7 @@ class SqliteArchive:
         return row["tid"] if row else None
 
     def history_of(self, entity: str, field_name: str) -> list[int]:
+        self._drain()
         rows = self._conn.execute(
             "SELECT tid FROM history WHERE entity=? AND field=? ORDER BY tid",
             (entity, field_name),
@@ -436,6 +734,7 @@ class SqliteArchive:
         return [row["tid"] for row in rows]
 
     def dependents_of(self, transition_id: int) -> list[int]:
+        self._drain()
         rows = self._conn.execute(
             "SELECT target FROM dependents WHERE source=? ORDER BY target",
             (transition_id,),
@@ -471,14 +770,21 @@ class SqliteArchive:
                 f"archive query() is read-only: statement must start with "
                 f"SELECT or WITH (got {head!r})"
             )
+        self._drain()
         return self._conn.execute(sql, params).fetchall()
 
     def close(self) -> None:
         try:
-            self._conn.execute("COMMIT")
-        except sqlite3.OperationalError:
-            pass  # no transaction open (e.g. reopened archive, read-only use)
-        self._conn.close()
+            # Closing makes everything durable — including rows still in a
+            # write batch. Flush the chain first so its bytes describe the
+            # rows that are about to be committed.
+            self._flush()
+            try:
+                self._conn.execute("COMMIT")
+            except sqlite3.OperationalError:
+                pass  # no transaction open (reopened archive, read-only use)
+        finally:
+            self._conn.close()
 
     def __enter__(self) -> "SqliteArchive":
         return self

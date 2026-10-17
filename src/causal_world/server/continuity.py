@@ -36,6 +36,7 @@ silent fresh archive.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 
@@ -222,22 +223,17 @@ def agents_map(state) -> dict[str, dict]:
 
 
 # ------------------------------------------------------------- the replay --
-def replay_head(db_path: str):
-    """Reproduce the world at the archive head from the archive alone.
-
-    Returns (sim, archive, lives). ``sim`` has the FULL state (verified
-    against the journal hash and, when recorded, the final-state hash);
-    ``archive`` is the reopened SqliteArchive ready to be handed to the
-    sim; ``lives`` are the meta rows. Raises TakeoverError — before any
-    write — if history does not reproduce.
-    """
+def _prepare_replay(db_path: str, *, require_closed: bool):
+    """Read the archive and rebuild the world up to its head, but do not
+    step it yet. Shared by the takeover replay and the read-only replay
+    to an arbitrary tick, so both follow exactly the same pointer
+    schedule and the same decision stream."""
     from causal_world.observer.journal import JournalView
     from causal_world.player import (
         DecisionChannel,
         DecisionStreamReader,
         attach_player_channel,
     )
-    from causal_world.simulation.archive import SqliteArchive
     from causal_world.systems.player import PlayerAgentSystem
     from causal_world import create_world
 
@@ -247,7 +243,7 @@ def replay_head(db_path: str):
         cross_check_streams(lives, view)
         stream = DecisionStreamReader.actions_from(view)
         head_tick = view.tick_range()[1] + 1
-    if lives[-1]["end"] is None:
+    if require_closed and lives[-1]["end"] is None:
         raise TakeoverError(
             "world_busy",
             f"life {lives[-1]['n']} is still open on this archive",
@@ -267,7 +263,7 @@ def replay_head(db_path: str):
     )
     # pointer schedule from the meta rows; dead-pointer stretches consume
     # nothing on both sides (identical liveness discipline ⇒ alignment)
-    by_tick = sorted(lives, key=lambda l: l["from_tick"])
+    by_tick = sorted(lives, key=lambda life: life["from_tick"])
     idx = 0
 
     def _point(tick: int) -> None:
@@ -280,9 +276,74 @@ def replay_head(db_path: str):
 
     _point(0)
     attach_player_channel(sim, DecisionChannel(actions=list(stream)))
-    for tick in range(head_tick):
-        _point(tick)
+    return sim, meta, lives, head_tick, _point
+
+
+def _replay_ticks(sim, point, count: int) -> None:
+    for tick in range(count):
+        point(tick)
         sim.step()
+
+
+def journal_prefix_hash(db_path: str, upto_tick: int) -> str:
+    """Canonical journal hash of the recorded history BEFORE ``upto_tick``.
+
+    The same definition as ``journal.hash()``: sha256 over newline-joined
+    canonical records in id order, restricted to transitions of ticks
+    ``0 .. upto_tick-1`` — exactly the transitions a replay of that many
+    ticks produces.
+    """
+    from causal_world.kernel.canonical import canonical_json
+    from causal_world.kernel.transition import transition_record
+    from causal_world.observer.journal import JournalView
+
+    hasher = hashlib.sha256()
+    with JournalView(db_path) as view:
+        # Genesis and the FIRST step both live at tick 0, so "tick < 0"
+        # is empty while a zero-step replay already contains genesis. The
+        # archive records how many genesis transitions it wrote (additive
+        # meta, outside journal.hash); old archives without it are read
+        # through the genesis.* operations, which no step produces.
+        genesis_count = view.meta("genesis_transitions")
+        genesis_ids = set()
+        if upto_tick == 0 and genesis_count is None:
+            genesis_ids = {
+                t.id for t in view
+                if t.tick == 0 and t.operation.startswith("genesis.")
+            }
+        for transition in view:
+            if upto_tick == 0:
+                if genesis_count is not None:
+                    keep = transition.id is not None and (
+                        transition.id <= int(genesis_count)
+                    )
+                else:
+                    keep = transition.id in genesis_ids
+            else:
+                keep = transition.tick < upto_tick
+            if keep:
+                hasher.update(
+                    (canonical_json(transition_record(transition)) + "\n")
+                    .encode("utf-8")
+                )
+    return hasher.hexdigest()
+
+
+def replay_head(db_path: str):
+    """Reproduce the world at the archive head from the archive alone.
+
+    Returns (sim, archive, lives). ``sim`` has the FULL state (verified
+    against the journal hash and, when recorded, the final-state hash);
+    ``archive`` is the reopened SqliteArchive ready to be handed to the
+    sim; ``lives`` are the meta rows. Raises TakeoverError — before any
+    write — if history does not reproduce.
+    """
+    from causal_world.simulation.archive import SqliteArchive
+
+    sim, meta, lives, head_tick, point = _prepare_replay(
+        db_path, require_closed=True
+    )
+    _replay_ticks(sim, point, head_tick)
 
     archive = SqliteArchive(db_path)  # reopen: _last_id/_total from disk
     # CHECK A as a permanent guard: the replay reproduces the FULL history
@@ -304,3 +365,38 @@ def replay_head(db_path: str):
     sim.journal = archive
     sim.index = archive
     return sim, archive, lives
+
+
+def replay_until(db_path: str, tick: int):
+    """Replay the world to ``tick`` and verify its journal prefix.
+
+    READ-ONLY: unlike :func:`replay_head` it does not require a closed
+    life, does not open the archive for writing and does not hand it
+    over. Returns ``(sim, prefix_hash)`` where ``sim.state.tick == tick``
+    and ``prefix_hash`` is the canonical hash of the archive's transitions
+    below that tick; the replayed in-memory journal must hash to exactly
+    that value, or the prefix is not the recorded history.
+
+    The caller still owns the state comparison: the archive does not
+    store per-tick state hashes, so an experiment compares
+    ``sim.state.hash()`` with the uninterrupted run it recorded.
+    """
+    tick = int(tick)
+    if tick < 0:
+        raise ValueError("replay_until needs a non-negative tick")
+    sim, _meta, _lives, head_tick, point = _prepare_replay(
+        db_path, require_closed=False
+    )
+    if tick > head_tick:
+        raise TakeoverError(
+            "takeover_mismatch",
+            f"archive ends at tick {head_tick}, cannot replay to {tick}",
+        )
+    _replay_ticks(sim, point, tick)
+    expected = journal_prefix_hash(db_path, tick)
+    if sim.journal.hash() != expected:
+        raise TakeoverError(
+            "takeover_mismatch",
+            f"replayed history up to tick {tick} does not reproduce the archive",
+        )
+    return sim, expected

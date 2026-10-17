@@ -1,0 +1,530 @@
+{
+ "config": {
+  "agents": [
+   500,
+   1000,
+   2000,
+   4000
+  ],
+  "ticks": 3,
+  "access_ticks": 12,
+  "label": "шаг 2d — после правок: батчи, индекс по тику, проекция записей, индексированные запросы"
+ },
+ "machine": {
+  "cpu": 2,
+  "ram_gb": 4.1,
+  "python": "3.11.2"
+ },
+ "runs": [
+  {
+   "agents": 500,
+   "genesis_s": 0.61,
+   "genesis_commit_s": 0.039,
+   "ticks": [
+    {
+     "tick": 0,
+     "tick_s": 0.0646,
+     "commit_s": 0.0192,
+     "record_s": 0.022,
+     "add_s": 0.0007,
+     "records": 769,
+     "writes": 1319,
+     "reads": 6150,
+     "transitions": 4285
+    },
+    {
+     "tick": 1,
+     "tick_s": 0.0723,
+     "commit_s": 0.0306,
+     "record_s": 0.0226,
+     "add_s": 0.0009,
+     "records": 834,
+     "writes": 1384,
+     "reads": 6417,
+     "transitions": 5119
+    },
+    {
+     "tick": 2,
+     "tick_s": 0.0774,
+     "commit_s": 0.0207,
+     "record_s": 0.024,
+     "add_s": 0.0009,
+     "records": 887,
+     "writes": 1431,
+     "reads": 6617,
+     "transitions": 6006
+    }
+   ],
+   "counts": {
+    "total": 6006,
+    "committed": 5995,
+    "rejected": 11
+   },
+   "journal_hash": "1ac841193e2323efd12abbb38b46aaf062dcb85c4abf9725819884e38059cf23",
+   "storage": {
+    "files": {
+     "db": 10174464,
+     "wal": 9026952,
+     "shm": 32768,
+     "total": 19234184
+    },
+    "payload_bytes": 3169860,
+    "pages": 2649,
+    "page_size": 4096,
+    "tables": {
+     "dependents": 131072,
+     "history": 1605632,
+     "idx_transitions_op_status": 253952,
+     "idx_transitions_tick": 61440,
+     "latest_writer": 1499136,
+     "meta": 4096,
+     "sqlite_autoindex_dependents_1": 155648,
+     "sqlite_autoindex_history_1": 1736704,
+     "sqlite_autoindex_latest_writer_1": 1515520,
+     "sqlite_autoindex_meta_1": 4096,
+     "sqlite_schema": 4096,
+     "transitions": 3878912
+    },
+    "rows": {
+     "transitions": 6006,
+     "latest_writer": 49374,
+     "history": 53497,
+     "dependents": 10361
+    }
+   },
+   "reopen_s": 0.0001,
+   "access": {
+    "transitions": 15188,
+    "by_id_us": 20.3,
+    "at_tick_s": 0.0169,
+    "at_tick_scan_s": 0.019,
+    "at_tick_n": 1038,
+    "range_s": 0.0556,
+    "range_scan_s": 0.0558,
+    "range_n": 3113,
+    "writes_s": 0.0056,
+    "writes_scan_s": 0.0073,
+    "writes_n": 1575,
+    "entity_sample": [
+     "agent:0",
+     "agent:251",
+     "agent:404"
+    ],
+    "entity_api_s": 0.0015,
+    "entity_api_n": 65,
+    "entity_linear_s": 0.7552,
+    "entity_linear_n": 65,
+    "field_pairs": [
+     [
+      "agent:0",
+      "health"
+     ],
+     [
+      "agent:0",
+      "hunger"
+     ],
+     [
+      "agent:251",
+      "health"
+     ]
+    ],
+    "field_api_s": 0.0008,
+    "field_api_n": 33,
+    "field_linear_s": 0.7357,
+    "field_linear_n": 33,
+    "scan_s": 0.3783,
+    "committed_s": 0.2331
+   },
+   "peak_mb": 97.5
+  },
+  {
+   "agents": 1000,
+   "genesis_s": 1.266,
+   "genesis_commit_s": 0.09,
+   "ticks": [
+    {
+     "tick": 0,
+     "tick_s": 0.1478,
+     "commit_s": 0.0526,
+     "record_s": 0.0549,
+     "add_s": 0.0016,
+     "records": 1532,
+     "writes": 2598,
+     "reads": 12234,
+     "transitions": 8548
+    },
+    {
+     "tick": 1,
+     "tick_s": 0.1535,
+     "commit_s": 0.0638,
+     "record_s": 0.0517,
+     "add_s": 0.0019,
+     "records": 1642,
+     "writes": 2716,
+     "reads": 12698,
+     "transitions": 10190
+    },
+    {
+     "tick": 2,
+     "tick_s": 0.2414,
+     "commit_s": 0.0563,
+     "record_s": 0.0764,
+     "add_s": 0.0029,
+     "records": 1755,
+     "writes": 2815,
+     "reads": 13125,
+     "transitions": 11945
+    }
+   ],
+   "counts": {
+    "total": 11945,
+    "committed": 11919,
+    "rejected": 26
+   },
+   "journal_hash": "924db2dd5410dca0cb932c579bae704fe39164a402e22df2294d3a07ec8c2e26",
+   "storage": {
+    "files": {
+     "db": 21688320,
+     "wal": 18128032,
+     "shm": 65536,
+     "total": 39881888
+    },
+    "payload_bytes": 6323537,
+    "pages": 5295,
+    "page_size": 4096,
+    "tables": {
+     "dependents": 258048,
+     "history": 3235840,
+     "idx_transitions_op_status": 499712,
+     "idx_transitions_tick": 114688,
+     "latest_writer": 3018752,
+     "meta": 4096,
+     "sqlite_autoindex_dependents_1": 294912,
+     "sqlite_autoindex_history_1": 3489792,
+     "sqlite_autoindex_latest_writer_1": 3063808,
+     "sqlite_autoindex_meta_1": 4096,
+     "sqlite_schema": 4096,
+     "transitions": 7700480
+    },
+    "rows": {
+     "transitions": 11945,
+     "latest_writer": 98374,
+     "history": 106477,
+     "dependents": 20579
+    }
+   },
+   "reopen_s": 0.0001,
+   "access": {
+    "transitions": 30133,
+    "by_id_us": 20.0,
+    "at_tick_s": 0.0361,
+    "at_tick_scan_s": 0.0419,
+    "at_tick_n": 2059,
+    "range_s": 0.1238,
+    "range_scan_s": 0.1245,
+    "range_n": 6172,
+    "writes_s": 0.0109,
+    "writes_scan_s": 0.0145,
+    "writes_n": 3106,
+    "entity_sample": [
+     "agent:0",
+     "agent:400",
+     "agent:703"
+    ],
+    "entity_api_s": 0.0014,
+    "entity_api_n": 68,
+    "entity_linear_s": 1.4589,
+    "entity_linear_n": 68,
+    "field_pairs": [
+     [
+      "agent:0",
+      "health"
+     ],
+     [
+      "agent:0",
+      "hunger"
+     ],
+     [
+      "agent:400",
+      "health"
+     ]
+    ],
+    "field_api_s": 0.0008,
+    "field_api_n": 32,
+    "field_linear_s": 1.4675,
+    "field_linear_n": 32,
+    "scan_s": 0.9126,
+    "committed_s": 0.468
+   },
+   "peak_mb": 169.2
+  },
+  {
+   "agents": 2000,
+   "genesis_s": 2.593,
+   "genesis_commit_s": 0.135,
+   "ticks": [
+    {
+     "tick": 0,
+     "tick_s": 0.3529,
+     "commit_s": 0.0397,
+     "record_s": 0.0958,
+     "add_s": 0.0549,
+     "records": 3060,
+     "writes": 5150,
+     "reads": 24394,
+     "transitions": 17076
+    },
+    {
+     "tick": 1,
+     "tick_s": 0.3969,
+     "commit_s": 0.0455,
+     "record_s": 0.0952,
+     "add_s": 0.0633,
+     "records": 3285,
+     "writes": 5383,
+     "reads": 25322,
+     "transitions": 20361
+    },
+    {
+     "tick": 2,
+     "tick_s": 0.4569,
+     "commit_s": 0.0494,
+     "record_s": 0.106,
+     "add_s": 0.0697,
+     "records": 3497,
+     "writes": 5581,
+     "reads": 26145,
+     "transitions": 23858
+    }
+   ],
+   "counts": {
+    "total": 23858,
+    "committed": 23811,
+    "rejected": 47
+   },
+   "journal_hash": "3623f3e8294f5b15de8060e3a8d3c979ee7eb46be5de06bb98bbbce98d44b1da",
+   "storage": {
+    "files": {
+     "db": 43696128,
+     "wal": 36565032,
+     "shm": 98304,
+     "total": 80359464
+    },
+    "payload_bytes": 12769321,
+    "pages": 10668,
+    "page_size": 4096,
+    "tables": {
+     "dependents": 524288,
+     "history": 6545408,
+     "idx_transitions_op_status": 974848,
+     "idx_transitions_tick": 225280,
+     "latest_writer": 6098944,
+     "meta": 4096,
+     "sqlite_autoindex_dependents_1": 598016,
+     "sqlite_autoindex_history_1": 7094272,
+     "sqlite_autoindex_latest_writer_1": 6238208,
+     "sqlite_autoindex_meta_1": 4096,
+     "sqlite_schema": 4096,
+     "transitions": 15384576
+    },
+    "rows": {
+     "transitions": 23858,
+     "latest_writer": 196374,
+     "history": 212441,
+     "dependents": 41084
+    }
+   },
+   "reopen_s": 0.0002,
+   "access": {
+    "transitions": 60038,
+    "by_id_us": 20.5,
+    "at_tick_s": 0.0777,
+    "at_tick_scan_s": 0.0859,
+    "at_tick_n": 4098,
+    "range_s": 0.3048,
+    "range_scan_s": 0.2964,
+    "range_n": 12285,
+    "writes_s": 0.0232,
+    "writes_scan_s": 0.0306,
+    "writes_n": 6167,
+    "entity_sample": [
+     "agent:0",
+     "agent:1600",
+     "agent:404"
+    ],
+    "entity_api_s": 0.0015,
+    "entity_api_n": 68,
+    "entity_linear_s": 3.0017,
+    "entity_linear_n": 68,
+    "field_pairs": [
+     [
+      "agent:0",
+      "health"
+     ],
+     [
+      "agent:0",
+      "hunger"
+     ],
+     [
+      "agent:1600",
+      "health"
+     ]
+    ],
+    "field_api_s": 0.0009,
+    "field_api_n": 36,
+    "field_linear_s": 3.0378,
+    "field_linear_n": 36,
+    "scan_s": 2.0491,
+    "committed_s": 0.9799
+   },
+   "peak_mb": 331.2
+  },
+  {
+   "agents": 4000,
+   "genesis_s": 5.374,
+   "genesis_commit_s": 0.227,
+   "ticks": [
+    {
+     "tick": 0,
+     "tick_s": 0.7423,
+     "commit_s": 0.0797,
+     "record_s": 0.1908,
+     "add_s": 0.1127,
+     "records": 6152,
+     "writes": 10310,
+     "reads": 48898,
+     "transitions": 34168
+    },
+    {
+     "tick": 1,
+     "tick_s": 0.8345,
+     "commit_s": 0.0904,
+     "record_s": 0.1885,
+     "add_s": 0.1276,
+     "records": 6595,
+     "writes": 10747,
+     "reads": 50678,
+     "transitions": 40763
+    },
+    {
+     "tick": 2,
+     "tick_s": 0.948,
+     "commit_s": 0.1024,
+     "record_s": 0.2248,
+     "add_s": 0.1318,
+     "records": 7015,
+     "writes": 11177,
+     "reads": 52391,
+     "transitions": 47778
+    }
+   ],
+   "counts": {
+    "total": 47778,
+    "committed": 47676,
+    "rejected": 102
+   },
+   "journal_hash": "1d62cef2e7b0633e228914ab4d1e552fbf04aa09b0e74c16bc3dd7e95cc97341",
+   "storage": {
+    "files": {
+     "db": 88694784,
+     "wal": 73727432,
+     "shm": 163840,
+     "total": 162586056
+    },
+    "payload_bytes": 25772857,
+    "pages": 21654,
+    "page_size": 4096,
+    "tables": {
+     "dependents": 1159168,
+     "history": 13275136,
+     "idx_transitions_op_status": 1986560,
+     "idx_transitions_tick": 466944,
+     "latest_writer": 12607488,
+     "meta": 4096,
+     "sqlite_autoindex_dependents_1": 1335296,
+     "sqlite_autoindex_history_1": 14323712,
+     "sqlite_autoindex_latest_writer_1": 12640256,
+     "sqlite_autoindex_meta_1": 4096,
+     "sqlite_schema": 4096,
+     "transitions": 30887936
+    },
+    "rows": {
+     "transitions": 47778,
+     "latest_writer": 392374,
+     "history": 424506,
+     "dependents": 82350
+    }
+   },
+   "reopen_s": 0.0001,
+   "access": {
+    "transitions": 120028,
+    "by_id_us": 22.4,
+    "at_tick_s": 0.1756,
+    "at_tick_scan_s": 0.1903,
+    "at_tick_n": 8166,
+    "range_s": 0.7762,
+    "range_scan_s": 0.7314,
+    "range_n": 24491,
+    "writes_s": 0.0522,
+    "writes_scan_s": 0.0669,
+    "writes_n": 12270,
+    "entity_sample": [
+     "agent:0",
+     "agent:220",
+     "agent:3402"
+    ],
+    "entity_api_s": 0.0017,
+    "entity_api_n": 70,
+    "entity_linear_s": 6.545,
+    "entity_linear_n": 70,
+    "field_pairs": [
+     [
+      "agent:0",
+      "health"
+     ],
+     [
+      "agent:0",
+      "hunger"
+     ],
+     [
+      "agent:220",
+      "health"
+     ]
+    ],
+    "field_api_s": 0.001,
+    "field_api_n": 37,
+    "field_linear_s": 6.3535,
+    "field_linear_n": 37,
+    "scan_s": 4.7134,
+    "committed_s": 2.0738
+   },
+   "peak_mb": 600.9
+  }
+ ],
+ "replay": [
+  {
+   "agents": 500,
+   "ticks": 6,
+   "close_s": 0.0591,
+   "replay_s": 1.5552,
+   "replay_hash_ok": true,
+   "replay_state_ok": true,
+   "prefix_s": 1.4014,
+   "prefix_state_ok": true,
+   "prefix_hash_ok": true,
+   "prefix_hash": "f7f11176b681ae9eb6ea4a4be509dc9c1d08e8ce893412296e15b74bd28ee454"
+  },
+  {
+   "agents": 1000,
+   "ticks": 6,
+   "close_s": 0.1104,
+   "replay_s": 3.3412,
+   "replay_hash_ok": true,
+   "replay_state_ok": true,
+   "prefix_s": 2.9756,
+   "prefix_state_ok": true,
+   "prefix_hash_ok": true,
+   "prefix_hash": "157b619f714cfbd423ae9bd302ecfda0ad350d226ecfc53b2bf2d039bec89857"
+  }
+ ]
+}

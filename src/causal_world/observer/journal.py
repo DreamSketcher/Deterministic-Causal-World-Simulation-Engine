@@ -13,6 +13,7 @@ every observer layer works over recorded runs without re-running them.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Iterator
 
@@ -114,13 +115,86 @@ class JournalView:
         ).fetchone()
         return row is not None
 
+    def at_tick(self, tick: int) -> list[Transition]:
+        """All transitions of one tick, id order (uses the tick index when
+        the archive was written by a 2d-or-later kernel)."""
+        rows = self._conn.execute(
+            "SELECT * FROM transitions WHERE tick=? ORDER BY id", (tick,)
+        ).fetchall()
+        return [_transition_from_row(row) for row in rows]
+
+    def writes_at_tick(self, tick: int) -> list[tuple[int, str, str, object]]:
+        """Committed writes of one tick as ``(tid, entity, field, new)``.
+
+        The read-only twin of ``SqliteArchive.writes_at_tick``: same rows,
+        same order, no Transition objects.
+        """
+        out: list[tuple[int, str, str, object]] = []
+        rows = self._conn.execute(
+            "SELECT id, payload FROM transitions "
+            "WHERE tick=? AND status='COMMITTED' ORDER BY id",
+            (tick,),
+        )
+        for row in rows:
+            for entity, field_name, _old, new in json.loads(row["payload"])["writes"]:
+                out.append((row["id"], entity, field_name, new))
+        return out
+
+    def between_ticks(self, lo: int, hi: int) -> list[Transition]:
+        """Transitions of ticks ``lo..hi`` inclusive, id order."""
+        rows = self._conn.execute(
+            "SELECT * FROM transitions WHERE tick BETWEEN ? AND ? ORDER BY id",
+            (lo, hi),
+        ).fetchall()
+        return [_transition_from_row(row) for row in rows]
+
     def transitions_for_entity(self, entity: str, status: str = "COMMITTED"):
-        """Committed (by default) transitions whose writes touch ``entity``."""
+        """Transitions whose writes touch ``entity``, id order.
+
+        COMMITTED is answered by the derived ``history`` index; other
+        statuses scan, since the index holds committed writes only.
+        """
+        if status == "COMMITTED":
+            rows = self._conn.execute(
+                "SELECT * FROM transitions WHERE status='COMMITTED' "
+                "AND id IN (SELECT tid FROM history WHERE entity=?) "
+                "ORDER BY id",
+                (entity,),
+            ).fetchall()
+            for row in rows:
+                yield _transition_from_row(row)
+            return
+        wanted = TransitionStatus[status]
         for t in self:
-            if t.status is not TransitionStatus[status]:
-                continue
-            if any(w.entity == entity for w in t.writes):
+            if t.status is wanted and any(w.entity == entity for w in t.writes):
                 yield t
+
+    def transitions_for_field(self, entity: str, field_name: str,
+                              status: str = "COMMITTED"):
+        """Transitions that write one field of one entity, id order."""
+        if status == "COMMITTED":
+            rows = self._conn.execute(
+                "SELECT * FROM transitions WHERE status='COMMITTED' "
+                "AND id IN (SELECT tid FROM history "
+                "           WHERE entity=? AND field=?) ORDER BY id",
+                (entity, field_name),
+            ).fetchall()
+            for row in rows:
+                yield _transition_from_row(row)
+            return
+        wanted = TransitionStatus[status]
+        for t in self:
+            if (t.status is wanted
+                    and any(w.entity == entity and w.field == field_name
+                            for w in t.writes)):
+                yield t
+
+    def history_of(self, entity: str, field_name: str) -> list[int]:
+        rows = self._conn.execute(
+            "SELECT tid FROM history WHERE entity=? AND field=? ORDER BY tid",
+            (entity, field_name),
+        ).fetchall()
+        return [row["tid"] for row in rows]
 
     def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         """Read-only SQL escape hatch (the connection itself is mode=ro)."""

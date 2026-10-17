@@ -315,9 +315,15 @@ def create_world(
             if hasattr(system, attr):
                 setattr(system, attr, rules.system_parameters[system.name][attr])
     simulation = Simulation(seed, systems, rules, rng, journal=journal, index=index)
-    simulation.initialize(
-        generate_genesis(rng, region_count=regions, agent_count=agents, rules=rules)
+    genesis = generate_genesis(
+        rng, region_count=regions, agent_count=agents, rules=rules
     )
+    simulation.initialize(genesis)
+    if persist is not None:
+        # Additive identity meta (not covered by journal.hash): how many
+        # transitions the genesis produced. ``replay_until(0)`` needs this
+        # because genesis and the first step both live at tick 0.
+        archive.set_meta("genesis_transitions", str(len(genesis)))
     if ticks:
         simulation.run(ticks)
     return simulation
