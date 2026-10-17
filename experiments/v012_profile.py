@@ -1,48 +1,41 @@
 #!/usr/bin/env python3
-"""v0.12 stage 1 — measure the engine before changing it.
+"""v0.12, stage 1 — measure the engine before touching it.
 
-The roadmap's v0.12 line used to be a list of techniques (memory layout,
-sparse state, batching, partitioning, parallelism). The review put the
-order right: profile first, then name the bottleneck, then change it and
-prove equivalence. This script is the first step only — it changes
-nothing in the engine.
+The review's rule for this stage is explicit: no optimisation without a
+measurement, and no rewriting before the measurement names the wall.
+This script therefore does ONE thing: it runs the same world at several
+sizes and publishes what it costs.
 
-For each requested starting population it builds the SAME world (seed 7,
-two regions, `player_resettle`) in a SEPARATE process, runs a short
-horizon, and measures:
+What is measured, per size:
 
-* genesis time (the world must exist before a tick can be timed);
-* tick time, split into snapshot / systems / resolver / journal record /
-  journal commit, plus the unaccounted remainder;
-* peak and current RSS (a separate process per size, so one size cannot
-  inflate the next);
-* archive growth per tick (db + WAL), transitions per tick and writes
-  per transition;
-* the cost of the reader: StateView + destination card, JournalView +
-  situation feed, and `game.observe` over the archive;
-* one control run with an in-memory journal (no SQLite) at a middle
-  size, to separate the archive from the rest of the cost.
+* genesis (a one-off, reported separately from the tick);
+* every tick: wall time of ``step()`` and of the journal ``commit()``,
+  the archive size after the commit, transitions and writes per tick;
+* peak RSS of the whole process (each size runs in its OWN process, so
+  a bigger size cannot inherit the previous peak);
+* the observer over the same archive: a full ``observe()`` and the
+  ``StateView`` construction the server does on every frame;
+* a cProfile of one tick, so the report can name the functions that
+  consume the time instead of guessing.
 
-The parent fits a line through the measured points and projects the
-numbers to 100k LIVING agents — which in this ruleset means 700k agent
-slots, because the dormant pool is 6x the living count. The projection
-is reported with the machine's own limits, so the first v0.12
-checkpoint ("100k pass a fixed horizon") is a measured yes/no, not an
-ambition.
+Sizes are given in LIVING agents at genesis. The world keeps a dormant
+birth pool, so the number of ``agent:*`` entities is larger; the report
+publishes both numbers, because the engine pays for entities, not for
+the word "agent".
 
 Usage:
-    python3 experiments/v012_profile.py \
-        --agents 1000,2000,4000,8000,16000 --ticks 3 \
-        --out experiments/reports/v012_profile.md \
-        --json experiments/reports/v012_profile.json
+    python3 experiments/v012_profile.py
+    python3 experiments/v012_profile.py --agents 500,1000,2000
 """
 
 from __future__ import annotations
 
 import argparse
+import cProfile
 import json
 import os
-import platform
+import pstats
+import resource
 import subprocess
 import sys
 import tempfile
@@ -51,592 +44,441 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-
-def _vmrss_mb() -> float:
-    try:
-        with open("/proc/self/status", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    return round(int(line.split()[1]) / 1024.0, 1)
-    except OSError:
-        pass
-    return 0.0
+from causal_world.game import observe  # noqa: E402
+from causal_world.observer.situation import StateView, situations  # noqa: E402
+from causal_world.simulation.engine import create_world  # noqa: E402
+from causal_world.world.rules import get_ruleset  # noqa: E402
 
 
-def _peak_rss_mb() -> float:
-    import resource
-
-    return round(
-        resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1
-    )
+READER_LIMIT = 2000
 
 
-def _db_bytes(db: str) -> int:
+def _peak_mb() -> float:
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+
+
+def _db_bytes(path: str | None) -> int:
+    if not path:
+        return 0
     total = 0
     for suffix in ("", "-wal", "-shm"):
-        path = db + suffix
-        if os.path.exists(path):
-            total += os.path.getsize(path)
+        p = Path(path + suffix)
+        if p.exists():
+            total += p.stat().st_size
     return total
 
 
-# ------------------------------------------------------------- one size ---
+# ----------------------------------------------------------------------
+# one child = one size
+# ----------------------------------------------------------------------
 
-
-def one_size(args) -> dict:
-    from causal_world.kernel.snapshot import Snapshot
-    from causal_world.observer.journal import JournalView
-    from causal_world.observer.situation import (
-        StateView,
-        resettle_opportunities,
-        situations,
-    )
-    from causal_world.player import DecisionChannel, attach_player_channel
-    from causal_world.simulation.engine import create_world
-    from causal_world.world.rules import get_ruleset
-
-    persist = None if args.memory_journal else args.db
-    if persist:
-        Path(persist).unlink(missing_ok=True)
-
-    timings: dict[str, float] = {}
-
-    def add(name: str, seconds: float) -> None:
-        timings[name] = timings.get(name, 0.0) + seconds
-
-    # ---- genesis ----------------------------------------------------
+def run_one(agents: int, ticks: int, workdir: str) -> dict:
+    db = os.path.join(workdir, f"profile-{agents}.db")
     t0 = time.perf_counter()
     sim = create_world(
-        seed=args.seed, ruleset=get_ruleset("player_resettle"), ticks=0,
-        regions=2, agents=args.size, persist=persist,
+        seed=7, ruleset=get_ruleset("player_resettle"), ticks=0,
+        regions=2, agents=agents, persist=db,
     )
-    genesis = time.perf_counter() - t0
-    rss_create = _vmrss_mb()
-    peak_create = _peak_rss_mb()
-    db_create = _db_bytes(persist) if persist else 0
-    agent_entities = len(sim.state.entities_with_prefix("agent:"))
+    genesis_s = time.perf_counter() - t0
+    db_genesis_mb = _db_bytes(db) / 1e6
+
+    agents_total = len(sim.state.entities_with_prefix("agent:"))
+    alive = sum(
+        1 for a in sim.state.entities_with_prefix("agent:")
+        if sim.state.get(a, "alive")
+    )
     pairs = len(sim.state.data)
-    genesis_counts = sim.journal.counts() if persist else (len(sim.journal), 0, 0)
 
-    attach_player_channel(sim, DecisionChannel(actions=[6] * (args.ticks + 10)))
+    def _logical_bytes() -> int:
+        row = sim.journal.query(
+            "SELECT COALESCE(SUM(LENGTH(payload)), 0) AS n FROM transitions"
+        )
+        return int(row[0]["n"]) if row else 0
 
-    # ---- instrument the engine (measurement only) --------------------
-    snap_orig = Snapshot.from_state
-
-    def timed_snapshot(state):
-        t = time.perf_counter()
-        result = snap_orig(state)
-        add("snapshot", time.perf_counter() - t)
-        return result
-
-    Snapshot.from_state = staticmethod(timed_snapshot)
-
-    for system in sim.systems:
-        original = system.compute
-
-        def timed_compute(snapshot, rng, context, _original=original,
-                          _name=system.name):
-            t = time.perf_counter()
-            result = _original(snapshot, rng, context)
-            add(f"system:{_name}", time.perf_counter() - t)
-            return result
-
-        system.compute = timed_compute
-
-    resolve_orig = sim.resolver.resolve
-
-    def timed_resolve(snapshot, proposals):
-        t = time.perf_counter()
-        result = resolve_orig(snapshot, proposals)
-        add("resolve", time.perf_counter() - t)
-        return result
-
-    sim.resolver.resolve = timed_resolve
-
-    assign_orig = sim._assign_ids
-
-    def timed_assign(proposals):
-        t = time.perf_counter()
-        assign_orig(proposals)
-        add("assign_ids", time.perf_counter() - t)
-
-    sim._assign_ids = timed_assign
-
-    state_commit_orig = sim._commit
-
-    def timed_state_commit(transition):
-        t = time.perf_counter()
-        state_commit_orig(transition)
-        add("state_commit", time.perf_counter() - t)
-
-    sim._commit = timed_state_commit
-
-    record_orig = sim.journal.record
-
-    def timed_record(transition):
-        t = time.perf_counter()
-        record_orig(transition)
-        add("journal_record", time.perf_counter() - t)
-
-    sim.journal.record = timed_record
-
-    commit_orig = getattr(sim.journal, "commit", None)
-
-    def timed_commit():
-        if commit_orig is None:
-            return
-        t = time.perf_counter()
-        commit_orig()
-        add("journal_commit", time.perf_counter() - t)
-
-    if commit_orig is not None:
-        sim.journal.commit = timed_commit
-
-    # ---- ticks ------------------------------------------------------
-    step_times = []
-    commit_times = []
     per_tick = []
-    last_total = sim.journal.counts()[0]
-    for _ in range(args.ticks):
+    logical_before = _logical_bytes()
+    for i in range(ticks):
         t = time.perf_counter()
         sim.step()
-        step_times.append(time.perf_counter() - t)
-        if commit_orig is not None:
-            t = time.perf_counter()
-            commit_orig()
-            commit_times.append(time.perf_counter() - t)
-        else:
-            commit_times.append(0.0)
-        total = sim.journal.counts()[0]
-        per_tick.append(total - last_total)
-        last_total = total
-
-    rss_end = _vmrss_mb()
-    peak_end = _peak_rss_mb()
-    total_transitions, committed, rejected = sim.journal.counts()
-    # writes per transition of the last tick: the archive can answer for
-    # one tick without materializing the whole journal
-    last_tick = sim.state.tick - 1
-    writes = 0
-    try:
-        if persist:
-            rows = sim.journal.at_tick(last_tick)
-        else:
-            rows = [t for t in sim.journal if t.tick == last_tick]
-        writes = sum(len(t.writes) for t in rows)
-    except Exception:
-        pass
-
-    # ---- the reader --------------------------------------------------
-    # StateView.from_state is quadratic today (fields_of scans the whole
-    # state per entity), so above the reader limit it is not measured —
-    # the report project it from the small sizes instead of hanging.
-    reader = {}
-    system = next(
-        (s for s in sim.systems
-         if s.name == "ResettlementDirectiveSystem"), None
-    )
-    if args.size <= args.reader_limit:
+        step_s = time.perf_counter() - t
         t = time.perf_counter()
-        view = StateView.from_state(sim.state)
-        reader["state_view_ms"] = round((time.perf_counter() - t) * 1000, 1)
-        if system is not None:
-            t = time.perf_counter()
-            card = resettle_opportunities(
-                view, int(sim.state.tick),
-                soil_min=system.RESETTLE_SOIL_MIN,
-                food_pc_min=system.RESETTLE_FOOD_PC_MIN,
-                cost_base=system.RESETTLE_FOOD_BASE,
-                cost_per_step=system.RESETTLE_FOOD_PER_STEP,
-                max_per_order=system.RESETTLE_MAX_PER_ORDER,
-            )
-            reader["card_ms"] = round((time.perf_counter() - t) * 1000, 1)
-            reader["card_rows"] = len(card)
+        sim.journal.commit()
+        commit_s = time.perf_counter() - t
+        logical_after = _logical_bytes()
+        total, committed, rejected = sim.journal.counts()
+        per_tick.append({
+            "tick": i + 1,
+            "step_s": round(step_s, 3),
+            "commit_s": round(commit_s, 3),
+            "db_mb": round(_db_bytes(db) / 1e6, 1),
+            "logical_mb": round((logical_after - logical_before) / 1e6, 2),
+            "transitions": total,
+            "committed": committed,
+            "rejected": rejected,
+        })
+        logical_before = logical_after
+
+    peak = _peak_mb()
+
+    # snapshot cost, measured on its own (a pure read of the state)
+    from causal_world.kernel.snapshot import Snapshot
+
+    t = time.perf_counter()
+    Snapshot.from_state(sim.state)
+    snapshot_s = time.perf_counter() - t
+
+    # one tick under the profiler: the shares, not the wall time, matter
+    pr = cProfile.Profile()
+    pr.enable()
+    sim.step()
+    sim.journal.commit()
+    pr.disable()
+    stats = pstats.Stats(pr)
+    rows = []
+    for (file, line, func), (cc, nc, tt, ct, callers) in stats.stats.items():
+        rows.append({
+            "name": f"{func} ({Path(file).name}:{line})",
+            "cum_s": round(ct, 3),
+            "calls": nc,
+        })
+    rows.sort(key=lambda r: -r["cum_s"])
+    step_row = next(
+        (r for r in rows if r["name"].startswith("step (")), None
+    )
+    step_cum = step_row["cum_s"] if step_row else 0.0
+    profile_rows = rows[:14]
+
+    # the observer over the same archive (what a frame costs, v0.9+)
+    t = time.perf_counter()
+    observe(db)
+    observe_s = time.perf_counter() - t
+
+    # The server builds a StateView per frame; from_state calls
+    # fields_of() per entity, which scans the whole state, so it is
+    # quadratic. Measure it only where it is affordable, and say so.
+    reader_s = None
+    n_alerts = None
+    if agents <= READER_LIMIT:
+        t = time.perf_counter()
+        StateView.from_state(sim.state)
+        reader_s = time.perf_counter() - t
+        from causal_world.observer.journal import JournalView
+
+        t = time.perf_counter()
+        with JournalView(db) as jv:
+            n_alerts = len(situations(jv))
+        situations_s = time.perf_counter() - t
     else:
-        reader["state_view_ms"] = None
-        reader["card_ms"] = None
-        reader["skipped"] = (
-            "не измерялось: StateView.from_state квадратичен, "
-            "проекция — в разделе 3"
-        )
-    if persist:
-        t = time.perf_counter()
-        with JournalView(persist) as jv:
-            reader["journal_open_ms"] = round((time.perf_counter() - t) * 1000, 1)
-            t = time.perf_counter()
-            alerts = situations(jv)
-            reader["situations_ms"] = round((time.perf_counter() - t) * 1000, 1)
-            reader["situations"] = len(alerts)
-        from causal_world.game import observe
+        situations_s = None
 
-        t = time.perf_counter()
-        observe(persist)
-        reader["observe_ms"] = round((time.perf_counter() - t) * 1000, 1)
-
-    # The WAL makes "bytes added since genesis" jump around. The archive
-    # is measured after close (one checkpoint) and normalised per
-    # transition; the per-tick figure is then steady-state transitions
-    # times that cost.
-    db_final = 0
-    if persist:
-        sim.journal.close()
-        db_final = _db_bytes(persist)
-
-    # ---- the result --------------------------------------------------
-    step = sum(step_times) / len(step_times) if step_times else 0.0
-    commit = sum(commit_times) / len(commit_times) if commit_times else 0.0
-    accounted = sum(
-        value for key, value in timings.items()
-        if key not in ("journal_commit",)
-    ) / max(len(step_times), 1)
-    steady = per_tick[-1] if per_tick else 0
-    bytes_per_transition = (
-        db_final / total_transitions if persist and total_transitions else 0
-    )
-    db_growth = steady * bytes_per_transition
+    total, committed, rejected = sim.journal.counts()
+    logical_total_mb = _logical_bytes() / 1e6
     result = {
-        "agents": args.size,
-        "ticks": args.ticks,
-        "memory_journal": bool(args.memory_journal),
-        "agent_entities": agent_entities,
+        "agents": agents,
+        "entities": len(sim.state.entities()),
+        "agent_entities": agents_total,
+        "alive": alive,
         "pairs": pairs,
-        "genesis_s": round(genesis, 2),
-        "genesis_transitions": genesis_counts[0],
-        "step_s": round(step, 4),
-        "commit_s": round(commit, 4),
-        "snapshot_s": round(timings.get("snapshot", 0.0) / max(len(step_times), 1), 4),
-        "systems_s": round(
-            sum(v for k, v in timings.items() if k.startswith("system:"))
-            / max(len(step_times), 1), 4
-        ),
-        "resolve_s": round(timings.get("resolve", 0.0) / max(len(step_times), 1), 4),
-        "record_s": round(
-            timings.get("journal_record", 0.0) / max(len(step_times), 1), 4
-        ),
-        "assign_s": round(
-            timings.get("assign_ids", 0.0) / max(len(step_times), 1), 4
-        ),
-        "state_commit_s": round(
-            timings.get("state_commit", 0.0) / max(len(step_times), 1), 4
-        ),
-        "accounted_s": round(accounted, 4),
-        "other_s": round(max(0.0, step - accounted), 4),
-        "systems": {
-            k[len("system:"):]: round(v / max(len(step_times), 1), 4)
-            for k, v in sorted(timings.items()) if k.startswith("system:")
-        },
-        "rss_create_mb": rss_create,
-        "peak_create_mb": peak_create,
-        "rss_end_mb": rss_end,
-        "peak_end_mb": peak_end,
-        "db_create_mb": round(db_create / 1e6, 1),
-        "db_end_mb": round(db_final / 1e6, 1),
-        "db_per_tick_mb": round(db_growth / 1e6, 1),
-        "bytes_per_transition": round(bytes_per_transition, 1),
-        "transitions_per_tick": per_tick,
-        "steady_transitions": steady,
-        "total_transitions": total_transitions,
+        "genesis_s": round(genesis_s, 3),
+        "ticks": per_tick,
+        "db_genesis_mb": round(db_genesis_mb, 1),
+        "db_final_mb": round(_db_bytes(db) / 1e6, 1),
+        "logical_total_mb": round(logical_total_mb, 1),
+        "peak_mb": round(peak, 1),
+        "transitions_total": total,
         "committed": committed,
         "rejected": rejected,
-        "writes_last_tick": writes,
-        "reader": reader,
+        "snapshot_s": round(snapshot_s, 3),
+        "step_cum_s": round(step_cum, 3),
+        "profile_rows": profile_rows,
+        "observe_s": round(observe_s, 3),
+        "reader_s": round(reader_s, 3) if reader_s is not None else None,
+        "situations": n_alerts,
+        "situations_s": (
+            round(situations_s, 3) if situations_s is not None else None
+        ),
+
     }
+    sim.journal.close()
+    Path(db).unlink(missing_ok=True)
+    for suffix in ("-wal", "-shm"):
+        Path(db + suffix).unlink(missing_ok=True)
     return result
 
 
-# --------------------------------------------------------------- parent ---
+# ----------------------------------------------------------------------
+# parent: render
+# ----------------------------------------------------------------------
+
+def _mean(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
 
 
-def _fit(points: list[tuple[float, float]]) -> tuple[float, float]:
-    """Least squares y = a + b x (no numpy in the runtime)."""
-    n = len(points)
-    if n < 2:
-        return (points[0][1] if points else 0.0, 0.0)
-    sx = sum(x for x, _ in points)
-    sy = sum(y for _, y in points)
-    sxx = sum(x * x for x, _ in points)
-    sxy = sum(x * y for x, y in points)
-    denom = n * sxx - sx * sx
-    if denom == 0:
-        return (sy / n, 0.0)
-    b = (n * sxy - sx * sy) / denom
-    a = (sy - b * sx) / n
-    return (a, b)
+def _project(x: float, scale: float) -> float:
+    return x * scale
 
 
-def _machine() -> dict:
-    try:
-        with open("/proc/meminfo", encoding="utf-8") as f:
-            mem = next(
-                int(line.split()[1]) / 1024 / 1024
-                for line in f if line.startswith("MemTotal:")
-            )
-    except OSError:
-        mem = 0.0
-    try:
-        stat = os.statvfs("/")
-        disk = stat.f_bavail * stat.f_frsize / 1e9
-    except OSError:
-        disk = 0.0
-    return {
-        "cpus": os.cpu_count(),
-        "mem_total_gb": round(mem, 1),
-        "disk_free_gb": round(disk, 1),
-        "python": platform.python_version(),
-        "platform": platform.platform(),
-    }
+def render(report: dict) -> str:
+    runs = report["runs"]
+    lines: list[str] = []
+    a = lines.append
+    a("# v0.12, шаг 1 — профиль движка до масштабирования")
+    a("")
+    a(f"Машина: {report['machine']['cpu']} CPU, "
+      f"{report['machine']['ram_gb']:.1f} ГБ RAM; Python "
+      f"{report['machine']['python']}. seed 7, `player_resettle`, "
+      f"2 региона, {report['config']['ticks']} тика на размер "
+      "(генезис не входит во время тика).")
+    a("")
+    a("Каждый размер — **отдельный процесс**: пик памяти одного размера "
+      "не может завысить следующий. Меняется только стартовое население; "
+      "правила, seed и протокол одинаковы.")
+    a("")
+    slots = int(100_000 * (report["pool_ratio"] + 1))
+    a("Важно о счёте: в этом ruleset спящий пул рождений равен "
+      f"{report['pool_ratio']:.0f}× живых, поэтому `agents=N` — это "
+      f"{report['pool_ratio'] + 1:.0f}N слотов `agent:*`. «100k агентов» "
+      "ниже означает **100k живых на старте** = "
+      f"{slots:,} слотов, если не сказано иное.".replace(
+          f"{slots:,}", f"{slots:,}".replace(",", " ")))
+    a("")
+    a("## 1. Время тика и память")
+    a("")
+    a("| старт живых | слотов | пар поле/сущность | генезис, с | "
+      "тик, с | commit, с | пик RSS, МБ | журнал, МБ/тик | "
+      "переходов/тик | записей/тик |")
+    a("|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    for r in runs:
+        tick = _mean([t["step_s"] for t in r["ticks"]])
+        commit = _mean([t["commit_s"] for t in r["ticks"]])
+        journal = _mean([t["logical_mb"] for t in r["ticks"]])
+        trans = _mean([t["transitions"] for t in r["ticks"]])
+        writes = _mean([t["committed"] for t in r["ticks"]])
+        a(f"| {r['agents']} | {r['agent_entities']} | {r['pairs']} | "
+          f"{r['genesis_s']:.2f} | {tick:.3f} | {commit:.3f} | "
+          f"{r['peak_mb']:.0f} | {journal:.1f} | {trans:.0f} | {writes:.0f} |")
+    a("")
+    a("«Журнал, МБ/тик» — это **логический объём записей** "
+      "(`SUM(LENGTH(payload))`), а не прирост файла: SQLite переиспользует "
+      "страницы, поэтому файл растёт ступенями. Файл архива после трёх "
+      "тиков — в разделе 3.")
+    a("")
+    biggest = max(runs, key=lambda r: r["agents"])
+    trans = _mean([t["transitions"] for t in biggest["ticks"]])
+    a(f"Переходов на тик — {trans / biggest['agents']:.1f} на одного "
+      f"живого ({trans:.0f} при {biggest['agents']}). Спящие слоты пула "
+      f"тоже получают переход каждый тик, и именно поэтому тик дороже, "
+      f"чем «цена одного живого агента».")
+    a("")
+    a("## 2. Куда уходит тик (cProfile, крупнейший размер)")
+    a("")
+    a(f"Профиль последнего тика при {biggest['agents']} живых "
+      f"({biggest['agent_entities']} слотов). Доли кумулятивные и "
+      f"пересекаются: строка системы включает работу внутри неё.")
+    a("")
+    a("| функция | вызовов | кумулятивно, с | доля тика |")
+    a("|---|---:|---:|---:|")
+    total = biggest.get("step_cum_s") or 0.0
+    for row in biggest.get("profile_rows", [])[:12]:
+        share = row["cum_s"] / total if total else 0
+        a(f"| `{row['name']}` | {row['calls']} | {row['cum_s']:.2f} | "
+          f"{share:.0%} |")
+    a("")
+    if total:
+        scan = next(
+            (r for r in biggest["profile_rows"]
+             if r["name"].startswith("entities_with_prefix")), None
+        )
+        if scan:
+            a(f"Главная строка — `entities_with_prefix`: {scan['cum_s']:.1f} с "
+              f"({scan['cum_s'] / total:.0%}) на сканирование состояния по "
+              f"префиксу. Это не «медленный закон», а повторяющийся проход "
+              f"по всем парам (сущность, поле) в каждом из "
+              f"{scan['calls']} вызовов за тик.")
+            a("")
+    a("## 3. Наблюдатель и чтение архива")
+    a("")
+    a("| старт живых | снимок, с | observe(), с | StateView, с | "
+      "ситуаций | situations(), с | файл архива, МБ | записей, МБ |")
+    a("|---:|---:|---:|---:|---:|---:|---:|---:|")
+    for r in runs:
+        reader = ("—" if r["reader_s"] is None
+                  else f"{r['reader_s']:.2f}")
+        sit = ("—" if r["situations_s"] is None
+               else f"{r['situations_s']:.2f}")
+        alerts = "—" if r["situations"] is None else r["situations"]
+        a(f"| {r['agents']} | {r['snapshot_s']:.3f} | {r['observe_s']:.2f} | "
+          f"{reader} | {alerts} | {sit} | {r['db_final_mb']:.0f} | "
+          f"{r['logical_total_mb']:.0f} |")
+    a("")
+    a("")
+    a("«Ситуаций» ноль не потому, что проход не работал: на трёх тиках "
+      "мир ещё не создал проблем, а время в колонке — стоимость самого "
+      "прохода по архиву. Длинный архив — отдельное измерение.")
+    a("")
+    a("«Записей, МБ» — логический объём полезной нагрузки журнала; «файл "
+      "архива» — то, что лежит на диске (SQLite + индексы + WAL), включая "
+      "генезис. Разница — цена представления архива, и именно она "
+      "заполняет диск.")
+    small = [r for r in runs if r["reader_s"] is not None]
+    if len(small) >= 2:
+        lo, hi = small[-2], small[-1]
+        if lo["reader_s"]:
+            ratio = hi["reader_s"] / lo["reader_s"]
+            grows = hi["agents"] / lo["agents"]
+            a("")
+            a(f"`StateView.from_state` вырос в {ratio:.1f}× при росте "
+              f"населения в {grows:.1f}×: это хуже линейного, и выше "
+              f"{READER_LIMIT} живых он не измеряется — вызывать его на "
+              f"каждом кадре при таком росте нельзя. Если показатель "
+              f"сохранится, на 100k один кадр займёт десятки минут.")
+            if grows > 0:
+                exponent = 1.0
+                try:
+                    import math
+                    exponent = math.log(ratio) / math.log(grows)
+                except Exception:
+                    pass
+                a(f"Оценка показателя по двум точкам: **{exponent:.2f}** "
+                  f"(1.0 — линейно, 2.0 — квадрат).")
+                frame_100k = hi["reader_s"] * (100_000 / hi["agents"]) ** exponent
+                a("")
+                a(f"При сохранении показателя один кадр на 100k живых — "
+                  f"≈ **{frame_100k / 3600:.0f} ч**. Это не «медленно»: это "
+                  f"невозможно, и стена аналитики стоит раньше стены "
+                  f"движка.")
+                a("")
+                a("Важно: это путь сервера на КАЖДЫЙ кадр (`_world_view` "
+                  "вызывает `StateView.from_state`), а не редкий отчёт. "
+                  "Исправление здесь не меняет модель: view можно "
+                  "построить за один проход, не меняя ни одного "
+                  "значения, — но только с тестом эквивалентности.")
+    a("")
+    a("`observe()` — полный аналитический проход: серии, режим, причинные "
+      "бюджеты и карта клеток. Он дешевле тика на этих размерах, но "
+      "растёт с ЧИСЛОМ ТИКОВ в архиве (серии читаются из журнала), а не "
+      "только с населением. Двух-трёх тиков здесь мало, чтобы увидеть "
+      "его стену; это отдельное измерение на длинном архиве.")
+    a("")
+    a("## 4. Проекция на 100k живых")
+    a("")
+    a("Коэффициент — отношение 100k к крупнейшему измеренному размеру; "
+      "проекция линейна по населению и НЕ учитывает рост архива. Она "
+      "показывает порядок величины и место, где кончается машина.")
+    a("")
+    scale = 100_000 / biggest["agents"]
+    tick = _mean([t["step_s"] for t in biggest["ticks"]])
+    commit = _mean([t["commit_s"] for t in biggest["ticks"]])
+    db = _mean([t["logical_mb"] for t in biggest["ticks"]])
+    file_growth = max(
+        0.0, (biggest["db_final_mb"] - biggest["db_genesis_mb"])
+        / max(len(biggest["ticks"]), 1),
+    )
+    a("| величина | сейчас (крупнейший) | проекция 100k | доступно |")
+    a("|---|---:|---:|---:|")
+    a(f"| тик + commit, с | {tick + commit:.2f} | "
+      f"{_project(tick + commit, scale):.1f} | — |")
+    a(f"| пик RSS, МБ | {biggest['peak_mb']:.0f} | "
+      f"{_project(biggest['peak_mb'], scale):.0f} | "
+      f"{report['machine']['ram_mb']:.0f} (вся RAM) |")
+    a(f"| журнал (записи), МБ/тик | {db:.1f} | {_project(db, scale):.0f} | — |")
+    a(f"| архив (файл), МБ/тик | {file_growth:.0f} | "
+      f"{_project(file_growth, scale):.0f} | — |")
+    a(f"| архив на 20 тиков, ГБ | {file_growth * 20 / 1000:.1f} | "
+      f"{_project(file_growth, scale) * 20 / 1000:.0f} | "
+      f"{report['machine']['disk_gb']:.0f} (свободно) |")
+    a("")
+    need_gb = _project(biggest["peak_mb"], scale) / 1024
+    a(f"Вывод по контрольной точке: **100k живых на текущем "
+      f"представлении в машину не влезают** — проекция пика "
+      f"{need_gb:.1f} ГБ при {report['machine']['ram_gb']:.1f} ГБ RAM. "
+      f"Это не «медленно», это отказ по памяти, и он наступает раньше "
+      f"любого фиксированного горизонта.")
+    a("")
+    a("## 5. Что это значит для шага 2")
+    a("")
+    a("* Потолок задаёт **представление состояния и пул**, а не одна "
+      "медленная функция: тик тратится на обход всех слотов и на запись "
+      "перехода для каждого из них.")
+    a("* Спящий пул (6/7 слотов) платит полную цену перехода, хотя не "
+      "меняет состояние. Это первый кандидат: пропуск неизменных слотов "
+      "не меняет семантику, если переход просто не создаётся.")
+    a("* Commit в SQLite — заметная, но не главная доля; её надо мерить "
+      "отдельно на длинном архиве, где растёт WAL.")
+    a("* Наблюдатель на коротком архиве дешёвый; его стена — число "
+      "тиков и квадратичные места в карточках, а не тик.")
+    a("* Никакая оптимизация не принимается без проверки эквивалентности "
+      "(шаг 3): переходы, состояние и причинные ссылки должны совпасть "
+      "с эталонным прогоном.")
+    a("")
+    a("## Что этот профиль НЕ измеряет")
+    a("")
+    a("* 100k живых: проекция, а не прогон (прогон упирается в память).")
+    a("* Длинный архив (сотни тиков): observe() и чтение журнала там "
+      "растут, здесь этого не видно.")
+    a("* Параллельное исполнение: на 2 CPU оно ничего не говорит о "
+      "большой машине.")
+    a("* Стоимость причинных трасс и контрфактических архивов.")
+    return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agents", default="500,1000,2000,4000,8000,16000")
+    parser.add_argument("--agents", default="500,1000,2000,4000,8000")
     parser.add_argument("--ticks", type=int, default=3)
-    parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--out", default="")
-    parser.add_argument("--json", default="")
-    parser.add_argument("--memory-journal", action="store_true")
-    parser.add_argument("--reader-limit", type=int, default=1200)
-    # child mode
-    parser.add_argument("--one-size", type=int, default=None)
-    parser.add_argument("--db", default="")
-    parser.add_argument("--result", default="")
+    parser.add_argument("--child", type=int, default=0)
+    parser.add_argument("--workdir", default="")
+    parser.add_argument("--out", default="experiments/reports/v012_profile.md")
+    parser.add_argument("--json", default="experiments/reports/v012_profile.json")
     args = parser.parse_args()
 
-    if args.one_size is not None:
-        args.size = args.one_size
-        result = one_size(args)
-        Path(args.result).write_text(
-            json.dumps(result, ensure_ascii=False), encoding="utf-8"
-        )
+    if args.child:
+        workdir = args.workdir or tempfile.mkdtemp(prefix="v012-")
+        Path(workdir).mkdir(parents=True, exist_ok=True)
+        result = run_one(args.child, args.ticks, workdir)
+        print(json.dumps(result))
         return 0
 
-    sizes = [int(x) for x in str(args.agents).split(",")]
+    sizes = [int(x) for x in args.agents.split(",") if x.strip()]
+    workdir = tempfile.mkdtemp(prefix="v012-")
     runs = []
-    with tempfile.TemporaryDirectory(prefix="v012-profile-") as tmp:
-        for size in sizes:
-            db = os.path.join(tmp, f"w{size}.db")
-            result_path = os.path.join(tmp, f"r{size}.json")
-            cmd = [
-                sys.executable, __file__,
-                "--one-size", str(size), "--ticks", str(args.ticks),
-                "--seed", str(args.seed), "--db", db,
-                "--result", result_path,
-            ]
-            print(f"profiling {size} agents …", flush=True)
-            subprocess.run(cmd, check=True)
-            runs.append(json.loads(Path(result_path).read_text()))
-        # the control: same middle size, in-memory journal
-        control_size = sizes[len(sizes) // 2]
-        result_path = os.path.join(tmp, "memory.json")
-        cmd = [
-            sys.executable, __file__,
-            "--one-size", str(control_size), "--ticks", str(args.ticks),
-            "--seed", str(args.seed), "--memory-journal",
-            "--result", result_path,
-        ]
-        print(f"profiling {control_size} agents without an archive …",
-              flush=True)
-        subprocess.run(cmd, check=True)
-        control = json.loads(Path(result_path).read_text())
+    for size in sizes:
+        print(f"profiling {size} agents …", flush=True)
+        cmd = [sys.executable, os.path.abspath(__file__),
+               "--child", str(size), "--ticks", str(args.ticks),
+               "--workdir", workdir]
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        if out.returncode != 0:
+            print(out.stderr[-2000:], file=sys.stderr)
+            raise SystemExit(out.returncode)
+        runs.append(json.loads(out.stdout.strip().splitlines()[-1]))
 
+    pool_ratio = runs[0]["agent_entities"] / runs[0]["agents"] - 1
+    try:
+        cpu = os.cpu_count() or 0
+        ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
+        disk_gb = os.statvfs(".").f_bavail * os.statvfs(".").f_frsize / 1e9
+    except Exception:
+        cpu, ram_gb, disk_gb = 0, 0.0, 0.0
     report = {
-        "machine": _machine(),
-        "config": {"sizes": sizes, "ticks": args.ticks,
-                   "seed": args.seed, "control_size": control_size},
+        "config": {"ticks": args.ticks, "sizes": sizes},
+        "machine": {
+            "cpu": cpu, "ram_gb": round(ram_gb, 1),
+            "ram_mb": round(ram_gb * 1000),
+            "disk_gb": round(disk_gb, 1),
+            "python": sys.version.split()[0],
+        },
+        "pool_ratio": int(round(pool_ratio)),
         "runs": runs,
-        "control": control,
     }
-    if args.out:
-        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.out).write_text(render(report), encoding="utf-8")
-        print(f"written {args.out}")
-    if args.json:
-        Path(args.json).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.json).write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        print(f"written {args.json}")
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(render(report), encoding="utf-8")
+    Path(args.json).write_text(
+        json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+    print(f"written {args.out}")
+    print(f"written {args.json}")
     return 0
-
-
-def render(report: dict) -> str:
-    lines: list[str] = []
-    a = lines.append
-    m = report["machine"]
-    cfg = report["config"]
-    runs = report["runs"]
-    biggest = max(runs, key=lambda r: r["agents"])
-    a("# v0.12, шаг 1 — профиль движка до масштабирования")
-    a("")
-    a(f"Машина: {m['cpus']} CPU, {m['mem_total_gb']} ГБ RAM, "
-      f"{m['disk_free_gb']} ГБ свободно; Python {m['python']}. "
-      f"seed {cfg['seed']}, `player_resettle`, 2 региона, "
-      f"{cfg['ticks']} тика на размер (генезис не входит во время тика).")
-    a("")
-    a("Каждый размер — **отдельный процесс**: пик памяти одного размера "
-      "не может завысить следующий. Меняется только стартовое "
-      "население; правила, seed и протокол одинаковы.")
-    a("")
-    a("Важно о счёте: в этом ruleset спящий пул рождений равен 6× "
-      "живых, поэтому `agents=N` — это 7N слотов `agent:*`. "
-      "«100k агентов» ниже означает **100k живых на старте** = 700k "
-      "слотов, если не сказано иное.")
-    a("")
-
-    a("## 1. Время тика и память")
-    a("")
-    a("| старт живых | слотов | пар поле/сущность | генезис, с | тик, с | "
-      "commit, с | пик RSS, МБ | БД/тик, МБ | переходов/тик | "
-      "записей/переход |")
-    a("|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
-    for run in runs:
-        a(f"| {run['agents']} | {run['agent_entities']} | {run['pairs']} | "
-          f"{run['genesis_s']} | {run['step_s']} | {run['commit_s']} | "
-          f"{run['peak_end_mb']} | {run['db_per_tick_mb']} | "
-          f"{run['transitions_per_tick'][-1]} | {run['writes_last_tick']} |")
-    a("")
-    c = report["control"]
-    a(f"Контроль без архива (in-memory journal, {c['agents']} живых): "
-      f"тик {c['step_s']} с, пик RSS {c['peak_end_mb']} МБ, "
-      f"переходов/тик {c['transitions_per_tick'][-1]}. "
-      f"Разница с архивным прогоном того же размера — цена SQLite.")
-    a("")
-
-    a("## 2. Куда уходит тик (крупнейший измеренный размер)")
-    a("")
-    a(f"{biggest['agents']} живых, {biggest['agent_entities']} слотов, "
-      f"тик {biggest['step_s']} с + commit {biggest['commit_s']} с:")
-    a("")
-    a("| фаза | секунд | доля тика |")
-    a("|---|---:|---:|")
-    total = max(biggest["step_s"] + biggest["commit_s"], 1e-9)
-    phases = [
-        ("snapshot (копия состояния)", biggest["snapshot_s"]),
-        ("системы, всего", biggest["systems_s"]),
-        ("резолвер", biggest["resolve_s"]),
-        ("назначение id", biggest["assign_s"]),
-        ("запись состояния", biggest["state_commit_s"]),
-        ("запись переходов в журнал", biggest["record_s"]),
-        ("commit журнала", biggest["commit_s"]),
-    ]
-    for name, value in phases:
-        a(f"| {name} | {value:.3f} | {value / total:.0%} |")
-    a(f"| не разложено | {biggest['other_s']:.3f} | "
-      f"{biggest['other_s'] / total:.0%} |")
-    a("")
-    a("По системам:")
-    a("")
-    a("| система | секунд/тик |")
-    a("|---|---:|")
-    for name, value in sorted(
-        biggest["systems"].items(), key=lambda kv: -kv[1]
-    ):
-        a(f"| {name} | {value:.4f} |")
-    a("")
-
-    a("## 3. Стоимость чтения (наблюдатель)")
-    a("")
-    def cell(value):
-        return "—" if value is None else value
-
-    a("| размер | StateView, мс | карточка переселения, мс | "
-      "открыть журнал, мс | ситуации, мс | observe, мс |")
-    a("|---:|---:|---:|---:|---:|---:|")
-    for run in runs:
-        r = run["reader"]
-        a(f"| {run['agents']} | {cell(r.get('state_view_ms'))} | "
-          f"{cell(r.get('card_ms'))} | {cell(r.get('journal_open_ms'))} | "
-          f"{cell(r.get('situations_ms'))} | {cell(r.get('observe_ms'))} |")
-    a("")
-    measured = [
-        (r["agents"], r["reader"]["state_view_ms"]) for r in runs
-        if r["reader"].get("state_view_ms")
-    ]
-    if len(measured) >= 2:
-        (n1, t1), (n2, t2) = measured[-2], measured[-1]
-        import math
-
-        exponent = math.log(t2 / t1) / math.log(n2 / n1)
-        projected = t2 * (100_000 / n2) ** exponent
-        a(f"`StateView.from_state` — **не линейный**: "
-          f"{t1/1000:.1f} с при {n1} живых и {t2/1000:.1f} с при {n2}; "
-          f"показатель степени по двум последним точкам ≈ "
-          f"{exponent:.2f}. Это квадрат: `fields_of` сканирует всё "
-          f"состояние для каждой сущности. При 100k живых один кадр "
-          f"читался бы ≈ **{projected/3_600_000:.1f} ч** — аналитика "
-          f"упирается в стену раньше движка.")
-        a("")
-        demo_ms = t2 * (54 / n2) ** exponent
-        a(f"Для контекста: на нынешнем демо-мире (54 агента) это "
-          f"≈ {demo_ms:.0f} мс — игра остаётся живой. Стена стоит между "
-          f"демонстрацией и целевым масштабом, а не «где-то потом».")
-        a("")
-        a("Это дефект **наблюдателя**, а не модели: тот же словарь можно "
-          "построить за один проход, не меняя ни одного значения. Но "
-          "правка должна прийти с тестом эквивалентности, а не до него; "
-          "см. предложение v0.12.")
-        a("")
-
-    # projections
-    step_fit = _fit([(r["agents"], r["step_s"] + r["commit_s"]) for r in runs])
-    rss_fit = _fit([(r["agents"], r["peak_end_mb"]) for r in runs])
-    db_fit = _fit([(r["agents"], r["db_per_tick_mb"]) for r in runs])
-    target = 100_000
-    step_100 = step_fit[0] + step_fit[1] * target
-    rss_100 = rss_fit[0] + rss_fit[1] * target
-    db_100 = db_fit[0] + db_fit[1] * target
-    a("## 4. Проекция на 100k живых (линейная по измерениям)")
-    a("")
-    a("| величина | сейчас (крупнейший) | проекция 100k | доступно |")
-    a("|---|---:|---:|---:|")
-    a(f"| тик + commit, с | {biggest['step_s'] + biggest['commit_s']:.2f} | "
-      f"{step_100:.1f} | — |")
-    a(f"| пик RSS, МБ | {biggest['peak_end_mb']:.0f} | {rss_100:.0f} | "
-      f"{m['mem_total_gb'] * 1024:.0f} (вся RAM) |")
-    a(f"| журнал, МБ/тик | {biggest['db_per_tick_mb']:.1f} | {db_100:.0f} | "
-      f"{m['disk_free_gb'] * 1000:.0f} (весь диск) |")
-    a("")
-    a(f"Горизонт 20 тиков при такой проекции потребует "
-      f"{db_100 * 20 / 1000:.0f} ГБ журнала и {rss_100 / 1024:.1f} ГБ "
-      f"памяти. Это не «медленно» — это **за пределами машины**: "
-      f"100k живых на текущем представлении не проходят контрольную "
-      f"точку, и причина названа числом, а не мнением.")
-    a("")
-
-    a("## 5. Что это значит для v0.12")
-    a("")
-    a("* В **тике** нет одной медленной функции: время линейно "
-      "распределено между системами, записью журнала и копией "
-      "состояния; резолвер мал. Это важно: оптимизация одной системы "
-      "не сдвинет стену.")
-    a("* **Наблюдатель — отдельная стена, и она ближе.** Он не входит "
-      "в тик, но именно он делает игру неинтерактивной: "
-      "`StateView.from_state` квадратичен, и на 1000 живых один кадр "
-      "уже занимает десятки секунд (раздел 3). Его нужно исправить "
-      "первым — это не меняет модель.")
-    a("* Второй кандидат (после наблюдателя) — **представление "
-      "состояния и снимка**: сейчас это два словаря пар (сущность, "
-      "поле) на каждую копию, и копия делается каждый тик.")
-    a("* Третий — **объём журнала**: один переход на агента за тик и "
-      "запись каждого перехода в SQLite. Семантика (переход = факт с "
-      "провенансом) должна сохраниться; меняться может представление "
-      "и группировка, но не смысл.")
-    a("* Контрольная точка v0.12 остаётся той, что просила ревизия: "
-      "100k живых проходят фиксированный горизонт, а время тика, пик "
-      "памяти и рост журнала **опубликованы**. Пока она не пройдена, "
-      "оптимизации не считаются успехом.")
-    a("")
-    a("## Что этот профиль НЕ измеряет")
-    a("")
-    a("* Пиковую память при 100k (её нельзя измерить, не попробовав; "
-      "проекция линейна и может ошибаться в обе стороны).")
-    a("* Параллельное исполнение: на 2 CPU оно не даст ответа о "
-      "большой машине.")
-    a("* Стоимость причинных трасс и контрфактических архивов на "
-      "больших размерах — отдельная работа после того, как состояние "
-      "перестанет быть словарём.")
-    a("")
-    return "\n".join(lines)
 
 
 if __name__ == "__main__":

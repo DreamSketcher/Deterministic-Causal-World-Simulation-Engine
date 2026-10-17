@@ -1,426 +1,773 @@
 {
-  "machine": {
-    "cpus": 2,
-    "mem_total_gb": 3.8,
-    "disk_free_gb": 12.8,
-    "python": "3.11.2",
-    "platform": "Linux-6.1.158+-x86_64-with-glibc2.36"
-  },
-  "config": {
-    "sizes": [
-      500,
-      1000,
-      2000,
-      4000,
-      8000,
-      16000
-    ],
-    "ticks": 3,
-    "seed": 7,
-    "control_size": 4000
-  },
-  "runs": [
+ "config": {
+  "ticks": 3,
+  "sizes": [
+   500,
+   1000,
+   2000,
+   4000,
+   8000,
+   16000
+  ]
+ },
+ "machine": {
+  "cpu": 2,
+  "ram_gb": 4.1,
+  "ram_mb": 4131,
+  "disk_gb": 12.3,
+  "python": "3.11.2"
+ },
+ "pool_ratio": 6,
+ "runs": [
+  {
+   "agents": 500,
+   "entities": 3516,
+   "agent_entities": 3500,
+   "alive": 500,
+   "pairs": 49374,
+   "genesis_s": 0.621,
+   "ticks": [
     {
-      "agents": 500,
-      "ticks": 3,
-      "memory_journal": false,
-      "agent_entities": 3500,
-      "pairs": 49374,
-      "genesis_s": 0.65,
-      "genesis_transitions": 3516,
-      "step_s": 0.1651,
-      "commit_s": 0.0201,
-      "snapshot_s": 0.0015,
-      "systems_s": 0.077,
-      "resolve_s": 0.0039,
-      "record_s": 0.0363,
-      "assign_s": 0.0126,
-      "state_commit_s": 0.0028,
-      "accounted_s": 0.1342,
-      "other_s": 0.0309,
-      "systems": {
-        "ClimateSystem": 0.004,
-        "ExplorationSystem": 0.0031,
-        "ImmuneDiseaseSystem": 0.0184,
-        "ResettlementDirectiveSystem": 0.0,
-        "RuinSystem": 0.0033,
-        "SenescenceSystem": 0.006,
-        "SpatialAgentSystem": 0.0243,
-        "SpatialAgricultureSystem": 0.0071,
-        "SpatialBirthSystem": 0.0106,
-        "SpatialPlayerAgentSystem": 0.0001
-      },
-      "rss_create_mb": 50.0,
-      "peak_create_mb": 54.7,
-      "rss_end_mb": 49.5,
-      "peak_end_mb": 54.7,
-      "db_create_mb": 7.3,
-      "db_end_mb": 10.8,
-      "db_per_tick_mb": 1.6,
-      "bytes_per_transition": 1795.1,
-      "transitions_per_tick": [
-        770,
-        835,
-        887
-      ],
-      "steady_transitions": 887,
-      "total_transitions": 6008,
-      "committed": 5994,
-      "rejected": 14,
-      "writes_last_tick": 1432,
-      "reader": {
-        "state_view_ms": 4624.3,
-        "card_ms": 5.1,
-        "card_rows": 8,
-        "journal_open_ms": 0.2,
-        "situations_ms": 299.2,
-        "situations": 0,
-        "observe_ms": 790.2
-      }
+     "tick": 1,
+     "step_s": 0.138,
+     "commit_s": 0.044,
+     "db_mb": 19.1,
+     "logical_mb": 0.34,
+     "transitions": 4285,
+     "committed": 4280,
+     "rejected": 5
     },
     {
-      "agents": 1000,
-      "ticks": 3,
-      "memory_journal": false,
-      "agent_entities": 7000,
-      "pairs": 98374,
-      "genesis_s": 1.3,
-      "genesis_transitions": 7016,
-      "step_s": 0.3076,
-      "commit_s": 0.0562,
-      "snapshot_s": 0.0054,
-      "systems_s": 0.1489,
-      "resolve_s": 0.0059,
-      "record_s": 0.0628,
-      "assign_s": 0.0249,
-      "state_commit_s": 0.0043,
-      "accounted_s": 0.2523,
-      "other_s": 0.0553,
-      "systems": {
-        "ClimateSystem": 0.0078,
-        "ExplorationSystem": 0.0062,
-        "ImmuneDiseaseSystem": 0.0382,
-        "ResettlementDirectiveSystem": 0.0,
-        "RuinSystem": 0.0062,
-        "SenescenceSystem": 0.0111,
-        "SpatialAgentSystem": 0.0465,
-        "SpatialAgricultureSystem": 0.0129,
-        "SpatialBirthSystem": 0.02,
-        "SpatialPlayerAgentSystem": 0.0001
-      },
-      "rss_create_mb": 72.5,
-      "peak_create_mb": 86.1,
-      "rss_end_mb": 62.0,
-      "peak_end_mb": 86.1,
-      "db_create_mb": 16.4,
-      "db_end_mb": 21.6,
-      "db_per_tick_mb": 3.2,
-      "bytes_per_transition": 1806.5,
-      "transitions_per_tick": [
-        1533,
-        1643,
-        1755
-      ],
-      "steady_transitions": 1755,
-      "total_transitions": 11947,
-      "committed": 11918,
-      "rejected": 29,
-      "writes_last_tick": 2816,
-      "reader": {
-        "state_view_ms": 17745.7,
-        "card_ms": 10.1,
-        "card_rows": 8,
-        "journal_open_ms": 0.1,
-        "situations_ms": 588.1,
-        "situations": 0,
-        "observe_ms": 1568.7
-      }
+     "tick": 2,
+     "step_s": 0.145,
+     "commit_s": 0.003,
+     "db_mb": 19.1,
+     "logical_mb": 0.36,
+     "transitions": 5119,
+     "committed": 5110,
+     "rejected": 9
     },
     {
-      "agents": 2000,
-      "ticks": 3,
-      "memory_journal": false,
-      "agent_entities": 14000,
-      "pairs": 196374,
-      "genesis_s": 2.81,
-      "genesis_transitions": 14016,
-      "step_s": 0.6863,
-      "commit_s": 0.0964,
-      "snapshot_s": 0.0121,
-      "systems_s": 0.3619,
-      "resolve_s": 0.0136,
-      "record_s": 0.131,
-      "assign_s": 0.0497,
-      "state_commit_s": 0.0092,
-      "accounted_s": 0.5775,
-      "other_s": 0.1087,
-      "systems": {
-        "ClimateSystem": 0.018,
-        "ExplorationSystem": 0.0138,
-        "ImmuneDiseaseSystem": 0.0888,
-        "ResettlementDirectiveSystem": 0.0,
-        "RuinSystem": 0.0134,
-        "SenescenceSystem": 0.0274,
-        "SpatialAgentSystem": 0.1192,
-        "SpatialAgricultureSystem": 0.0316,
-        "SpatialBirthSystem": 0.0497,
-        "SpatialPlayerAgentSystem": 0.0001
-      },
-      "rss_create_mb": 114.2,
-      "peak_create_mb": 142.6,
-      "rss_end_mb": 95.3,
-      "peak_end_mb": 142.6,
-      "db_create_mb": 34.8,
-      "db_end_mb": 43.5,
-      "db_per_tick_mb": 6.4,
-      "bytes_per_transition": 1821.9,
-      "transitions_per_tick": [
-        3061,
-        3286,
-        3497
-      ],
-      "steady_transitions": 3497,
-      "total_transitions": 23860,
-      "committed": 23810,
-      "rejected": 50,
-      "writes_last_tick": 5582,
-      "reader": {
-        "state_view_ms": null,
-        "card_ms": null,
-        "skipped": "не измерялось: StateView.from_state квадратичен, проекция — в разделе 3",
-        "journal_open_ms": 0.1,
-        "situations_ms": 1210.2,
-        "situations": 0,
-        "observe_ms": 3281.6
-      }
-    },
-    {
-      "agents": 4000,
-      "ticks": 3,
-      "memory_journal": false,
-      "agent_entities": 28000,
-      "pairs": 392374,
-      "genesis_s": 5.92,
-      "genesis_transitions": 28016,
-      "step_s": 1.4931,
-      "commit_s": 0.1485,
-      "snapshot_s": 0.0148,
-      "systems_s": 0.8294,
-      "resolve_s": 0.0361,
-      "record_s": 0.2618,
-      "assign_s": 0.1054,
-      "state_commit_s": 0.0223,
-      "accounted_s": 1.2698,
-      "other_s": 0.2233,
-      "systems": {
-        "ClimateSystem": 0.0351,
-        "ExplorationSystem": 0.0332,
-        "ImmuneDiseaseSystem": 0.2066,
-        "ResettlementDirectiveSystem": 0.0,
-        "RuinSystem": 0.0315,
-        "SenescenceSystem": 0.0662,
-        "SpatialAgentSystem": 0.2707,
-        "SpatialAgricultureSystem": 0.0631,
-        "SpatialBirthSystem": 0.123,
-        "SpatialPlayerAgentSystem": 0.0001
-      },
-      "rss_create_mb": 189.9,
-      "peak_create_mb": 255.9,
-      "rss_end_mb": 198.2,
-      "peak_end_mb": 255.9,
-      "db_create_mb": 71.9,
-      "db_end_mb": 88.3,
-      "db_per_tick_mb": 13.0,
-      "bytes_per_transition": 1847.1,
-      "transitions_per_tick": [
-        6153,
-        6596,
-        7015
-      ],
-      "steady_transitions": 7015,
-      "total_transitions": 47780,
-      "committed": 47675,
-      "rejected": 105,
-      "writes_last_tick": 11178,
-      "reader": {
-        "state_view_ms": null,
-        "card_ms": null,
-        "skipped": "не измерялось: StateView.from_state квадратичен, проекция — в разделе 3",
-        "journal_open_ms": 0.2,
-        "situations_ms": 2574.6,
-        "situations": 0,
-        "observe_ms": 6642.6
-      }
-    },
-    {
-      "agents": 8000,
-      "ticks": 3,
-      "memory_journal": false,
-      "agent_entities": 56000,
-      "pairs": 784374,
-      "genesis_s": 12.18,
-      "genesis_transitions": 56016,
-      "step_s": 2.9573,
-      "commit_s": 0.1773,
-      "snapshot_s": 0.0684,
-      "systems_s": 1.5655,
-      "resolve_s": 0.0604,
-      "record_s": 0.5823,
-      "assign_s": 0.2041,
-      "state_commit_s": 0.0432,
-      "accounted_s": 2.5237,
-      "other_s": 0.4336,
-      "systems": {
-        "ClimateSystem": 0.0707,
-        "ExplorationSystem": 0.0619,
-        "ImmuneDiseaseSystem": 0.3862,
-        "ResettlementDirectiveSystem": 0.0,
-        "RuinSystem": 0.0612,
-        "SenescenceSystem": 0.1279,
-        "SpatialAgentSystem": 0.4851,
-        "SpatialAgricultureSystem": 0.1241,
-        "SpatialBirthSystem": 0.2483,
-        "SpatialPlayerAgentSystem": 0.0001
-      },
-      "rss_create_mb": 306.4,
-      "peak_create_mb": 479.0,
-      "rss_end_mb": 304.5,
-      "peak_end_mb": 479.0,
-      "db_create_mb": 265.2,
-      "db_end_mb": 178.3,
-      "db_per_tick_mb": 26.1,
-      "bytes_per_transition": 1873.0,
-      "transitions_per_tick": [
-        12170,
-        13081,
-        13935
-      ],
-      "steady_transitions": 13935,
-      "total_transitions": 95202,
-      "committed": 94979,
-      "rejected": 223,
-      "writes_last_tick": 22250,
-      "reader": {
-        "state_view_ms": null,
-        "card_ms": null,
-        "skipped": "не измерялось: StateView.from_state квадратичен, проекция — в разделе 3",
-        "journal_open_ms": 0.2,
-        "situations_ms": 5396.4,
-        "situations": 5,
-        "observe_ms": 14086.7
-      }
-    },
-    {
-      "agents": 16000,
-      "ticks": 3,
-      "memory_journal": false,
-      "agent_entities": 112000,
-      "pairs": 1568374,
-      "genesis_s": 26.86,
-      "genesis_transitions": 112016,
-      "step_s": 6.2386,
-      "commit_s": 0.3799,
-      "snapshot_s": 0.1329,
-      "systems_s": 3.3393,
-      "resolve_s": 0.1368,
-      "record_s": 1.2109,
-      "assign_s": 0.4147,
-      "state_commit_s": 0.0953,
-      "accounted_s": 5.3298,
-      "other_s": 0.9087,
-      "systems": {
-        "ClimateSystem": 0.1433,
-        "ExplorationSystem": 0.121,
-        "ImmuneDiseaseSystem": 0.7969,
-        "ResettlementDirectiveSystem": 0.0,
-        "RuinSystem": 0.1219,
-        "SenescenceSystem": 0.2864,
-        "SpatialAgentSystem": 1.0816,
-        "SpatialAgricultureSystem": 0.2568,
-        "SpatialBirthSystem": 0.5312,
-        "SpatialPlayerAgentSystem": 0.0001
-      },
-      "rss_create_mb": 523.8,
-      "peak_create_mb": 871.1,
-      "rss_end_mb": 521.9,
-      "peak_end_mb": 871.1,
-      "db_create_mb": 404.6,
-      "db_end_mb": 360.6,
-      "db_per_tick_mb": 52.7,
-      "bytes_per_transition": 1895.7,
-      "transitions_per_tick": [
-        24282,
-        26092,
-        27817
-      ],
-      "steady_transitions": 27817,
-      "total_transitions": 190207,
-      "committed": 189790,
-      "rejected": 417,
-      "writes_last_tick": 44370,
-      "reader": {
-        "state_view_ms": null,
-        "card_ms": null,
-        "skipped": "не измерялось: StateView.from_state квадратичен, проекция — в разделе 3",
-        "journal_open_ms": 0.2,
-        "situations_ms": 10910.6,
-        "situations": 5,
-        "observe_ms": 28891.3
-      }
+     "tick": 3,
+     "step_s": 0.151,
+     "commit_s": 0.014,
+     "db_mb": 20.4,
+     "logical_mb": 0.38,
+     "transitions": 6006,
+     "committed": 5995,
+     "rejected": 11
     }
-  ],
-  "control": {
-    "agents": 4000,
-    "ticks": 3,
-    "memory_journal": true,
-    "agent_entities": 28000,
-    "pairs": 392374,
-    "genesis_s": 3.71,
-    "genesis_transitions": 28016,
-    "step_s": 1.179,
-    "commit_s": 0.0,
-    "snapshot_s": 0.0135,
-    "systems_s": 0.8543,
-    "resolve_s": 0.0276,
-    "record_s": 0.1333,
-    "assign_s": 0.1004,
-    "state_commit_s": 0.0194,
-    "accounted_s": 1.1485,
-    "other_s": 0.0304,
-    "systems": {
-      "ClimateSystem": 0.034,
-      "ExplorationSystem": 0.0297,
-      "ImmuneDiseaseSystem": 0.2687,
-      "ResettlementDirectiveSystem": 0.0,
-      "RuinSystem": 0.0291,
-      "SenescenceSystem": 0.061,
-      "SpatialAgentSystem": 0.2463,
-      "SpatialAgricultureSystem": 0.0609,
-      "SpatialBirthSystem": 0.1247,
-      "SpatialPlayerAgentSystem": 0.0001
+   ],
+   "db_genesis_mb": 7.3,
+   "db_final_mb": 20.4,
+   "logical_total_mb": 3.6,
+   "peak_mb": 56.8,
+   "transitions_total": 6946,
+   "committed": 6930,
+   "rejected": 16,
+   "snapshot_s": 0.004,
+   "step_cum_s": 0.405,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 0.405,
+     "calls": 1
     },
-    "rss_create_mb": 294.3,
-    "peak_create_mb": 360.1,
-    "rss_end_mb": 323.7,
-    "peak_end_mb": 360.1,
-    "db_create_mb": 0.0,
-    "db_end_mb": 0.0,
-    "db_per_tick_mb": 0.0,
-    "bytes_per_transition": 0,
-    "transitions_per_tick": [
-      6153,
-      6596,
-      7015
-    ],
-    "steady_transitions": 7015,
-    "total_transitions": 47780,
-    "committed": 47675,
-    "rejected": 105,
-    "writes_last_tick": 11178,
-    "reader": {
-      "state_view_ms": null,
-      "card_ms": null,
-      "skipped": "не измерялось: StateView.from_state квадратичен, проекция — в разделе 3"
+    {
+     "name": "entities (base.py:164)",
+     "cum_s": 0.197,
+     "calls": 14
+    },
+    {
+     "name": "entities_with_prefix (snapshot.py:60)",
+     "cum_s": 0.197,
+     "calls": 14
+    },
+    {
+     "name": "<setcomp> (snapshot.py:61)",
+     "cum_s": 0.194,
+     "calls": 14
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.079,
+     "calls": 1
+    },
+    {
+     "name": "<method 'startswith' of 'str' objects> (~:0)",
+     "cum_s": 0.073,
+     "calls": 691236
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 0.06,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:216)",
+     "cum_s": 0.056,
+     "calls": 940
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.038,
+     "calls": 4712
+    },
+    {
+     "name": "compute (spatial.py:527)",
+     "cum_s": 0.036,
+     "calls": 1
+    },
+    {
+     "name": "<method 'execute' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 0.034,
+     "calls": 10711
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.034,
+     "calls": 1
+    },
+    {
+     "name": "_census (spatial.py:311)",
+     "cum_s": 0.033,
+     "calls": 1
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.033,
+     "calls": 2820
     }
+   ],
+   "observe_s": 0.814,
+   "reader_s": 4.594,
+   "situations": 0,
+   "situations_s": 0.297
+  },
+  {
+   "agents": 1000,
+   "entities": 7016,
+   "agent_entities": 7000,
+   "alive": 1000,
+   "pairs": 98374,
+   "genesis_s": 1.292,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 0.289,
+     "commit_s": 0.086,
+     "db_mb": 38.3,
+     "logical_mb": 0.69,
+     "transitions": 8548,
+     "committed": 8539,
+     "rejected": 9
+    },
+    {
+     "tick": 2,
+     "step_s": 0.312,
+     "commit_s": 0.017,
+     "db_mb": 39.5,
+     "logical_mb": 0.72,
+     "transitions": 10190,
+     "committed": 10173,
+     "rejected": 17
+    },
+    {
+     "tick": 3,
+     "step_s": 0.314,
+     "commit_s": 0.017,
+     "db_mb": 40.8,
+     "logical_mb": 0.75,
+     "transitions": 11945,
+     "committed": 11919,
+     "rejected": 26
+    }
+   ],
+   "db_genesis_mb": 16.4,
+   "db_final_mb": 42.2,
+   "logical_total_mb": 7.1,
+   "peak_mb": 83.9,
+   "transitions_total": 13808,
+   "committed": 13771,
+   "rejected": 37,
+   "snapshot_s": 0.004,
+   "step_cum_s": 0.831,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 0.831,
+     "calls": 1
+    },
+    {
+     "name": "entities (base.py:164)",
+     "cum_s": 0.408,
+     "calls": 14
+    },
+    {
+     "name": "entities_with_prefix (snapshot.py:60)",
+     "cum_s": 0.408,
+     "calls": 14
+    },
+    {
+     "name": "<setcomp> (snapshot.py:61)",
+     "cum_s": 0.401,
+     "calls": 14
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.169,
+     "calls": 1
+    },
+    {
+     "name": "<method 'startswith' of 'str' objects> (~:0)",
+     "cum_s": 0.148,
+     "calls": 1377236
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 0.128,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:216)",
+     "cum_s": 0.11,
+     "calls": 1863
+    },
+    {
+     "name": "<method 'execute' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 0.082,
+     "calls": 21209
+    },
+    {
+     "name": "compute (spatial.py:527)",
+     "cum_s": 0.077,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.074,
+     "calls": 9321
+    },
+    {
+     "name": "_census (spatial.py:311)",
+     "cum_s": 0.074,
+     "calls": 1
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.065,
+     "calls": 5589
+    },
+    {
+     "name": "add (archive.py:404)",
+     "cum_s": 0.064,
+     "calls": 1863
+    }
+   ],
+   "observe_s": 1.645,
+   "reader_s": 17.813,
+   "situations": 0,
+   "situations_s": 0.589
+  },
+  {
+   "agents": 2000,
+   "entities": 14016,
+   "agent_entities": 14000,
+   "alive": 2000,
+   "pairs": 196374,
+   "genesis_s": 2.677,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 0.593,
+     "commit_s": 0.219,
+     "db_mb": 77.1,
+     "logical_mb": 1.39,
+     "transitions": 17076,
+     "committed": 17060,
+     "rejected": 16
+    },
+    {
+     "tick": 2,
+     "step_s": 0.659,
+     "commit_s": 0.042,
+     "db_mb": 79.6,
+     "logical_mb": 1.46,
+     "transitions": 20361,
+     "committed": 20331,
+     "rejected": 30
+    },
+    {
+     "tick": 3,
+     "step_s": 0.717,
+     "commit_s": 0.032,
+     "db_mb": 82.2,
+     "logical_mb": 1.52,
+     "transitions": 23858,
+     "committed": 23811,
+     "rejected": 47
+    }
+   ],
+   "db_genesis_mb": 34.8,
+   "db_final_mb": 85.0,
+   "logical_total_mb": 14.3,
+   "peak_mb": 144.6,
+   "transitions_total": 27570,
+   "committed": 27500,
+   "rejected": 70,
+   "snapshot_s": 0.016,
+   "step_cum_s": 1.718,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 1.718,
+     "calls": 1
+    },
+    {
+     "name": "entities (base.py:164)",
+     "cum_s": 0.827,
+     "calls": 14
+    },
+    {
+     "name": "entities_with_prefix (snapshot.py:60)",
+     "cum_s": 0.827,
+     "calls": 14
+    },
+    {
+     "name": "<setcomp> (snapshot.py:61)",
+     "cum_s": 0.81,
+     "calls": 14
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.35,
+     "calls": 1
+    },
+    {
+     "name": "<method 'startswith' of 'str' objects> (~:0)",
+     "cum_s": 0.301,
+     "calls": 2749236
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 0.252,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:216)",
+     "cum_s": 0.243,
+     "calls": 3712
+    },
+    {
+     "name": "<method 'execute' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 0.166,
+     "calls": 42233
+    },
+    {
+     "name": "compute (spatial.py:527)",
+     "cum_s": 0.158,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.154,
+     "calls": 18554
+    },
+    {
+     "name": "_census (spatial.py:311)",
+     "cum_s": 0.143,
+     "calls": 1
+    },
+    {
+     "name": "canonical_json (canonical.py:56)",
+     "cum_s": 0.134,
+     "calls": 11136
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.133,
+     "calls": 1
+    }
+   ],
+   "observe_s": 3.32,
+   "reader_s": 80.135,
+   "situations": 0,
+   "situations_s": 1.189
+  },
+  {
+   "agents": 4000,
+   "entities": 28016,
+   "agent_entities": 28000,
+   "alive": 4000,
+   "pairs": 392374,
+   "genesis_s": 5.652,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 1.394,
+     "commit_s": 0.392,
+     "db_mb": 155.7,
+     "logical_mb": 2.82,
+     "transitions": 34168,
+     "committed": 34138,
+     "rejected": 30
+    },
+    {
+     "tick": 2,
+     "step_s": 1.502,
+     "commit_s": 0.082,
+     "db_mb": 161.0,
+     "logical_mb": 2.95,
+     "transitions": 40763,
+     "committed": 40704,
+     "rejected": 59
+    },
+    {
+     "tick": 3,
+     "step_s": 1.558,
+     "commit_s": 0.075,
+     "db_mb": 166.4,
+     "logical_mb": 3.07,
+     "transitions": 47778,
+     "committed": 47676,
+     "rejected": 102
+    }
+   ],
+   "db_genesis_mb": 71.9,
+   "db_final_mb": 172.2,
+   "logical_total_mb": 28.9,
+   "peak_mb": 256.5,
+   "transitions_total": 55195,
+   "committed": 55041,
+   "rejected": 154,
+   "snapshot_s": 0.018,
+   "step_cum_s": 3.778,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 3.778,
+     "calls": 1
+    },
+    {
+     "name": "entities (base.py:164)",
+     "cum_s": 1.824,
+     "calls": 14
+    },
+    {
+     "name": "entities_with_prefix (snapshot.py:60)",
+     "cum_s": 1.824,
+     "calls": 14
+    },
+    {
+     "name": "<setcomp> (snapshot.py:61)",
+     "cum_s": 1.783,
+     "calls": 14
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 0.787,
+     "calls": 1
+    },
+    {
+     "name": "<method 'startswith' of 'str' objects> (~:0)",
+     "cum_s": 0.645,
+     "calls": 5493236
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 0.59,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:216)",
+     "cum_s": 0.54,
+     "calls": 7417
+    },
+    {
+     "name": "<method 'execute' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 0.415,
+     "calls": 84336
+    },
+    {
+     "name": "compute (spatial.py:527)",
+     "cum_s": 0.348,
+     "calls": 1
+    },
+    {
+     "name": "_census (spatial.py:311)",
+     "cum_s": 0.315,
+     "calls": 1
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.314,
+     "calls": 37050
+    },
+    {
+     "name": "compute (spatial.py:165)",
+     "cum_s": 0.287,
+     "calls": 1
+    },
+    {
+     "name": "add (archive.py:404)",
+     "cum_s": 0.277,
+     "calls": 7417
+    }
+   ],
+   "observe_s": 7.082,
+   "reader_s": null,
+   "situations": null,
+   "situations_s": null
+  },
+  {
+   "agents": 8000,
+   "entities": 56016,
+   "agent_entities": 56000,
+   "alive": 8000,
+   "pairs": 784374,
+   "genesis_s": 12.234,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 2.858,
+     "commit_s": 0.259,
+     "db_mb": 290.3,
+     "logical_mb": 5.64,
+     "transitions": 68185,
+     "committed": 68122,
+     "rejected": 63
+    },
+    {
+     "tick": 2,
+     "step_s": 3.0,
+     "commit_s": 0.232,
+     "db_mb": 300.6,
+     "logical_mb": 5.9,
+     "transitions": 81265,
+     "committed": 81142,
+     "rejected": 123
+    },
+    {
+     "tick": 3,
+     "step_s": 3.108,
+     "commit_s": 0.255,
+     "db_mb": 311.4,
+     "logical_mb": 6.14,
+     "transitions": 95200,
+     "committed": 94980,
+     "rejected": 220
+    }
+   ],
+   "db_genesis_mb": 265.2,
+   "db_final_mb": 322.9,
+   "logical_total_mb": 58.0,
+   "peak_mb": 464.2,
+   "transitions_total": 109913,
+   "committed": 109603,
+   "rejected": 310,
+   "snapshot_s": 0.086,
+   "step_cum_s": 7.009,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 7.009,
+     "calls": 1
+    },
+    {
+     "name": "entities (base.py:164)",
+     "cum_s": 3.317,
+     "calls": 14
+    },
+    {
+     "name": "entities_with_prefix (snapshot.py:60)",
+     "cum_s": 3.317,
+     "calls": 14
+    },
+    {
+     "name": "<setcomp> (snapshot.py:61)",
+     "cum_s": 3.227,
+     "calls": 14
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 1.388,
+     "calls": 1
+    },
+    {
+     "name": "<method 'startswith' of 'str' objects> (~:0)",
+     "cum_s": 1.193,
+     "calls": 10981236
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 1.005,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:216)",
+     "cum_s": 0.985,
+     "calls": 14713
+    },
+    {
+     "name": "<method 'execute' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 0.807,
+     "calls": 167605
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 0.663,
+     "calls": 73492
+    },
+    {
+     "name": "compute (spatial.py:527)",
+     "cum_s": 0.658,
+     "calls": 1
+    },
+    {
+     "name": "_census (spatial.py:311)",
+     "cum_s": 0.571,
+     "calls": 1
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 0.553,
+     "calls": 1
+    },
+    {
+     "name": "add (archive.py:404)",
+     "cum_s": 0.545,
+     "calls": 14713
+    }
+   ],
+   "observe_s": 13.58,
+   "reader_s": null,
+   "situations": null,
+   "situations_s": null
+  },
+  {
+   "agents": 16000,
+   "entities": 112016,
+   "agent_entities": 112000,
+   "alive": 16000,
+   "pairs": 1568374,
+   "genesis_s": 24.945,
+   "ticks": [
+    {
+     "tick": 1,
+     "step_s": 5.774,
+     "commit_s": 0.423,
+     "db_mb": 455.4,
+     "logical_mb": 11.44,
+     "transitions": 136297,
+     "committed": 136185,
+     "rejected": 112
+    },
+    {
+     "tick": 2,
+     "step_s": 6.194,
+     "commit_s": 0.307,
+     "db_mb": 476.3,
+     "logical_mb": 12.0,
+     "transitions": 162388,
+     "committed": 162148,
+     "rejected": 240
+    },
+    {
+     "tick": 3,
+     "step_s": 6.335,
+     "commit_s": 0.258,
+     "db_mb": 498.3,
+     "logical_mb": 12.47,
+     "transitions": 190205,
+     "committed": 189791,
+     "rejected": 414
+    }
+   ],
+   "db_genesis_mb": 404.6,
+   "db_final_mb": 522.1,
+   "logical_total_mb": 117.2,
+   "peak_mb": 877.5,
+   "transitions_total": 219597,
+   "committed": 218988,
+   "rejected": 609,
+   "snapshot_s": 0.161,
+   "step_cum_s": 14.141,
+   "profile_rows": [
+    {
+     "name": "step (engine.py:83)",
+     "cum_s": 14.141,
+     "calls": 1
+    },
+    {
+     "name": "entities (base.py:164)",
+     "cum_s": 6.753,
+     "calls": 14
+    },
+    {
+     "name": "entities_with_prefix (snapshot.py:60)",
+     "cum_s": 6.753,
+     "calls": 14
+    },
+    {
+     "name": "<setcomp> (snapshot.py:61)",
+     "cum_s": 6.553,
+     "calls": 14
+    },
+    {
+     "name": "compute (spatial.py:290)",
+     "cum_s": 2.829,
+     "calls": 1
+    },
+    {
+     "name": "<method 'startswith' of 'str' objects> (~:0)",
+     "cum_s": 2.343,
+     "calls": 21957236
+    },
+    {
+     "name": "compute (disease.py:37)",
+     "cum_s": 2.038,
+     "calls": 1
+    },
+    {
+     "name": "record (archive.py:216)",
+     "cum_s": 1.934,
+     "calls": 29392
+    },
+    {
+     "name": "<method 'execute' of 'sqlite3.Connection' objects> (~:0)",
+     "cum_s": 1.443,
+     "calls": 334889
+    },
+    {
+     "name": "<built-in method builtins.sorted> (~:0)",
+     "cum_s": 1.4,
+     "calls": 146782
+    },
+    {
+     "name": "compute (spatial.py:527)",
+     "cum_s": 1.341,
+     "calls": 1
+    },
+    {
+     "name": "_assign_ids (engine.py:118)",
+     "cum_s": 1.16,
+     "calls": 1
+    },
+    {
+     "name": "_census (spatial.py:311)",
+     "cum_s": 1.14,
+     "calls": 1
+    },
+    {
+     "name": "proposal_sort_key (transition.py:74)",
+     "cum_s": 1.129,
+     "calls": 29392
+    }
+   ],
+   "observe_s": 27.315,
+   "reader_s": null,
+   "situations": null,
+   "situations_s": null
   }
+ ]
 }
