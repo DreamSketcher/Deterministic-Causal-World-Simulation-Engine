@@ -229,6 +229,15 @@ class StateView:
         return view
 
     # -- reads ---------------------------------------------------------
+    def has(self, entity: str, field_name: str) -> bool:
+        """Whether the view holds this pair at all.
+
+        ``get`` returning None cannot tell an absent field from a field
+        that IS None (older rulesets simply do not have v0.11 fields).
+        Readers that treat "absent" differently must ask this.
+        """
+        return (entity, field_name) in self._values
+
     def get(self, entity: str, field_name: str, default=None):
         entry = self._values.get((entity, field_name))
         return default if entry is None else entry[0]
@@ -401,9 +410,17 @@ def growth_limit(view: "StateView", scope: str,
 
 
 def adults_in_cell(view: "StateView", scope: str, tick: int) -> int:
-    """Alive agents in the cell older than the reproduction age."""
+    """Alive agents in the cell older than the reproduction age.
+
+    A :class:`~causal_world.observer.slice.CellSlice` does not carry
+    agents, and must not: it answers from its index instead, so the cost
+    of this reading is one cell, not the whole world.
+    """
+    source = getattr(view, "agents_in_cell", None)
+    agents = (source(scope) if callable(source)
+              else view.entities_with_prefix("agent:"))
     count = 0
-    for agent in view.entities_with_prefix("agent:"):
+    for agent in agents:
         if not view.get(agent, "alive"):
             continue
         if view.get(agent, "cell") != scope:
@@ -417,7 +434,14 @@ def adults_in_cell(view: "StateView", scope: str, tick: int) -> int:
 
 
 def free_lives(view: "StateView") -> int:
-    """The world's unused reserve of lives (dormant slots with no region)."""
+    """The world's unused reserve of lives (dormant slots with no region).
+
+    A slice keeps this counter in its index; a full view counts it by
+    scanning (the archive path has no index).
+    """
+    counter = getattr(view, "free_lives", None)
+    if callable(counter):
+        return int(counter())
     free = 0
     for entity in view.entities_with_prefix("agent:"):
         if view.get(entity, "region") == "none":
@@ -623,14 +647,21 @@ def situations(
                 )
 
     # --- the reserve of lives (the dormant pool) -------------------------
-    free_pool = 0
-    total_pool = 0
-    for (entity, field_name), (value, _tid, _tick) in view._values.items():
-        if not entity.startswith("agent:") or field_name != "region":
-            continue
-        total_pool += 1
-        if value == "none":
-            free_pool += 1
+    # A cell slice does not carry agents, and must NOT report an empty
+    # pool because of that: it answers from its index, which counts the
+    # same field the scan below would.
+    stats = getattr(view, "pool_stats", None)
+    if callable(stats):
+        total_pool, free_pool = stats()
+    else:
+        free_pool = 0
+        total_pool = 0
+        for (entity, field_name), (value, _tid, _tick) in view._values.items():
+            if not entity.startswith("agent:") or field_name != "region":
+                continue
+            total_pool += 1
+            if value == "none":
+                free_pool += 1
     if total_pool and free_pool / total_pool < POOL_LOW_SHARE:
         alerts.append(
             Alert(

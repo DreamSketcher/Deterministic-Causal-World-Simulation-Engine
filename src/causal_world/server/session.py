@@ -44,6 +44,7 @@ from causal_world import create_world
 from causal_world.observer.biography import build_biography
 from causal_world.observer.deaths import DeathClassifier
 from causal_world.observer.journal import JournalView
+from causal_world.observer.slice import CellSlice, WorldIndex
 from causal_world.observer.goal import goals as goal_verdicts
 from causal_world.observer.situation import (
     FieldHistory,
@@ -161,6 +162,14 @@ class Session:
         self.final_hash: str | None = None
         self._finished_payload: dict | None = None
         self._lock = threading.RLock()
+        # v0.12/2b: one index for the frame path. It is built ONCE (one
+        # pass at session start) and then advanced by the committed
+        # writes of each tick; a frame reads a cell slice from it instead
+        # of materialising every (entity, field) pair in the world.
+        self._index: WorldIndex | None = WorldIndex.from_state(
+            self.sim.state, journal=self.sim.journal
+        )
+        self._indexed_tick: int = self.sim.state.tick - 1
 
     # ------------------------------------------------------------- takeover
     @classmethod
@@ -230,6 +239,10 @@ class Session:
         self.death_tick, self.finish_reason = None, None
         self.final_hash, self._finished_payload = None, None
         self._lock = threading.RLock()
+        self._index = WorldIndex.from_state(
+            self.sim.state, journal=self.sim.journal
+        )
+        self._indexed_tick = self.sim.state.tick - 1
         self._write_life(end=None, to_tick=None)
         archive.commit()
         if sim.state.tick >= max_ticks:
@@ -421,6 +434,10 @@ class Session:
 
     def _render(self, seq: int) -> dict:
         st = self.sim.state
+        # ONE slice feeds the map, the situations, the goal cards and the
+        # resettlement card of this frame: they cannot disagree, and none
+        # of them builds a full view of the world.
+        view = self._frame_view()
         action = self.decisions[seq]
         applied = 0 <= action < N_ACTIONS  # engine rule (systems/player.py)
         total, committed, rejected = self.sim.journal.counts()
@@ -439,7 +456,7 @@ class Session:
             # frame is read from sim.state, view-only"). It is a READ of
             # the live state — never a write — and it is what lets a
             # client draw the living map without a second protocol.
-            "world": self._world_view(),
+            "world": self._world_view(view),
             # The order ledger, as the client sees it (v0.9): what
             # happened to the order of this message, and what is still
             # waiting for a free tick. Nothing here is hidden state —
@@ -456,7 +473,27 @@ class Session:
             },
         }
 
-    def _world_view(self) -> dict:
+    def _frame_view(self) -> CellSlice:
+        """The slice this frame is drawn from — read-only, index-backed.
+
+        The index is advanced by every finished tick exactly once, so a
+        tail epilogue that steps several times does not leave it behind.
+        """
+        state = self.sim.state
+        if self._index is None:
+            self._index = WorldIndex.from_state(
+                state, journal=self.sim.journal
+            )
+            self._indexed_tick = state.tick - 1
+        last = state.tick - 1
+        while self._indexed_tick < last:
+            self._indexed_tick += 1
+            self._index.advance(self.sim.journal, self._indexed_tick)
+        return CellSlice.from_state(
+            state, self._index, tick_of=self._tick_of
+        )
+
+    def _world_view(self, view) -> dict:
         """The world as the client may see it (view-only).
 
         Read straight from ``sim.state``; no computation, no history. The
@@ -470,109 +507,115 @@ class Session:
         transition ids they rest on.
         """
         st = self.sim.state
-        st_view = StateView.from_state(st)
         regions = []
-        for region in st.entities_with_prefix("region:"):
+        for region in view.entities_with_prefix("region:"):
             row = {
                 "id": region,
-                "population": st.get(region, "population"),
-                "workers": st.get(region, "workers"),
-                "soil_fertility": st.get(region, "soil_fertility"),
-                "food_stock": st.get(region, "food_stock"),
-                "temperature": st.get(region, "temperature"),
-                "rainfall": st.get(region, "rainfall"),
-                "disease_load": st.get(region, "disease_load"),
+                "population": view.get(region, "population"),
+                "workers": view.get(region, "workers"),
+                "soil_fertility": view.get(region, "soil_fertility"),
+                "food_stock": view.get(region, "food_stock"),
+                "temperature": view.get(region, "temperature"),
+                "rainfall": view.get(region, "rainfall"),
+                "disease_load": view.get(region, "disease_load"),
             }
-            if st.has(region, "labor_diversion"):
+            if view.has(region, "labor_diversion"):
                 row["law"] = {
-                    "labor_diversion": st.get(region, "labor_diversion"),
-                    "water_aid": st.get(region, "water_aid"),
-                    "rest_until": st.get(region, "rest_until"),
-                    "resting": int(st.get(region, "rest_until") or 0) > st.tick,
+                    "labor_diversion": view.get(region, "labor_diversion"),
+                    "water_aid": view.get(region, "water_aid"),
+                    "rest_until": view.get(region, "rest_until"),
+                    "resting": int(view.get(region, "rest_until") or 0) > st.tick,
                 }
             regions.append(row)
 
         cells = []
-        for cell in st.entities_with_prefix("cell:"):
+        for cell in view.entities_with_prefix("cell:"):
             row = {
                 "id": cell,
-                "region": st.get(cell, "region"),
-                "x": st.get(cell, "cell_x"),
-                "y": st.get(cell, "cell_y"),
-                "population": st.get(cell, "population"),
-                "workers": st.get(cell, "workers"),
-                "soil_fertility": st.get(cell, "soil_fertility"),
-                "food_stock": st.get(cell, "food_stock"),
-                "rain_factor": st.get(cell, "rain_factor"),
+                "region": view.get(cell, "region"),
+                "x": view.get(cell, "cell_x"),
+                "y": view.get(cell, "cell_y"),
+                "population": view.get(cell, "population"),
+                "workers": view.get(cell, "workers"),
+                "soil_fertility": view.get(cell, "soil_fertility"),
+                "food_stock": view.get(cell, "food_stock"),
+                "rain_factor": view.get(cell, "rain_factor"),
                 # v0.10: wild land is drawn as land waiting, not as a
                 # dead cell; the limit says what blocks growth (if
                 # anything) so the player does not have to guess.
                 "land_active": (
-                    st.get(cell, "land_active")
-                    if st.has(cell, "land_active") else 1
+                    view.get(cell, "land_active")
+                    if view.has(cell, "land_active") else 1
                 ),
                 "capacity": (
-                    float(st.get(cell, "pop_base") or 0)
-                    * (1.0 + float(st.get(cell, "soil_fertility") or 0))
+                    float(view.get(cell, "pop_base") or 0)
+                    * (1.0 + float(view.get(cell, "soil_fertility") or 0))
                 ),
                 "claim_state": (
-                    st.get(cell, "claim_state")
-                    if st.has(cell, "claim_state") else 0
+                    view.get(cell, "claim_state")
+                    if view.has(cell, "claim_state") else 0
                 ),
                 "terraces": (
-                    st.get(cell, "terraces")
-                    if st.has(cell, "terraces") else 0
+                    view.get(cell, "terraces")
+                    if view.has(cell, "terraces") else 0
                 ),
                 # v0.11: what the resettlement orders did to this cell.
                 # Absent fields read as zero, so older worlds draw the
                 # same map and never invent a resettlement.
                 "resettled_in": (
-                    st.get(cell, "resettled_in")
-                    if st.has(cell, "resettled_in") else 0
+                    view.get(cell, "resettled_in")
+                    if view.has(cell, "resettled_in") else 0
                 ),
                 "resettled_out": (
-                    st.get(cell, "resettled_out")
-                    if st.has(cell, "resettled_out") else 0
+                    view.get(cell, "resettled_out")
+                    if view.has(cell, "resettled_out") else 0
                 ),
                 "resettle_state": (
-                    st.get(cell, "resettle_state")
-                    if st.has(cell, "resettle_state") else 0
+                    view.get(cell, "resettle_state")
+                    if view.has(cell, "resettle_state") else 0
                 ),
                 "last_source": (
-                    st.get(cell, "last_source")
-                    if st.has(cell, "last_source") else None
+                    view.get(cell, "last_source")
+                    if view.has(cell, "last_source") else None
                 ),
             }
             if row["land_active"]:
                 row["limit"] = growth_limit(
-                    st_view, cell, int(st.tick)
+                    view, cell, int(st.tick)
                 )["limit"]
-            if st.has(cell, "labor_diversion"):
+            if view.has(cell, "labor_diversion"):
                 row["law"] = {
-                    "labor_diversion": st.get(cell, "labor_diversion"),
-                    "water_aid": st.get(cell, "water_aid"),
-                    "rest_until": st.get(cell, "rest_until"),
-                    "nursery": st.get(cell, "nursery"),
-                    "resting": int(st.get(cell, "rest_until") or 0) > st.tick,
+                    "labor_diversion": view.get(cell, "labor_diversion"),
+                    "water_aid": view.get(cell, "water_aid"),
+                    "rest_until": view.get(cell, "rest_until"),
+                    "nursery": view.get(cell, "nursery"),
+                    "resting": int(view.get(cell, "rest_until") or 0) > st.tick,
                 }
             cells.append(row)
 
-        alive = sum(
-            1 for a in st.entities_with_prefix("agent:")
-            if st.get(a, "alive")
-        )
-        _, alerts = self._situation_alerts()
+        # the counters come from the index: a scan over all agents would
+        # make the frame O(world) again
+        alive = getattr(view, "alive_agents", None)
+        if alive is None:
+            alive = sum(
+                1 for a in view.entities_with_prefix("agent:")
+                if view.get(a, "alive")
+            )
+        total_agents = getattr(view, "total_agents", None)
+        if total_agents is None:
+            total_agents = len(view.entities_with_prefix("agent:"))
+        _, alerts = self._situation_alerts(view)
         return {
             "tick": st.tick,
             "regions": regions,
             "cells": cells,
             "alive_agents": alive,
-            "total_agents": len(st.entities_with_prefix("agent:")),
+            "total_agents": total_agents,
             "situations": [a.to_dict() for a in alerts],
-            "goals": self._goals(alerts),
+            "goals": self._goals(alerts, view),
             # v0.11: the destinations a resettlement order could use,
             # read with the SAME arithmetic the system will apply.
-            "resettle": self._resettle_view(st_view),
+            "resettle": self._resettle_view(view),
         }
 
     def _resettle_view(self, view: StateView) -> list[dict]:
@@ -605,8 +648,10 @@ class Session:
         """
         st = self.sim.state
         tick = st.tick - 1  # the step that just ran (state.tick is next)
-        scopes = (st.entities_with_prefix("cell:")
-                  or st.entities_with_prefix("region:"))
+        # advance the index here and reuse the same slice in the frame:
+        # the sample and the picture of a tick must describe one world
+        view = self._frame_view()
+        scopes = (view.cells or view.regions)
         for scope in scopes:
             for field_name in ("population", "food_stock", "soil_fertility",
                                "births_total"):
@@ -614,13 +659,16 @@ class Session:
                     self._history.add(scope, field_name, tick,
                                       st.get(scope, field_name))
 
-    def _situation_alerts(self):
-        """The current alerts as objects (shared by the feed and the goals)."""
+    def _situation_alerts(self, view=None):
+        """The current alerts as objects (shared by the feed and the goals).
+
+        The caller passes the frame's slice; a caller without one (the
+        analysis endpoint) gets a slice built on demand — never a full
+        StateView, which would put the whole world back on the frame path.
+        """
         try:
-            view = StateView.from_state(
-                self.sim.state,
-                tick_of=lambda tid: self._tick_of(tid),
-            )
+            if view is None:
+                view = self._frame_view()
             return view, situations(
                 view,
                 current_tick=self.sim.state.tick,
@@ -644,13 +692,11 @@ class Session:
         except Exception:
             return []  # a failed feed never breaks the frame
 
-    def _goals(self, alerts) -> list:
+    def _goals(self, alerts, view=None) -> list:
         """Goal verdicts of the live world (v0.9) — read-only."""
         try:
-            view = StateView.from_state(
-                self.sim.state,
-                tick_of=lambda tid: self._tick_of(tid),
-            )
+            if view is None:
+                view = self._frame_view()
             return [
                 v.to_dict()
                 for v in goal_verdicts(

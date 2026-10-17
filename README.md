@@ -90,7 +90,7 @@ src/causal_world/
 ├── query/         index.py query.py             (v0.5, read-only cache)
 ├── world/         generator.py rules.py
 ├── cli.py         __main__.py
-tests/             32 test modules + helpers.py
+tests/             33 test modules + helpers.py
 experiments/       survival.py compare_rulesets.py observer_demo.py
                    query_demo.py _regen_archive.py
                    reports/   (v0.2 … v0.5 write-ups)
@@ -255,7 +255,7 @@ hashes, so "same world" is distinguishable from "same seed, other ruleset".
 ## Tests
 
 ```bash
-python -m pytest          # 348 tests
+python -m pytest          # 359 tests
 ```
 
 | spec test | where |
@@ -1244,9 +1244,10 @@ protocol (not executed here) is
 Tests: **348** — the v0.11 suite plus `tests/test_v011_selection.py`
 (8: default policy, age is not an input, one-method override, donor
 ranking, a one-person cell is not a donor, a move never empties its
-source, the source is recorded) and `tests/test_v012_reader.py`
+source, the source is recorded) `tests/test_v012_reader.py`
 (3: the one-pass view equals the old mapping, the v0.11 cell fields are
-kept, reading does not change the state hash).
+kept, reading does not change the state hash) and
+`tests/test_v012_slice.py` (11: the six acceptance criteria of 2b).
 
 Commands:
 
@@ -1278,6 +1279,56 @@ The quadratic wall is gone, but 100k is not: a full view is a dict of
 CELL-SCOPED read — a frame needs one cell and its neighbourhood, not the
 whole world. That is still a read, not a new model, and it will come
 with the same equivalence check.
+
+## v0.12 — stage 2b: a frame reads the cells, not the world
+
+After 2a a full view is linear, but it is still the whole world: 1.57M
+(entity, field) pairs at 16k living, ~9.8M at 100k, and the server built
+it THREE times per frame (map, situations, goals). Stage 2b changes the
+unit of reading.
+
+`src/causal_world/observer/slice.py`:
+
+* `WorldIndex` — the indexes a frame needs (entities by prefix, fields
+  per cell/region, who lives where, the dormant pool). Built once by one
+  pass, then advanced by the COMMITTED writes of each tick: O(writes),
+  not O(world). Rejected proposals are not applied — they never touched
+  the state.
+* `CellSlice` — a `StateView` over the cells and their owner regions,
+  with the same `get`/`source`/`tick_of` and the same provenance, plus
+  `agents_in_cell`, `free_lives`, `pool_stats` from the index. Its
+  `complete` flag tells a reader whether it is the whole world; a subset
+  may not pretend otherwise.
+
+The session builds ONE slice per frame and passes it to the map, the
+situation feed, the goal cards and the resettlement card.
+`_situation_alerts` and `_goals` build a slice when none is given, never
+a full view, and `_sample_history` samples through the same slice.
+
+Acceptance, as tests (`tests/test_v012_slice.py`, 11):
+
+| criterion | what is pinned |
+|---|---|
+| equivalence | every slice pair equals the full view's pair (keys, values, provenance) |
+| causality | transition ids and their ticks survive; alerts cite the same ids |
+| reading | `state.hash()` and `journal.hash()` do not change |
+| boundaries | empty cell, map edge, subset (`complete=False`), older ruleset |
+| complexity | the state's scanning reads raise if a frame calls them |
+| UI | map, situations, goals and resettlement come from one slice; the frame path never builds a full view |
+
+Cost (`experiments/reports/v012_slice.md`, 2 CPU / 4.1 GB):
+
+| living | pairs in the world | pairs in the slice | old frame, s | new frame, s | tick incl. index, s |
+|---:|---:|---:|---:|---:|---:|
+| 500 | 49k | 360 | 0.153 | 0.0020 | 0.021 |
+| 1000 | 98k | 360 | 0.348 | 0.0030 | 0.050 |
+| 2000 | 196k | 360 | 0.783 | 0.0053 | 0.089 |
+| 4000 | 392k | 360 | 1.592 | 0.0095 | 0.182 |
+
+The frame is two orders of magnitude cheaper. The whole tick is 7–9×
+cheaper: the index advance pays for deserialising the tick's transitions
+from the archive, which is stage 2d's problem, not a reason to bring the
+full view back.
 
 ## Roadmap
 
@@ -1320,12 +1371,12 @@ v0.11.1 Pre-scaling checks: the +600 settlement horizon, the mover
       policy (the hunger rule degenerates to id order), and a profile
       that puts the analytics wall in front of the engine wall
       (this branch)
-v0.12 Scaling, measured: stage 1 profile (done) → stage 2a observer
-      one-pass (done: 17.8 s → 37 ms at 1000 living, equivalence test)
-      → 2b cell-scoped read → 2c state/snapshot → 2d journal → stage 3
-      equivalence (canonical digest must match). Checkpoint: 100k
-      living pass a fixed horizon with tick time, peak RSS and journal
-      growth published; analytics ≤ 250 ms/frame
+v0.12 Scaling, measured: stage 1 profile (done) → 2a observer one-pass
+      (done) → 2b cell slice (done: frame 118× cheaper, 6 criteria in
+      tests) → 2c state/snapshot → 2d journal → 2e long archive → 2f
+      pool as a ruleset question → 100k × 20. Checkpoint: 100k living
+      pass a fixed horizon with tick time, peak RSS and journal growth
+      published; analytics ≤ 250 ms/frame
 v1.0  Large artificial world
 ```
 

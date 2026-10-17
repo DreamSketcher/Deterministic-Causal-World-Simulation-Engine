@@ -1,0 +1,75 @@
+{
+ "config": {
+  "agents": [
+   500,
+   1000,
+   2000,
+   4000
+  ],
+  "ticks": 2,
+  "full_limit": 100000
+ },
+ "tests": 11,
+ "runs": [
+  {
+   "agents": 500,
+   "tick": 2,
+   "pairs": 49374,
+   "slice_pairs": 360,
+   "slice_complete": true,
+   "genesis_s": 0.66,
+   "full_view_s": 0.022,
+   "old_frame_s": 0.153,
+   "new_frame_s": 0.002,
+   "index_build_s": 0.028,
+   "index_advance_s": 0.0191,
+   "equal_world_view": true,
+   "equal_situations": true
+  },
+  {
+   "agents": 1000,
+   "tick": 2,
+   "pairs": 98374,
+   "slice_pairs": 360,
+   "slice_complete": true,
+   "genesis_s": 1.32,
+   "full_view_s": 0.05,
+   "old_frame_s": 0.348,
+   "new_frame_s": 0.003,
+   "index_build_s": 0.059,
+   "index_advance_s": 0.0472,
+   "equal_world_view": true,
+   "equal_situations": true
+  },
+  {
+   "agents": 2000,
+   "tick": 2,
+   "pairs": 196374,
+   "slice_pairs": 360,
+   "slice_complete": true,
+   "genesis_s": 2.81,
+   "full_view_s": 0.11,
+   "old_frame_s": 0.783,
+   "new_frame_s": 0.0053,
+   "index_build_s": 0.116,
+   "index_advance_s": 0.0841,
+   "equal_world_view": true,
+   "equal_situations": true
+  },
+  {
+   "agents": 4000,
+   "tick": 2,
+   "pairs": 392374,
+   "slice_pairs": 360,
+   "slice_complete": true,
+   "genesis_s": 5.98,
+   "full_view_s": 0.211,
+   "old_frame_s": 1.592,
+   "new_frame_s": 0.0095,
+   "index_build_s": 0.258,
+   "index_advance_s": 0.1721,
+   "equal_world_view": true,
+   "equal_situations": true
+  }
+ ]
+}
