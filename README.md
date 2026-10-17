@@ -90,7 +90,7 @@ src/causal_world/
 ├── query/         index.py query.py             (v0.5, read-only cache)
 ├── world/         generator.py rules.py
 ├── cli.py         __main__.py
-tests/             31 test modules + helpers.py
+tests/             32 test modules + helpers.py
 experiments/       survival.py compare_rulesets.py observer_demo.py
                    query_demo.py _regen_archive.py
                    reports/   (v0.2 … v0.5 write-ups)
