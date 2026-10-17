@@ -1503,6 +1503,56 @@ Reports: `experiments/reports/v012_journal.md` (three groups, before and
 after) and `experiments/reports/v012_profile_stage3.md` (the same
 protocol after 2d).
 
+## v0.12 — checkpoint: 100 000 × 20 does not start, and memory is the limit
+
+The checkpoint ran the current engine with no optimisation for the
+target size: seed 7, `player_resettle`, 2 regions, 2 CPU / 4.1 GB.
+
+**Result: the run never completed tick 0.** After 134.5 s the kernel
+killed the process inside `create_world() → initialize() →
+WorldState.hash()` with `anon-rss: 3 830 556 kB` and `total-vm:
+3 863 956 kB`. By then the whole genesis had been written and
+committed: 700 000 transitions, 9 799 986 rows in each of
+`latest_writer` and `history`, a 1.93 GB database plus a 151 MB WAL.
+The archive is the evidence for the location: every genesis row is
+committed and the next call in `initialize()` is `state.hash()`; the
+same path reproduces as a `MemoryError` under an artificial 0.9 GB
+limit at 20k.
+The `RLIMIT_AS` guard (3.7 GiB) was never reached — the machine's
+physical memory was. The soft memory guard only checks between ticks
+and cannot enter `create_world()`.
+
+The seven groups are therefore not "slow": they are unreached.
+Simulation, journal and index per tick, the frame path and the 20-tick
+hash series at 100k do not exist. The only storage number at 100k is
+the genesis volume above.
+
+What the checkpoint does establish:
+
+* The write path fits the target *genesis volume* (700k transitions,
+  ~10M index rows) on disk; the ceiling is the in-memory world plus the
+  canonical payload that `state.hash()` materialises at the end of
+  genesis. On 20k the same step is visible as the gap between 637 MB
+  after genesis and a 1043 MB peak.
+* A 20k reference completed 20 ticks: 5.7–6.9 s per tick end-to-end
+  after the first frame, RSS flat at 849 MB, database 995 MB, all 20
+  `journal.hash()` values recorded. A second independent 20-tick run
+  produced an identical sequence (genesis hash and every tick hash).
+  Reopening the archive reproduced the hash (34.2 s) and the counts; a
+  full `index_digest()` took 30.2 s. Restart is not free: it reads the
+  whole journal.
+* At 20k the first frame costs 3.3 s because the genesis batch and the
+  first step share `tick=0`; later frames cost 0.30–0.47 s, the cell
+  slice 1 ms, the situation feed 0 ms. The 250 ms frame budget is not
+  met at 20k either, and the cost is in `advance`, not in the slice.
+
+No number is extrapolated from 16k or 20k to 100k, and the 20k series
+is not presented as the checkpoint. The next decision is about memory
+(and whether 100k is the right target on 4.1 GB), not about the
+resettlement policy — that policy remains a separate ruleset variant.
+
+Report: `experiments/reports/v012_checkpoint.md` (+ `.json`).
+
 ## Roadmap
 
 ```
