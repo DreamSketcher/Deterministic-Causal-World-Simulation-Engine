@@ -228,7 +228,10 @@ def test_no_heir_is_terminal_no_new_archive(tmp_path):
     from causal_world.observer.biography import build_biography
 
     card = build_biography(str(world), "agent:0")
-    assert len(card.fingerprint()) == 64 and card.death.tick == 51
+    # ADR v13-1: the controlled life of agent:0 is exhausted by its own work
+    # at tick 50 (health 1.2, cost 5). Before the fix it lived on at zero
+    # health and died at 51. The fingerprint itself is checked separately.
+    assert len(card.fingerprint()) == 64 and card.death.tick == 50
 
 
 # ------------------------------------------------------------- world names

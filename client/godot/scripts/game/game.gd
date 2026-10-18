@@ -32,6 +32,7 @@ const CAUSE_LABELS: Dictionary = {
 	"disease": "болезнь",
 	"disease+starvation": "голод и болезнь",
 	"acute_infection": "острая инфекция",
+	"exhaustion": "истощение: здоровье ушло в ноль от действий игрока",
 	"other": "другая причина (ядро не отнесло к голоду или болезни)",
 }
 const INTRO: String = (

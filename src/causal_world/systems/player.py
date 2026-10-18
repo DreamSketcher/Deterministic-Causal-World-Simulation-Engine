@@ -16,14 +16,18 @@ The action card (U3 — one action_index = one purpose = one biography node):
 
     0 work     hunger −0.30, health −5        (the census already counts the
                                                player as a worker for the
-                                               region's harvest)
+                                               region's harvest). If the cost
+                                               reaches 0 the same transition
+                                               is ``agent.death`` with
+                                               ``alive=false`` (ADR v13-1)
     1 migrate  region := next region (cyclic, sorted by index)
     2 explore  immediate ruin find: hunger relief + ruin draw-down ON THIS
                transition (reads the ruin entity for provenance; a declared
                explore is certainty, not a roll — Q1; nothing to find is a
                recorded, inert "no" from the world, never a veto)
     3 heal     health +10 (capped at max_health), immunity +0.05
-    4 trade    hunger −0.05, health −1         (placeholder: a metal economy
+    4 trade    hunger −0.05, health −1, lethal at 0 as work
+                                               (placeholder: a metal economy
                                                does not exist in v0.6 —
                                                see report deviation notes)
     5 rest     health +5, hunger +0.05
@@ -121,17 +125,34 @@ class PlayerAgentSystem(System):
             return [b.build()]
 
         b.write(agent, "last_action", action)
-        getattr(self, f"_act_{action}")(snapshot, context, b, agent, tick)
-        return [b.build()]
+        cost = getattr(self, f"_act_{action}")(snapshot, context, b, agent, tick)
+        if cost is None:
+            return [b.build()]
+        # A health cost is settled here, not inside the effect (ADR v13-1).
+        # Surviving it: one ``player.act`` as before. Lethal: the decision
+        # transition keeps its record (decision draw, last_action, hunger) and
+        # health is NOT written by it; death is a second transition in the same
+        # tick, ``agent.death``, with the existing contract alive=false and
+        # health=0. The two write disjoint fields, so the resolver accepts both.
+        health = float(b.read(agent, "health"))
+        if health - cost > 0.0:
+            b.write(agent, "health", clamp(health - cost, 0.0, 1e18))
+            return [b.build()]
+        return [b.build(), self._death_transition(context, agent)]
+
+    def _death_transition(self, context, agent: str):
+        d = context.builder("agent.death")
+        d.read(agent, "alive")
+        d.read(agent, "health")
+        d.write(agent, "alive", False)
+        d.write(agent, "health", 0.0)
+        return d.build()
 
     # ---------------------------------------------------------------- effects
-    def _act_0(self, snapshot, context, b, agent, tick) -> None:  # work
+    def _act_0(self, snapshot, context, b, agent, tick):  # work
         hunger = float(b.read(agent, "hunger"))
-        health = float(b.read(agent, "health"))
         b.write(agent, "hunger", clamp(hunger - self.WORK_HUNGER_RELIEF))
-        b.write(
-            agent, "health", clamp(health - self.WORK_HEALTH_COST, 0.0, 1e18)
-        )
+        return self.WORK_HEALTH_COST
 
     def _act_1(self, snapshot, context, b, agent, tick) -> None:  # migrate
         regions = sorted(
@@ -179,14 +200,13 @@ class PlayerAgentSystem(System):
         b.write(agent, "health", clamp(health + self.HEAL_HEALTH, 0.0, max_hp))
         b.write(agent, "immunity", clamp(immunity + self.HEAL_IMMUNITY))
 
-    def _act_4(self, snapshot, context, b, agent, tick) -> None:  # trade
+    def _act_4(self, snapshot, context, b, agent, tick):  # trade
         # Placeholder until v0.6.1 gives the world a ``metal`` field: trading
         # labor for food. Small numbers, no region write (avoids competing
         # with AgricultureSystem's food_stock transition).
         hunger = float(b.read(agent, "hunger"))
-        health = float(b.read(agent, "health"))
         b.write(agent, "hunger", clamp(hunger - self.TRADE_FOOD))
-        b.write(agent, "health", clamp(health - self.TRADE_HEALTH_COST, 0.0, 1e18))
+        return self.TRADE_HEALTH_COST
 
     def _act_5(self, snapshot, context, b, agent, tick) -> None:  # rest
         health = float(b.read(agent, "health"))

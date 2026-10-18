@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_jsonl_protocol import HELLO, Child  # noqa: E402
 
 GOLDEN = Path(__file__).parent / "golden" / "godot_slice_reference.json"
-MAX_PRESSES = 80  # the life ends by death well before this (tick 45 at seed 7)
+MAX_PRESSES = 80  # the life ends by death well before this (tick 14 at seed 7, ADR v13-1)
 
 
 def _in_process(db_dir: Path) -> list[dict]:
@@ -76,7 +76,7 @@ def _over_stdio(db_dir: Path) -> tuple[list[dict], dict | None]:
 def test_stdio_life_equals_in_process_life_hash_by_hash(tmp_path):
     local = _in_process(tmp_path / "local")
     remote, _ = _over_stdio(tmp_path / "remote")
-    assert len(local) == len(remote) > 40
+    assert len(local) == len(remote) > 10
     assert remote == local
 
 

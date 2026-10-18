@@ -7,7 +7,10 @@ algorithm is unchanged so every past report remains reproducible:
 * disease-reach:   some ``disease.infect`` transition is an ancestor
   reached through the deceased's OWN fields;
 * starvation-reach: some ancestor transition reads this agent's
-  ``hunger >= STARVATION_THRESHOLD``.
+  ``hunger >= STARVATION_THRESHOLD``;
+* exhaustion (v13 ADR): the death transition itself is the controlled
+  agent's own action (``agent.death`` written by ``PlayerAgentSystem``) —
+  the player's work or trade paid the last health point.
 
 Restricting the walk to the agent's own chain keeps each label narrow
 and unambiguous. The causal graph is acyclic, so the depth-bounded DFS
@@ -17,6 +20,10 @@ is exact.
 from __future__ import annotations
 
 STARVATION_THRESHOLD = 0.75
+
+#: Systems that drive the controlled agent (the v0.6 card and its spatial
+#: variant). A lethal write from one of them is the player's own action.
+PLAYER_SYSTEMS = frozenset({"PlayerAgentSystem", "SpatialPlayerAgentSystem"})
 
 
 class DeathClassifier:
@@ -63,8 +70,23 @@ class DeathClassifier:
             return rows[0]["operation"] if rows else ""
         return self._journal.by_id(tid).operation
 
+    def _system_of(self, tid: int) -> str:
+        query = getattr(self._journal, "query", None)
+        if callable(query):
+            rows = query("SELECT system FROM transitions WHERE id=?", (tid,))
+            return rows[0]["system"] if rows else ""
+        return self._journal.by_id(tid).system
+
+    def _is_player_exhaustion(self, death_tid: int) -> bool:
+        return (
+            self._operation_of(death_tid) == "agent.death"
+            and self._system_of(death_tid) in PLAYER_SYSTEMS
+        )
+
     def classify(self, agent: str, death_tid: int, depth: int = 40) -> str:
         acute = self._operation_of(death_tid) == "disease.infect"
+        if not acute and self._is_player_exhaustion(death_tid):
+            return "exhaustion"
 
         disease = acute
         starvation = False
