@@ -167,17 +167,24 @@ def run(args) -> int:
         }
         phase("genesis", seconds=round(genesis_s, 2), transitions=counts[0],
               **storage(db))
-        # state.hash() builds a full canonical payload; record whether it
-        # fits, but never let it poison the tick measurement.
+        # create_world() has already written the genesis rows into the write
+        # batch. Make them durable as a separate phase so "write" and
+        # "commit" of genesis are not mixed with the hash below.
+        t = time.perf_counter()
+        archive.commit()
+        phase("genesis_commit", seconds=round(time.perf_counter() - t, 2),
+              **storage(db))
+        # state.hash() is streamed since the v0.12 memory audit (no full
+        # payload). Record whether it fits, but never let it poison the tick
+        # measurement.
         try:
             t = time.perf_counter()
             report["genesis"]["state_hash"] = sim.state.hash()
             phase("genesis_state_hash",
                   seconds=round(time.perf_counter() - t, 2))
         except MemoryError:
-            # Hashing the state builds a full canonical payload. At the
-            # target size it may not fit; that is a finding, not a reason
-            # to abandon the ticks that might still fit.
+            # Hashing the state is streamed now, but a MemoryError here would
+            # still be a finding, not a reason to abandon the ticks.
             phase("genesis_state_hash", skipped="MemoryError")
 
         t = time.perf_counter()

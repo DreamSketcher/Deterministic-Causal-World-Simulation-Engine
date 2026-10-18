@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
-from causal_world.kernel.canonical import sha256_hex, state_payload
+from causal_world.kernel.canonical import hash_state
 from causal_world.kernel.errors import SealedStateError
 
 
@@ -109,4 +109,6 @@ class WorldState:
     # ------------------------------------------------------------------
     def hash(self) -> str:
         """SHA-256 over canonical (tick, entities, fields, values)."""
-        return sha256_hex(state_payload(self.tick, self.data))
+        # Streamed (v0.12 memory audit): same bytes as state_payload(),
+        # no materialised payload. See kernel/canonical.py.
+        return hash_state(self.tick, self.data)
