@@ -42,8 +42,10 @@ var _ended: bool = false
 ## JSON Lines server on `db_dir`. Returns false (and emits bridge_failed)
 ## if the interpreter cannot be started.
 ## `trace_core` passes --trace to the core, so its journal and protocol trace
-## come back on stderr (printed by the game as [core] lines).
-func start(python: String, src_dir: String, db_dir: String, trace_core: bool = false) -> bool:
+## come back on stderr (printed by the game as [core] lines). `trace_detail`
+## adds --trace-detail: one line per transition (verbose).
+func start(python: String, src_dir: String, db_dir: String, trace_core: bool = false,
+		trace_detail: bool = false) -> bool:
 	if _running:
 		return true
 	DirAccess.make_dir_recursive_absolute(db_dir)
@@ -55,7 +57,9 @@ func start(python: String, src_dir: String, db_dir: String, trace_core: bool = f
 		src_dir,
 		db_dir,
 	])
-	if trace_core:
+	if trace_detail:
+		args.append("--trace-detail")
+	elif trace_core:
 		args.append("--trace")
 	var pipe: Dictionary = OS.execute_with_pipe(python, args)
 	if pipe.is_empty():

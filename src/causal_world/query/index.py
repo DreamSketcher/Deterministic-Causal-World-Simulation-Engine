@@ -45,9 +45,10 @@ import hashlib
 import os
 import sqlite3
 import time
+from pathlib import Path
 from dataclasses import dataclass, field
 
-from causal_world.observer.journal import JournalView
+from causal_world.observer.journal import JournalView, read_only_uri
 
 _IDENTITY_KEYS = ("seed", "regions", "agents", "ruleset_version",
                   "rng_version", "ruleset_name")
@@ -113,12 +114,18 @@ class QueryIndex:
     def __init__(self, view: JournalView, cache_path: str) -> None:
         self.view = view
         self.cache_path = cache_path
-        self.db = sqlite3.connect(cache_path, isolation_level=None)
+        # uri=True: ATTACH below takes a URI, and SQLite only honours URI
+        # filenames (ATTACH included) on a connection opened with it.
+        self.db = sqlite3.connect(
+            Path(cache_path).resolve().as_uri(), uri=True, isolation_level=None
+        )
         self.db.row_factory = sqlite3.Row
         # Derived artifact: durability is pointless, speed is not.
         self.db.execute("PRAGMA synchronous=OFF")
         self.db.execute("PRAGMA journal_mode=OFF")
-        self.db.execute(f"ATTACH DATABASE 'file:{view.path}?mode=ro' AS arch")
+        # Parameter, not string formatting: a path with quotes or a dash
+        # must not change the statement.
+        self.db.execute("ATTACH DATABASE ? AS arch", (read_only_uri(view.path),))
         self.db.executescript(_SCHEMA)
 
     # ------------------------------------------------------------------

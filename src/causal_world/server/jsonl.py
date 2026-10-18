@@ -43,14 +43,16 @@ def _line(obj: dict) -> str:
     return json.dumps(obj, **_ENCODE) + "\n"
 
 
-def serve_stdio(inp: IO[str], out: IO[str], db_dir: str, trace: bool = False) -> int:
+def serve_stdio(inp: IO[str], out: IO[str], db_dir: str, trace: bool = False,
+                trace_detail: bool = False) -> int:
     """Run the request loop until ``shutdown`` or EOF. Returns the exit code."""
 
     def log(message: str) -> None:
         print(message, file=sys.stderr, flush=True)
 
     registry: dict = {}
-    dispatcher = Dispatcher(registry, db_dir, log=log, trace=trace)
+    dispatcher = Dispatcher(registry, db_dir, log=log, trace=trace,
+                            trace_detail=trace_detail)
     conn: dict = {"session": None}
 
     def send(obj: dict) -> None:
@@ -121,7 +123,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--db-dir", required=True,
                         help="directory for world archives (created if missing)")
     parser.add_argument("--trace", action="store_true",
-                        help="log protocol traffic and each step's journal to stderr")
+                        help="log protocol traffic and a per-step journal summary to stderr")
+    parser.add_argument("--trace-detail", action="store_true",
+                        help="--trace plus one line per transition (verbose)")
     args = parser.parse_args(argv)
     os.makedirs(args.db_dir, exist_ok=True)
     # The pipes are ASCII-only: the client reads them line by line and a
@@ -129,7 +133,8 @@ def main(argv: list[str] | None = None) -> int:
     # JSON is already ASCII (ensure_ascii); log text is escaped.
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="ascii", errors="backslashreplace")
-    return serve_stdio(sys.stdin, sys.stdout, args.db_dir, trace=args.trace)
+    return serve_stdio(sys.stdin, sys.stdout, args.db_dir, trace=args.trace,
+                       trace_detail=args.trace_detail)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -124,10 +124,10 @@ func _start_core() -> void:
 	_log_line("[color=gray]ядро: %s · исходники: %s · архивы миров: %s[/color]" % [
 		python, src, _db_dir,
 	])
-	Trace.log("bridge", "start: python=%s src=%s db=%s trace_core=%s" % [
-		python, src, _db_dir, str(Trace.enabled),
+	Trace.log("bridge", "start: python=%s src=%s db=%s trace_core=%s detail=%s" % [
+		python, src, _db_dir, str(Trace.enabled), str(Trace.detail_wanted()),
 	])
-	_bridge.start(python, src, _db_dir, Trace.enabled)
+	_bridge.start(python, src, _db_dir, Trace.enabled, Trace.detail_wanted())
 	_refresh()
 
 

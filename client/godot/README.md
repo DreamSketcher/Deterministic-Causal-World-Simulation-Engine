@@ -71,6 +71,9 @@ path. The absolute path of the report is copied to the clipboard.
 **Switches** (after `--` on the command line, or in the environment):
 `--trace` turns the trace on in any build, `--no-trace` turns it off,
 `CAUSAL_WORLD_TRACE=1` turns it on. Example: `godot --path client/godot -- --trace`.
+`--trace-detail` (or `CAUSAL_WORLD_TRACE_DETAIL=1`) adds one line per transition
+in the core's trace. It is very long (about 3000 lines for a whole life of 46
+presses), so use it for a few steps, not the whole life.
 
 `user://` is Godot's user data folder: on Windows
 `%APPDATA%\Godot\app_userdata\<project name>`, on Linux `~/.local/share/godot/app_userdata/<project name>`.
@@ -88,15 +91,37 @@ With the trace on, the Output panel shows, in order:
   the time the reply took.
 * `[trace …][frame]` — the result of each decision: seq, tick, applied, alive,
   player values, journal counts, and the journal hash prefix.
-* `[core] …` — the core's own trace, printed by the core itself: every request it
-  receives and reply it sends, and for each step the transitions it produced
-  (`T<id> t<tick> <system>/<operation> <status>`, changed fields as `old->new`,
-  and the random draws). Failures are shown as warnings.
+* `[core] …` — the core's own trace, printed by the core itself. By default it is
+  **one summary block per decision**, about 4 lines (a whole life is about 230
+  lines, so it fits in the Output panel):
+  * `[core] [proto] << decide seq=N action=A` and `[proto] >> frame …` — the
+    request and the reply;
+  * `[core] [journal] step tick=T transitions=N committed=C rejected=R` — the
+    transitions this decision produced;
+  * `[core] [journal]   by operation: system/operation xN [rejected M]; …` — counts by
+    system and operation, the rejections in brackets (top 8 kinds, then "+K more");
+  * `[core] [journal] total=… committed=… rejected=… hash=…` — the journal totals.
+
+  With `--trace-detail`, each transition is also printed as
+  `[journal]   T<id> t<tick> <system>/<operation> <status>`, with changed fields
+  as `old->new` and the random draws. Failures are shown as warnings.
+  The core reads the step through its own read-only archive view, so the trace
+  keeps working on the step where the life ends (the writer is closed by then).
 * `[bridge] …` — start and stop of the core process, and why it stopped.
 
-The core's trace reads the journal and never writes to it. The first step's
-journal hash is the one in `tests/golden/godot_slice_reference.json`, so the
-trace can be checked against the reference run.
+The core's trace reads the archive and never writes to it. The golden
+`tests/golden/godot_slice_reference.json` pins the first and last journal hash of
+the reference run, so the trace can be checked against it.
+
+**Autopsy error on Windows (fixed).** `autopsy_error: unable to open database:
+…?mode=ro` came from the query index's `ATTACH 'file:<path>?mode=ro'`: the
+connection was not opened with URI support, and the hand-written `file:` URI
+was not valid for a Windows path with spaces and non-ASCII characters (here
+`Causal World — slice`). Archive URIs are now built by
+`observer/journal.py:read_only_uri` (`Path.as_uri()` + `?mode=ro`) and attached
+with a bound parameter. Covered by `tests/test_readonly_paths.py` and the death
+regression in `tests/test_core_trace.py`. Checked on Linux only; the Windows
+run is not re-checked here.
 
 ## Protocol safety
 

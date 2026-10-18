@@ -21,11 +21,23 @@ extends RefCounted
 ## Default: on in debug builds (the editor's Play button runs one), off in
 ## release builds. `--trace` turns it on in any build, `--no-trace` turns it off,
 ## and CAUSAL_WORLD_TRACE=1 turns it on.
+##
+## Core detail: by default the core logs ONE summary per decision (counts by
+## system/operation, rejections). `--trace-detail` (or CAUSAL_WORLD_TRACE_DETAIL=1)
+## adds one line per transition, which is much longer: use it for a single
+## step, not a whole life, or the editor's Output panel overflows.
 
 static var enabled: bool = false
 static var _t0_msec: int = 0
 static var _file: FileAccess = null
 static var _file_path: String = ""
+
+
+## Per-transition core detail (see the header). Off unless asked for.
+static func detail_wanted() -> bool:
+	if "--trace-detail" in OS.get_cmdline_user_args():
+		return true
+	return OS.get_environment("CAUSAL_WORLD_TRACE_DETAIL") == "1"
 
 
 ## Decide from the command line, the environment and the build type.

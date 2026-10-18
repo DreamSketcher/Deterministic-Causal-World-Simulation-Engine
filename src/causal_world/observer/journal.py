@@ -15,10 +15,22 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 from typing import Iterator
 
 from causal_world.kernel.transition import Transition, TransitionStatus
 from causal_world.simulation.archive import _transition_from_row
+
+
+def read_only_uri(path: str) -> str:
+    """SQLite URI that opens ``path`` with ``mode=ro``, for any path.
+
+    Built with ``Path.as_uri()`` so spaces, non-ASCII characters (e.g. the
+    em dash in ``Causal World — slice``) and Windows drive letters are
+    percent-encoded correctly. A hand-written ``file:{path}?mode=ro`` is
+    not: SQLite refuses it on Windows ("unable to open database").
+    """
+    return Path(path).resolve().as_uri() + "?mode=ro"
 
 
 class JournalView:
@@ -26,7 +38,7 @@ class JournalView:
 
     def __init__(self, path: str) -> None:
         self.path = path
-        self._conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        self._conn = sqlite3.connect(read_only_uri(path), uri=True)
         self._conn.row_factory = sqlite3.Row
 
     # ------------------------------------------------------------------
@@ -76,6 +88,23 @@ class JournalView:
     def committed(self) -> Iterator[Transition]:
         cursor = self._conn.execute(
             "SELECT * FROM transitions WHERE status='COMMITTED' ORDER BY id"
+        )
+        while True:
+            rows = cursor.fetchmany(500)
+            if not rows:
+                break
+            for row in rows:
+                yield _transition_from_row(row)
+
+    def since(self, transition_id: int) -> Iterator[Transition]:
+        """Transitions with id > ``transition_id`` in id order (read-only).
+
+        Used to read one decision's records after the journal was closed:
+        the archive file is still there, the writer is not.
+        """
+        cursor = self._conn.execute(
+            "SELECT * FROM transitions WHERE id > ? ORDER BY id",
+            (transition_id,),
         )
         while True:
             rows = cursor.fetchmany(500)

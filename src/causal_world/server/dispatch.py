@@ -48,12 +48,16 @@ class Dispatcher:
         db_dir: str = ".",
         log: Callable[[str], None] | None = None,
         trace: bool = False,
+        trace_detail: bool = False,
     ) -> None:
         self.registry = registry
         self.db_dir = db_dir
         self.log = log
         # the debug trace (server/trace.py): read-only, logs only
-        self.tracer = Tracer(log or (lambda _m: None)) if trace else None
+        self.tracer = (
+            Tracer(log or (lambda _m: None), detail=trace_detail)
+            if trace or trace_detail else None
+        )
 
     # ------------------------------------------------------------ entry ----
     def handle_raw(self, raw: str | bytes, conn: dict) -> dict:
