@@ -51,13 +51,31 @@ godot --path client/godot
 Archives of each run go to Godot's `user://worlds` (`--db-dir`). Each run gets
 its own world: a named world that was left open would answer `world_busy`.
 
-## Debugging (Godot Output / Debugger console)
+## Debugging
 
-Start with `--trace` to see everything; without it only the core log and
-warnings are printed. Command line: `godot --path client/godot -- --trace`,
-or set `CAUSAL_WORLD_TRACE=1` in the environment.
+**Where the trace is.** All output goes to the **Output** panel (the bottom panel
+of the editor, tab "Output"). It is *not* in the Debugger tabs: "Stack Trace"
+and "Errors" show only errors and warnings, so a plain `print` never appears
+there. A run from the editor's Play button is a debug build, so the trace is
+on by default. Off in release builds.
 
-With `--trace` the console shows, in order:
+**Trace file.** Every line is also written to `user://trace/trace-<time>.log`,
+flushed per line. The absolute path is the first line of the trace
+(`[trace] file: …`) and is shown in the game log.
+
+**Report.** The "Сохранить отчёт" button writes `user://reports/report-<time>.json`
+with the last raw reply of the core (view and frame), the game log, the core's
+stderr tail, the selected cell, the state of the action button and the trace file
+path. The absolute path of the report is copied to the clipboard.
+
+**Switches** (after `--` on the command line, or in the environment):
+`--trace` turns the trace on in any build, `--no-trace` turns it off,
+`CAUSAL_WORLD_TRACE=1` turns it on. Example: `godot --path client/godot -- --trace`.
+
+`user://` is Godot's user data folder: on Windows
+`%APPDATA%\Godot\app_userdata\<project name>`, on Linux `~/.local/share/godot/app_userdata/<project name>`.
+
+With the trace on, the Output panel shows, in order:
 
 * `[trace  12345 ms][input]` — every key press and mouse press, with the screen
   and world position. Presses on buttons are also logged by the button handler,

@@ -52,6 +52,7 @@ var _panel: CellPanel
 var _status: Label
 var _act_button: Button
 var _restart_button: Button
+var _export_button: Button
 var _quit_button: Button
 var _log: RichTextLabel
 
@@ -67,12 +68,17 @@ var _db_dir: String = ""
 var _request_kind: String = ""  ## the request in flight, for the trace
 var _request_msec: int = -1  ## when it was sent, for the reply time
 var _last_block_reason: String = "?"  ## last logged reason the action button is off
+var _last_view: Dictionary = {}  ## the last view reply, raw, for the report
+var _last_frame: Dictionary = {}  ## the last frame reply, raw, for the report
+var _log_plain: PackedStringArray = PackedStringArray()  ## the game log, without tags
+var _tags: RegEx = RegEx.create_from_string("\\[[^\\]]*\\]")
 
 
 func _ready() -> void:
-	Trace.enable(Trace.from_args())
-	Trace.log("bridge", "godot %s, os %s, debug build %s" % [
-		Engine.get_version_info()["string"], OS.get_name(), str(OS.is_debug_build()),
+	Trace.enable(Trace.wanted())
+	Trace.log("bridge", "godot %s, os %s, debug build %s, trace %s" % [
+		Engine.get_version_info()["string"], OS.get_name(),
+		str(OS.is_debug_build()), str(Trace.enabled),
 	])
 	_contract = Dto.load_contract()
 	_build_ui()
@@ -84,6 +90,9 @@ func _ready() -> void:
 	_bridge.bridge_ended.connect(_on_bridge_ended)
 	_db_dir = ProjectSettings.globalize_path("user://worlds")
 	_log_line(INTRO)
+	if Trace.enabled:
+		_log_line("[color=gray]Трасса: вкладка Output (нижняя панель редактора). "
+			+ "Файл трассы: %s[/color]" % Trace.file_path())
 	_start_core()
 
 
@@ -177,6 +186,7 @@ func _on_view(msg: Dictionary) -> void:
 		return
 	_waiting = ""
 	_view = Dto.View.from(msg)
+	_last_view = msg
 	Trace.log("frame", "view tick=%d alive=%s cells=%d regions=%d" % [
 		_view.tick, str(_view.alive), _view.cells.size(), _view.regions.size(),
 	])
@@ -190,6 +200,7 @@ func _on_frame(msg: Dictionary) -> void:
 	_waiting = ""
 	_before = _view
 	_view = Dto.View.from(msg)
+	_last_frame = msg
 	_last_seq = _view.seq
 	var gained: int = _view.journal_committed - (_before.journal_committed if _before != null else 0)
 	Trace.log("frame", "seq=%d tick=%d applied=%s reject=%s alive=%s hunger=%.3f health=%.1f" % [
@@ -325,14 +336,13 @@ func _on_bridge_failed(reason: String) -> void:
 ## that look like failures are warnings, so they stand out in the debugger.
 func _on_core_log(line: String) -> void:
 	var text: String = "[core] %s" % line.left(600)
+	Trace.out(text)
 	if line.contains("Traceback") or line.contains("Error") or line.contains("Exception"):
 		push_warning(text)
-	else:
-		print(text)
 
 
 func _on_bridge_ended(reason: String) -> void:
-	print("[bridge] ended: %s" % reason)
+	Trace.out("[bridge] ended: %s" % reason)
 	_waiting = ""
 	if _quitting:
 		get_tree().quit()
@@ -493,6 +503,9 @@ func _set_status(text: String) -> void:
 func _log_line(text: String) -> void:
 	if _log != null:
 		_log.append_text(text + "\n")
+	_log_plain.append(_tags.sub(text, "", true))
+	if _log_plain.size() > 5000:
+		_log_plain.remove_at(0)
 
 
 # ------------------------------------------------------------------ UI ---
@@ -526,6 +539,10 @@ func _build_ui() -> void:
 	_restart_button.text = "Начать заново"
 	_restart_button.pressed.connect(_on_restart_pressed)
 	bar.add_child(_restart_button)
+	_export_button = Button.new()
+	_export_button.text = "Сохранить отчёт"
+	_export_button.pressed.connect(_on_export_pressed)
+	bar.add_child(_export_button)
 	_quit_button = Button.new()
 	_quit_button.text = "Выход"
 	_quit_button.pressed.connect(_on_quit_pressed)
@@ -550,6 +567,38 @@ func _build_ui() -> void:
 	_log.scroll_following = true
 	_log.custom_minimum_size = Vector2(0, 240)
 	side.add_child(_log)
+
+
+## Save a report for passing a result on: the last reply of the core (raw),
+## the game log, the core's stderr tail and the trace file path. The absolute
+## path is copied to the clipboard.
+func _on_export_pressed() -> void:
+	var stamp: String = Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
+	DirAccess.make_dir_recursive_absolute("user://reports")
+	var path: String = "user://reports/report-%s.json" % stamp
+	var report: Dictionary = {
+		"time": Time.get_datetime_string_from_system(),
+		"godot": Engine.get_version_info()["string"],
+		"os": OS.get_name(),
+		"debug_build": OS.is_debug_build(),
+		"trace_file": Trace.file_path(),
+		"selected_cell": _selected_cell,
+		"action_state": _act_block_reason(),
+		"last_view": _last_view,
+		"last_frame": _last_frame,
+		"stderr_tail": Array(_bridge.stderr_tail),
+		"log": Array(_log_plain),
+	}
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		_log_line("[color=red]Не удалось записать отчёт: %s[/color]" % path)
+		return
+	file.store_string(JSON.stringify(report, "  "))
+	file.close()
+	var absolute: String = ProjectSettings.globalize_path(path)
+	DisplayServer.clipboard_set(absolute)
+	Trace.out("[export] report: %s" % absolute)
+	_log_line("Отчёт сохранён: %s (путь скопирован в буфер обмена)" % absolute)
 
 
 func _on_quit_pressed() -> void:
