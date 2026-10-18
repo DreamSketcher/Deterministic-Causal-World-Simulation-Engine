@@ -72,8 +72,10 @@ func _ready() -> void:
 	_bridge = PyBridge.new()
 	add_child(_bridge)
 	_bridge.line_received.connect(_on_line)
+	_bridge.log_line_received.connect(_on_core_log)
 	_bridge.bridge_failed.connect(_on_bridge_failed)
 	_bridge.bridge_ended.connect(_on_bridge_ended)
+	_bridge.trace = _want_trace()
 	_db_dir = ProjectSettings.globalize_path("user://worlds")
 	_log_line(INTRO)
 	_start_core()
@@ -97,6 +99,8 @@ func _start_core() -> void:
 # ----------------------------------------------------------- protocol ----
 
 func _on_line(line: String) -> void:
+	if _bridge.trace:
+		print("[proto <<] %s" % line.left(400))
 	var parsed: Variant = Dto.parse_line(line)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		_log_line("[color=red]Ядро прислало не JSON-объект:[/color] %s" % line.left(120))
@@ -247,10 +251,22 @@ func _on_cell_selected(cell_id: String) -> void:
 # ----------------------------------------------------------- failures ----
 
 func _on_bridge_failed(reason: String) -> void:
+	push_warning("[bridge] %s" % reason)
 	_fail(reason)
 
 
+## The core's log (stderr) goes to the Godot Output/Debugger console. Lines
+## that look like failures are warnings, so they stand out in the debugger.
+func _on_core_log(line: String) -> void:
+	var text: String = "[core] %s" % line.left(600)
+	if line.contains("Traceback") or line.contains("Error") or line.contains("Exception"):
+		push_warning(text)
+	else:
+		print(text)
+
+
 func _on_bridge_ended(reason: String) -> void:
+	print("[bridge] ended: %s" % reason)
 	_waiting = ""
 	if _quitting:
 		get_tree().quit()
@@ -477,6 +493,14 @@ func _on_quit_pressed() -> void:
 
 
 # ------------------------------------------------------------ locating ---
+
+## Protocol trace in the Output panel: `--trace` on the command line, or the
+## environment variable CAUSAL_WORLD_TRACE=1. Off by default: it is verbose.
+func _want_trace() -> bool:
+	if "--trace" in OS.get_cmdline_user_args():
+		return true
+	return OS.get_environment("CAUSAL_WORLD_TRACE") == "1"
+
 
 ## The repository root is two levels above client/godot (the project dir).
 func _repo_root() -> String:

@@ -15,12 +15,18 @@ extends Node
 signal line_received(line: String)
 signal bridge_failed(reason: String)
 signal bridge_ended(reason: String)
+## One line of the core's log (stderr), on the main thread, in order.
+signal log_line_received(line: String)
 
 const STOP_GRACE_MSEC: int = 1500
 const STDERR_TAIL_LINES: int = 20
+const LOG_QUEUE_MAX: int = 500  ## a flood of log lines drops the oldest, never blocks
 
 ## Last lines of the core's log. For error messages only, never protocol.
 var stderr_tail: PackedStringArray = PackedStringArray()
+## When true, every protocol line sent and received is printed to the Godot
+## Output panel (the debugger console). Set it before start().
+var trace: bool = false
 
 var _pid: int = -1
 var _stdio: FileAccess = null
@@ -29,6 +35,7 @@ var _out_thread: Thread = null
 var _err_thread: Thread = null
 var _mutex: Mutex = Mutex.new()
 var _inbox: Array[String] = []
+var _log_inbox: Array[String] = []
 var _running: bool = false
 var _stop_started_msec: int = -1
 var _ended: bool = false
@@ -61,6 +68,7 @@ func start(python: String, src_dir: String, db_dir: String) -> bool:
 	_stop_started_msec = -1
 	stderr_tail = PackedStringArray()
 	_inbox.clear()
+	_log_inbox.clear()
 	_out_thread = Thread.new()
 	_out_thread.start(_read_pipe.bind(_stdio, false))
 	_err_thread = Thread.new()
@@ -75,7 +83,10 @@ func is_running() -> bool:
 func send(message: Dictionary) -> bool:
 	if not _running or _stdio == null:
 		return false
-	_stdio.store_string(JSON.stringify(message) + "\n")
+	var line: String = JSON.stringify(message)
+	if trace:
+		print("[proto >>] %s" % line.left(400))
+	_stdio.store_string(line + "\n")
 	return _stdio.get_error() == OK
 
 
@@ -113,8 +124,12 @@ func _exit_tree() -> void:
 func _emit_queued() -> void:
 	_mutex.lock()
 	var lines: Array[String] = _inbox.duplicate()
+	var logs: Array[String] = _log_inbox.duplicate()
 	_inbox.clear()
+	_log_inbox.clear()
 	_mutex.unlock()
+	for line: String in logs:
+		log_line_received.emit(line)
 	for line: String in lines:
 		line_received.emit(line)
 
@@ -150,6 +165,9 @@ func _read_pipe(stream: FileAccess, is_log: bool) -> void:
 			stderr_tail.append(line)
 			while stderr_tail.size() > STDERR_TAIL_LINES:
 				stderr_tail.remove_at(0)
+			_log_inbox.append(line)
+			while _log_inbox.size() > LOG_QUEUE_MAX:
+				_log_inbox.remove_at(0)
 		else:
 			_inbox.append(line)
 		_mutex.unlock()

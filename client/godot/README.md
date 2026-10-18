@@ -51,6 +51,17 @@ godot --path client/godot
 Archives of each run go to Godot's `user://worlds` (`--db-dir`). Each run gets
 its own world: a named world that was left open would answer `world_busy`.
 
+## Debugging (Godot Output / Debugger console)
+
+* `[core] …` — the core's own log (stderr): session events and tracebacks.
+  Lines with `Traceback`, `Error` or `Exception` are shown as warnings.
+* `[bridge] ended: …` — why the core process stopped.
+* `[proto >>]` / `[proto <<]` — every protocol line sent and received. Off by
+  default; enable with `--trace` after `--` on the command line, or with
+  `CAUSAL_WORLD_TRACE=1` in the environment.
+
+Example: `godot --path client/godot -- --trace`
+
 ## Protocol safety
 
 * A reply that does not match `contract/v1.json` is logged and not drawn.
