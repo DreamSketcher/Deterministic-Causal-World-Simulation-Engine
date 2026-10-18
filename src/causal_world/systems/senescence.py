@@ -28,9 +28,13 @@ from causal_world.systems.base import System, clamp
 
 class SenescenceSystem(System):
     name = "SenescenceSystem"
-    #: Above AgentSystem(10)/Disease(20) so an old agent's death by age is
-    #: not overridden by a same-tick health/infection write; below Birth(30).
+    #: System priority 25: above AgentSystem(10), below Birth(30).
+    #: Transition priority 1 (ADR v13-1): above the player's action (transition
+    #: priority 0), so the controlled agent's death by age cannot be cancelled
+    #: by the action it chose on the same tick; below DiseaseSystem's infection
+    #: (transition priority 2), which keeps its documented precedence.
     priority = 25
+    TRANSITION_PRIORITY = 1
 
     SENESCENCE_ONSET = 250  # ticks; no age death before this
     MAX_LIFESPAN = 350  # ticks; death probability reaches MAX_DEATH_PROB here
@@ -57,7 +61,7 @@ class SenescenceSystem(System):
             roll = rng.draw(tick, agent, "agent.senescence", 0)
             if not roll < death_prob:
                 continue  # a failed roll creates no transition (spec §26)
-            b = context.builder("agent.senescence")
+            b = context.builder("agent.senescence", priority=self.TRANSITION_PRIORITY)
             b.read(agent, "alive")
             b.read(agent, "birth_tick")
             b.read(agent, "health")
