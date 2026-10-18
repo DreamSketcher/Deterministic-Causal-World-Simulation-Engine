@@ -1,0 +1,80 @@
+# v0.13 — Godot-срез: карта и действие поверх Python-ядра
+
+Статус: **код написан, тесты Python-стороны зелёные; Godot-проект не запускался и не собирался.**
+Движок Godot в песочнице установить не удалось (прямая загрузка релиза заблокирована,
+пакеты через PyPI/npm — не движок). Поэтому всё, что зависит от движка (сцена, поток
+чтения, каналы, мышь, камера), **не проверено**. Сборки Windows и Linux не выполнялись.
+
+## Архитектура
+
+```
+Godot (GDScript, клиент)                 Python (ядро, источник истины)
+  game.gd  ── контроллер                   server/jsonl.py  ── stdio JSON Lines
+   │  py_bridge.gd  OS.execute_with_pipe ──►   │ causal-world-jsonl/1
+   │  (чтение в Thread → Mutex → очередь)  ◄── │ ready/welcome/view/frame/error
+   │  dto.gd  валидация по contract/v1.json    server/dispatch.py  (transport-free)
+   │                                           server/session.py   Session (look, decide, _status)
+  world_map.gd  карта, камера, выбор клетки     kernel/ + systems/ (правила не менялись)
+  cell_panel.gd панель: факты / связи / гипотезы
+```
+
+* Ядро — отдельный процесс. Клиент не считает состояние: разница между кадрами — два факта рядом.
+* Протокол версионируется строкой `causal-world-jsonl/1`; `ready` при несовпадении версии → отказ.
+* Один запрос в полёте: кнопка блокируется до ответа.
+* Ответ, не прошедший проверку по `contract/v1.json`, не отображается, а ошибка пишется в лог.
+* Клиентский контракт и Python-тест читают один файл `client/godot/contract/v1.json`.
+
+## Изменения ядра (минимальные, без изменения правил)
+
+| Файл | Что |
+|---|---|
+| `src/causal_world/server/dispatch.py` | новый: transport-free `Dispatcher`; логика из `ws.py` без изменения семантики; команда `look` |
+| `src/causal_world/server/ws.py` | использует `Dispatcher` |
+| `src/causal_world/server/jsonl.py` | новый: stdio-адаптер, ошибки `protocol_mismatch`, `malformed`, `seq_gap`, `conflict`, `unknown_type`, `not_awaiting`, `finalized`, `world_busy`; логи в stderr |
+| `src/causal_world/server/session.py` | `look()` → `view` (только чтение, шага нет); общий `_status(view)` для `frame` и `view`; `_render` использует его |
+
+Проверка, что рефакторинг `_render` не изменил кадры: golden-тесты ядра и
+`tests/test_godot_determinism.py` (хеши журнала на каждом тике) проходят без изменения эталонов.
+
+## Клиент (`client/godot/`)
+
+| Файл | Назначение |
+|---|---|
+| `project.godot` | Godot 4.4, 1280×720, GL Compatibility |
+| `scenes/main.tscn` | корень `Node2D` со скриптом контроллера |
+| `scripts/protocol/py_bridge.gd` | запуск `python -c` (`OS.execute_with_pipe`), чтение в потоке, `store_string`, `shutdown` → `OS.kill` |
+| `scripts/protocol/dto.gd` | проверка по контракту, типизированные `View`, `Cell`, `Region` |
+| `scripts/game/game.gd` | протокол: ready → hello → welcome → look → view; decide → frame; журнал результата |
+| `scripts/game/world_map.gd` | сетка по координатам ядра, камера (правая/средняя кнопка — сдвиг, колесо — масштаб), клик |
+| `scripts/game/cell_panel.gd` | факты клетки, связи (ситуации/цели со ссылками на T-id), гипотезы (`confidence=hypothesis`) |
+| `contract/v1.json` | поля и типы ответов: ready, welcome, error, view, frame, frame.you/journal/world/cell/region |
+| `README.md` | запуск, поиск Python, ограничения |
+
+Поиск Python: аргумент `--python=`, затем `CAUSAL_WORLD_PYTHON`, затем `.venv`, затем системный `python3`/`python`.
+
+## Сценарий
+
+`player_resettle`, seed 7, 2 региона, 54 агента, `max_ticks` 200. Игрок один раз нажимает «работать».
+Эталон (`tests/golden/godot_slice_reference.json`): 46 нажатий, смерть на тике 45 (seq 46, `alive=false`),
+кадр `finished` приходит вместе с кадром смерти; первый хеш журнала `3b677a75…`, последний `19a24ad1…`.
+
+## Тесты
+
+| Файл | Проверяет | Результат |
+|---|---|---|
+| `tests/test_godot_contract.py` | реальные welcome, view (до и после шага), frame (вся жизнь, кадр смерти), error и `out_of_range` соответствуют контракту; координаты клеток уникальны; строка запуска из `py_bridge.gd` извлекается и запускается как подпроцесс | 9 passed |
+| `tests/test_jsonl_protocol.py` | реальный stdio-процесс: ready, refusal по версии, gap/conflict/malformed (ни один отказ не двигает мир), пустые строки, EOF, close → finalized, `look` только читает | 7 passed |
+| `tests/test_godot_determinism.py` | stdio совпадает с in-process по хешу на каждом тике; совпадение с golden | 3 passed |
+| полный `pytest` | ядро и всё остальное | exit 0, без падений |
+| `gdlint` (gdtoolkit 4.5.0) | все `client/godot/scripts/**/*.gd` | без замечаний |
+| `gdparse` | все `.gd` | парсятся |
+| `pyflakes` | изменённые Python-файлы | чисто |
+
+## Известные ограничения
+
+* Godot не запускался: сцена, поток чтения, каналы, мышь и камера не проверены. Первый запуск в редакторе — обязательный шаг.
+* Сборки Windows и Linux не выполнялись; поиск Python по правилам Windows не тестировался.
+* Экспорт: `res://` упакован, корень репозитория из него не найти — нужно передавать `--src=` и `--python=`.
+* Архив миров пишется в `user://worlds`; каждый запуск — свой мир (именованный мир после EOF даёт `world_busy`).
+* Один игровой ход — «работать». Других действий, графики и анимаций в срезе нет (по требованию: минимальный работающий срез).
+* Оценки «устойчивости» поселения не выводятся клиентом; панель показывает только то, что отдаёт ядро.

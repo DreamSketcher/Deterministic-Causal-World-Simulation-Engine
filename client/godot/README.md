@@ -1,0 +1,87 @@
+# Causal World — Godot slice (client)
+
+A minimal 2D client (Godot 4.4, GDScript with types) over the Python core.
+The core is the only source of truth: this project draws its replies and sends
+actions. It computes no game state.
+
+## What it does
+
+1. Starts the Python core as a separate process (`causal_world.server.jsonl`).
+2. Talks JSON Lines, protocol `causal-world-jsonl/1` (see `contract/v1.json`).
+3. Creates a small reproducible world: seed 7, ruleset `player_resettle`,
+   2 regions, 54 agents, `max_ticks` 200.
+4. Reads the world **before** any step (`look` → `view`) and draws the map.
+5. Click a cell: the panel shows facts, links (situations and goals with their
+   transition ids), and hypotheses (never drawn as facts).
+6. "Работать (work) · ход" sends one `decide`; the core takes one tick; the log
+   shows the real result: the player's values before and after, journal
+   growth, changed cell values, new and closed situations, and the death
+   verdict if there is one.
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `project.godot` | project, main scene, 1280×720, GL Compatibility renderer |
+| `scenes/main.tscn` | root `Node2D` with `scripts/game/game.gd` |
+| `scripts/protocol/py_bridge.gd` | starts the core (`OS.execute_with_pipe`), reader thread, inbox, `stop()` |
+| `scripts/protocol/dto.gd` | contract check (`Dto.validate`) and typed views (`Dto.View`, `Dto.Cell`, `Dto.Region`) |
+| `scripts/game/game.gd` | controller: protocol flow, one request in flight, result log |
+| `scripts/game/world_map.gd` | grid map, camera (right/middle drag, wheel zoom), cell click |
+| `scripts/game/cell_panel.gd` | the cell panel: факты / связи / гипотезы |
+| `contract/v1.json` | field names and types of every reply; the Python test reads the same file |
+
+## Running
+
+The core is standard-library Python; the repository's `.venv` is optional.
+The core is found in this order:
+
+1. `--python=/path/to/python` (after `--` on the Godot command line);
+2. the `CAUSAL_WORLD_PYTHON` environment variable;
+3. `<repo>/.venv/bin/python` (or `.venv\Scripts\python.exe` on Windows);
+4. `python3` (Linux) or `python` (Windows).
+
+The sources are taken from `<repo>/src`, or from `--src=<dir>`.
+
+```
+# from the repository root, after  pip install -e ".[dev,server]"
+godot --path client/godot
+```
+
+Archives of each run go to Godot's `user://worlds` (`--db-dir`). Each run gets
+its own world: a named world that was left open would answer `world_busy`.
+
+## Protocol safety
+
+* A reply that does not match `contract/v1.json` is logged and not drawn.
+* A `seq_gap` error adopts the core's `resync.last_seq`.
+* After a death, the core answers `finalized`; the button is disabled by then.
+* Core stderr is kept as a tail for the error log; it is never parsed.
+
+## Tests
+
+Python side (run by `pytest`):
+
+* `tests/test_godot_contract.py` — the real replies match the contract; the
+  launcher string in `py_bridge.gd` is extracted and run as a subprocess;
+  `look` conforms before and after a step.
+* `tests/test_jsonl_protocol.py` — a real stdio process: `ready`, refusal on
+  protocol mismatch, `seq_gap`, `conflict`, `malformed`, `close` → `finalized`,
+  `look` is read-only.
+* `tests/test_godot_determinism.py` — the stdio run matches the in-process run
+  hash by hash; the golden `tests/golden/godot_slice_reference.json` pins the
+  scenario (46 presses, death on tick 45, first and last journal hash).
+
+Godot side: `gdlint` (gdtoolkit 4.5.0) passes on all `.gd` files; `gdparse`
+parses them.
+
+## Not verified
+
+* **The Godot editor and the game were NOT run in this environment.** Godot
+  could not be installed here (no engine package is reachable from the sandbox).
+  Everything that depends on the engine — the scene, the thread, the pipes,
+  the mouse — is unverified.
+* Windows and Linux builds: not built, not run. The launcher finds Python with
+  Windows path rules, but this is not tested.
+* Exported builds: `res://` is packed in an export, so the repository root is
+  not found from it. Pass `--src=` and `--python=` explicitly.

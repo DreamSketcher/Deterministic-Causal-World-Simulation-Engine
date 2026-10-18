@@ -1,0 +1,110 @@
+{
+  "protocol": "causal-world-jsonl/1",
+  "description": "Fields the Godot client reads from the Python core. Single source of truth: tests/test_godot_contract.py and client/godot/scripts/protocol/dto.gd both validate against this file. Types: int, number (int or float), string, bool, object, array, null; '|' joins alternatives. Extra keys are allowed (forward compatibility); a missing or mistyped listed key is a contract violation.",
+  "ready": {
+    "type": "string",
+    "protocol": "string",
+    "kernel_version": "string",
+    "pid": "int"
+  },
+  "welcome": {
+    "type": "string",
+    "protocol": "string",
+    "kernel_version": "string",
+    "session_id": "string",
+    "tick": "int",
+    "alive": "bool",
+    "last_seq": "int",
+    "state": "string",
+    "config": "object",
+    "db_path": "string",
+    "action_card": "object",
+    "decree_card": "object",
+    "life": "object"
+  },
+  "frame": {
+    "type": "string",
+    "seq": "int",
+    "tick": "int",
+    "applied": "bool",
+    "reject": "string|null",
+    "alive": "bool",
+    "you": "object",
+    "world": "object",
+    "decree": "object|null",
+    "orders": "object",
+    "journal": "object"
+  },
+  "view": {
+    "type": "string",
+    "tick": "int",
+    "alive": "bool",
+    "you": "object",
+    "world": "object",
+    "orders": "object",
+    "journal": "object"
+  },
+  "frame.you": {
+    "hunger": "number",
+    "health": "number",
+    "region": "string",
+    "last_action": "int"
+  },
+  "frame.journal": {
+    "total": "int",
+    "committed": "int",
+    "rejected": "int",
+    "hash": "string"
+  },
+  "frame.world": {
+    "tick": "int",
+    "alive_agents": "int",
+    "total_agents": "int",
+    "regions": "array",
+    "cells": "array",
+    "situations": "array",
+    "goals": "array",
+    "resettle": "array"
+  },
+  "frame.world.cell": {
+    "id": "string",
+    "region": "string",
+    "x": "int",
+    "y": "int",
+    "population": "number",
+    "workers": "number",
+    "soil_fertility": "number",
+    "food_stock": "number",
+    "rain_factor": "number",
+    "land_active": "number",
+    "capacity": "number",
+    "claim_state": "number",
+    "terraces": "number",
+    "resettled_in": "number",
+    "resettled_out": "number",
+    "resettle_state": "number",
+    "last_source": "int|string|null"
+  },
+  "frame.world.region": {
+    "id": "string",
+    "population": "number",
+    "workers": "number",
+    "soil_fertility": "number",
+    "food_stock": "number",
+    "temperature": "number",
+    "rainfall": "number",
+    "disease_load": "number"
+  },
+  "frame.world.situation": {
+    "kind": "string",
+    "scope": "string",
+    "severity": "number",
+    "message": "string",
+    "evidence": "array"
+  },
+  "error": {
+    "type": "string",
+    "code": "string",
+    "msg": "string"
+  }
+}

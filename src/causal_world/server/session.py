@@ -432,21 +432,24 @@ class Session:
             ],
         }
 
-    def _render(self, seq: int) -> dict:
-        st = self.sim.state
-        # ONE slice feeds the map, the situations, the goal cards and the
-        # resettlement card of this frame: they cannot disagree, and none
-        # of them builds a full view of the world.
+    def look(self) -> dict:
+        """The world as it is NOW, without a decision (v0.13, read-only).
+
+        The same status block a frame carries (``_status``), but no step is
+        taken and nothing is written: the client draws the map before the
+        first decision and after the life has ended. ``tick`` is the last
+        completed step (-1 before the first one), as in a frame.
+        """
         view = self._frame_view()
-        action = self.decisions[seq]
-        applied = 0 <= action < N_ACTIONS  # engine rule (systems/player.py)
+        out = {"type": "view", "tick": self.sim.state.tick - 1}
+        out.update(self._status(view))
+        return out
+
+    def _status(self, view: CellSlice) -> dict:
+        """The part of a reply that describes the world (frame and view)."""
+        st = self.sim.state
         total, committed, rejected = self.sim.journal.counts()
         return {
-            "type": "frame",
-            "seq": seq,
-            "tick": st.tick - 1,  # the step this decision just drove
-            "applied": applied,
-            "reject": None if applied else "out_of_range",
             "alive": bool(st.get(self.controlled, "alive")),
             "you": {
                 f: st.get(self.controlled, f)
@@ -461,9 +464,6 @@ class Session:
             # happened to the order of this message, and what is still
             # waiting for a free tick. Nothing here is hidden state —
             # the journal is the truth about what was ENACTED.
-            "decree": (
-                self._last_decree.to_dict() if self._last_decree else None
-            ),
             "orders": self._orders_view(),
             "journal": {
                 "total": total,
@@ -472,6 +472,28 @@ class Session:
                 "hash": self.sim.journal.hash(),
             },
         }
+
+    def _render(self, seq: int) -> dict:
+        st = self.sim.state
+        # ONE slice feeds the map, the situations, the goal cards and the
+        # resettlement card of this frame: they cannot disagree, and none
+        # of them builds a full view of the world.
+        view = self._frame_view()
+        action = self.decisions[seq]
+        applied = 0 <= action < N_ACTIONS  # engine rule (systems/player.py)
+        out = {
+            "type": "frame",
+            "seq": seq,
+            "tick": st.tick - 1,  # the step this decision just drove
+            "applied": applied,
+            "reject": None if applied else "out_of_range",
+        }
+        out.update(self._status(view))
+        # the civic order that rode this decision (v0.9), if any
+        out["decree"] = (
+            self._last_decree.to_dict() if self._last_decree else None
+        )
+        return out
 
     def _frame_view(self) -> CellSlice:
         """The slice this frame is drawn from — read-only, index-backed.
