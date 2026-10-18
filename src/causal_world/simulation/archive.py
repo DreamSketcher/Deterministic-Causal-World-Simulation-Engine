@@ -514,27 +514,48 @@ class SqliteArchive:
     def writes_at_tick(self, tick: int) -> list[tuple[int, str, str, object]]:
         """Committed writes of one tick as ``(tid, entity, field, new)``.
 
+        A list, for callers that want all of them at once. Consumers that
+        only apply writes should use :meth:`iter_writes_at_tick`.
+        """
+        return list(self.iter_writes_at_tick(tick))
+
+    def iter_writes_at_tick(self, tick: int, after_id: int = 0):
+        """Committed writes of one tick, ``id > after_id``, as a stream.
+
         A READ PROJECTION for consumers that only apply writes (the cell
         index): it uses the tick index, skips rejected proposals and
         never builds ``Transition``/``StateRead``/``RandomDraw`` objects.
-        The order is the ``at_tick()`` order — transition id, then the
-        recorded write order — so an index advanced from this projection
-        is the same index advanced from full transitions (pinned in
-        ``tests/test_v012_journal.py``).
+        Rows are decoded one transition at a time, so memory is bounded
+        by one payload, not by the whole tick. The order is the
+        ``at_tick()`` order — transition id, then the recorded write
+        order. ``after_id`` lets an index that already reflects the
+        transitions up to some id skip them without decoding them (see
+        ``WorldIndex.from_state``).
         """
         self._drain()
-        out: list[tuple[int, str, str, object]] = []
         rows = self._conn.execute(
             "SELECT id, payload FROM transitions "
-            "WHERE tick=? AND status='COMMITTED' ORDER BY id",
-            (tick,),
+            "WHERE tick=? AND status='COMMITTED' AND id>? ORDER BY id",
+            (tick, after_id),
         )
         for row in rows:
             if not row["payload"]:
                 continue
             for entity, field_name, _old, new in json.loads(row["payload"])["writes"]:
-                out.append((row["id"], entity, field_name, new))
-        return out
+                yield (row["id"], entity, field_name, new)
+
+    def max_id_through_tick(self, tick: int) -> int:
+        """Largest transition id among ticks ``<= tick`` (0 if none).
+
+        The watermark a derived index records when it is built from the
+        state: every transition up to this id is already in that state.
+        """
+        self._drain()
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM transitions WHERE tick<=?",
+            (tick,),
+        ).fetchone()
+        return int(row[0])
 
     def between_ticks(self, lo: int, hi: int) -> list[Transition]:
         """Transitions of ticks ``lo..hi`` inclusive, id order (tick index)."""

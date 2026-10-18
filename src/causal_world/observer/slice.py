@@ -81,6 +81,11 @@ class WorldIndex:
         # cursor for an in-memory Journal (a SqliteArchive answers
         # at_tick() directly and needs no cursor)
         self._cursor = 0
+        # v0.12/3: for an archive, the largest transition id this index
+        # already reflects (the state it was built from). advance() never
+        # re-applies a transition at or below it. Tick numbers are not
+        # enough: the genesis batch and the first step both live at tick 0.
+        self._watermark: int | None = None
 
     # -- construction --------------------------------------------------
     @classmethod
@@ -91,6 +96,16 @@ class WorldIndex:
         index._finish()
         if journal is not None and hasattr(journal, "_transitions"):
             index._cursor = len(journal._transitions)
+        elif journal is not None and callable(
+            getattr(journal, "max_id_through_tick", None)
+        ):
+            # The state holds every transition of the ticks it has
+            # finished: ticks <= state.tick - 1, and tick 0 when the state
+            # is still at genesis (state.tick == 0). Those are reflected;
+            # the first advance must start after them.
+            index._watermark = journal.max_id_through_tick(
+                max(0, state.tick - 1)
+            )
         return index
 
     def _observe(self, entity: str, field_name: str, value) -> None:
@@ -148,13 +163,16 @@ class WorldIndex:
         writes would make the index disagree with the world. The filter
         is the same one the engine's commit step used.
         """
-        writes_at_tick = getattr(journal, "writes_at_tick", None)
-        if callable(writes_at_tick):
+        after = self._watermark or 0
+        iter_writes = getattr(journal, "iter_writes_at_tick", None)
+        if callable(iter_writes):
             # SqliteArchive: the journal already holds the tick index, so
             # ask for the committed writes only. This skips rejected rows
             # and the reads/draws of every transition — the profile named
             # that deserialisation as the frame bottleneck (v0.12/2d).
-            for _tid, entity, field_name, new in writes_at_tick(tick):
+            # Transitions at or below the watermark are not decoded at all:
+            # they are already in this index (v0.12/3).
+            for _tid, entity, field_name, new in iter_writes(tick, after):
                 self.apply_write(_WriteView(entity, field_name, new))
             return
         at_tick = getattr(journal, "at_tick", None)

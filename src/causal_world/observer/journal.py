@@ -124,21 +124,27 @@ class JournalView:
         return [_transition_from_row(row) for row in rows]
 
     def writes_at_tick(self, tick: int) -> list[tuple[int, str, str, object]]:
-        """Committed writes of one tick as ``(tid, entity, field, new)``.
+        """Committed writes of one tick, as a list (see the archive)."""
+        return list(self.iter_writes_at_tick(tick))
 
-        The read-only twin of ``SqliteArchive.writes_at_tick``: same rows,
-        same order, no Transition objects.
-        """
-        out: list[tuple[int, str, str, object]] = []
+    def iter_writes_at_tick(self, tick: int, after_id: int = 0):
+        """The read-only twin of ``SqliteArchive.iter_writes_at_tick``."""
         rows = self._conn.execute(
             "SELECT id, payload FROM transitions "
-            "WHERE tick=? AND status='COMMITTED' ORDER BY id",
-            (tick,),
+            "WHERE tick=? AND status='COMMITTED' AND id>? ORDER BY id",
+            (tick, after_id),
         )
         for row in rows:
             for entity, field_name, _old, new in json.loads(row["payload"])["writes"]:
-                out.append((row["id"], entity, field_name, new))
-        return out
+                yield (row["id"], entity, field_name, new)
+
+    def max_id_through_tick(self, tick: int) -> int:
+        """The read-only twin of ``SqliteArchive.max_id_through_tick``."""
+        row = self._conn.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM transitions WHERE tick<=?",
+            (tick,),
+        ).fetchone()
+        return int(row[0])
 
     def between_ticks(self, lo: int, hi: int) -> list[Transition]:
         """Transitions of ticks ``lo..hi`` inclusive, id order."""
