@@ -53,14 +53,32 @@ its own world: a named world that was left open would answer `world_busy`.
 
 ## Debugging (Godot Output / Debugger console)
 
-* `[core] …` — the core's own log (stderr): session events and tracebacks.
-  Lines with `Traceback`, `Error` or `Exception` are shown as warnings.
-* `[bridge] ended: …` — why the core process stopped.
-* `[proto >>]` / `[proto <<]` — every protocol line sent and received. Off by
-  default; enable with `--trace` after `--` on the command line, or with
-  `CAUSAL_WORLD_TRACE=1` in the environment.
+Start with `--trace` to see everything; without it only the core log and
+warnings are printed. Command line: `godot --path client/godot -- --trace`,
+or set `CAUSAL_WORLD_TRACE=1` in the environment.
 
-Example: `godot --path client/godot -- --trace`
+With `--trace` the console shows, in order:
+
+* `[trace  12345 ms][input]` — every key press and mouse press, with the screen
+  and world position. Presses on buttons are also logged by the button handler,
+  so a click that does nothing is visible.
+* `[trace …][ui]` — when the action button turns on or off, and why
+  (for example: `ждём ответ ядра (decide)`, `жизнь окончена`).
+* `[trace …][map]` — cell clicks (with the cell and its grid position), zoom,
+  pan start and end, selected cell.
+* `[trace …][proto]` — every protocol line sent (`>>`) and received (`<<`), with
+  the time the reply took.
+* `[trace …][frame]` — the result of each decision: seq, tick, applied, alive,
+  player values, journal counts, and the journal hash prefix.
+* `[core] …` — the core's own trace, printed by the core itself: every request it
+  receives and reply it sends, and for each step the transitions it produced
+  (`T<id> t<tick> <system>/<operation> <status>`, changed fields as `old->new`,
+  and the random draws). Failures are shown as warnings.
+* `[bridge] …` — start and stop of the core process, and why it stopped.
+
+The core's trace reads the journal and never writes to it. The first step's
+journal hash is the one in `tests/golden/godot_slice_reference.json`, so the
+trace can be checked against the reference run.
 
 ## Protocol safety
 

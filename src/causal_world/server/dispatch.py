@@ -25,6 +25,7 @@ import json
 from typing import Callable
 
 from causal_world.server.session import ProtocolError, Session
+from causal_world.server.trace import Tracer
 
 
 def error_reply(code: str, msg: str, seq=None) -> dict:
@@ -46,10 +47,13 @@ class Dispatcher:
         registry: dict,
         db_dir: str = ".",
         log: Callable[[str], None] | None = None,
+        trace: bool = False,
     ) -> None:
         self.registry = registry
         self.db_dir = db_dir
         self.log = log
+        # the debug trace (server/trace.py): read-only, logs only
+        self.tracer = Tracer(log or (lambda _m: None)) if trace else None
 
     # ------------------------------------------------------------ entry ----
     def handle_raw(self, raw: str | bytes, conn: dict) -> dict:
@@ -61,6 +65,22 @@ class Dispatcher:
         return self.handle(msg, conn)
 
     def handle(self, msg: object, conn: dict) -> dict:
+        if self.tracer is not None:
+            self._traced(self.tracer.inbound, msg)
+        reply = self._dispatch(msg, conn)
+        if self.tracer is not None:
+            self._traced(self.tracer.outbound, reply)
+        return reply
+
+    def _traced(self, fn, *args) -> None:
+        """Run a trace call; a failure is logged and never reaches the protocol."""
+        try:
+            fn(*args)
+        except Exception as e:  # the trace must not break the world or the reply
+            if self.log is not None:
+                self.log(f"[trace] failed: {type(e).__name__}: {e}")
+
+    def _dispatch(self, msg: object, conn: dict) -> dict:
         if not isinstance(msg, dict) or not isinstance(msg.get("type"), str):
             return error_reply("malformed", "expected object with 'type'")
         kind = msg["type"]
@@ -99,6 +119,8 @@ class Dispatcher:
             session = self._create(msg)
         conn["session"] = session
         reply = session.welcome()
+        if self.tracer is not None:
+            self._traced(self.tracer.journal_summary, session)
         self._release_if_finalized(session)
         return reply
 
@@ -119,7 +141,10 @@ class Dispatcher:
         decree = msg.get("decree")
         if decree is not None and not isinstance(decree, dict):
             return error_reply("malformed", "decree must be an object")
+        records_before = session.sim.journal.counts()[0]
         reply = session.decide(seq, act, decree=decree)
+        if self.tracer is not None:
+            self._traced(self.tracer.step, session, reply, records_before)
         fin = session.take_finished_event()
         if fin is not None:
             # strict request/response: the life verdict rides as a FIELD of

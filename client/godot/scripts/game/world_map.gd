@@ -109,6 +109,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					_zoom(1.0 / ZOOM_STEP)
 			MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE:
 				_dragging = button.pressed
+				Trace.log("map", "pan %s" % ("start" if _dragging else "end"))
 			MOUSE_BUTTON_LEFT:
 				if button.pressed:
 					_click(get_global_mouse_position())
@@ -120,12 +121,17 @@ func _unhandled_input(event: InputEvent) -> void:
 func _zoom(factor: float) -> void:
 	var z: float = clampf(_camera.zoom.x * factor, ZOOM_MIN, ZOOM_MAX)
 	_camera.zoom = Vector2(z, z)
+	Trace.log("map", "zoom %.2f" % z)
 
 
 func _click(world_point: Vector2) -> void:
 	for c: Dto.Cell in _cells:
 		if _cell_rect(c).has_point(world_point):
+			Trace.log("map", "click at world %s → cell %s (grid %s)" % [
+				world_point, c.id, c.grid,
+			])
 			_selected = c.id
 			queue_redraw()
 			cell_selected.emit(c.id)
 			return
+	Trace.log("map", "click at world %s → no cell" % world_point)

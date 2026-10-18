@@ -64,9 +64,16 @@ var _selected_cell: String = ""
 var _restarting: bool = false
 var _quitting: bool = false
 var _db_dir: String = ""
+var _request_kind: String = ""  ## the request in flight, for the trace
+var _request_msec: int = -1  ## when it was sent, for the reply time
+var _last_block_reason: String = "?"  ## last logged reason the action button is off
 
 
 func _ready() -> void:
+	Trace.enable(Trace.from_args())
+	Trace.log("bridge", "godot %s, os %s, debug build %s" % [
+		Engine.get_version_info()["string"], OS.get_name(), str(OS.is_debug_build()),
+	])
 	_contract = Dto.load_contract()
 	_build_ui()
 	_bridge = PyBridge.new()
@@ -75,10 +82,26 @@ func _ready() -> void:
 	_bridge.log_line_received.connect(_on_core_log)
 	_bridge.bridge_failed.connect(_on_bridge_failed)
 	_bridge.bridge_ended.connect(_on_bridge_ended)
-	_bridge.trace = _want_trace()
 	_db_dir = ProjectSettings.globalize_path("user://worlds")
 	_log_line(INTRO)
 	_start_core()
+
+
+## Keys and mouse presses, with their positions. _input sees every event,
+## including those the UI consumes, and never consumes one itself.
+func _input(event: InputEvent) -> void:
+	if not Trace.enabled:
+		return
+	if event is InputEventMouseButton:
+		var button := event as InputEventMouseButton
+		if button.pressed:
+			Trace.log("input", "mouse %s down at screen %s, world %s" % [
+				button.button_index, button.position, get_global_mouse_position(),
+			])
+	elif event is InputEventKey:
+		var key := event as InputEventKey
+		if key.pressed and not key.echo:
+			Trace.log("input", "key %s" % OS.get_keycode_string(key.keycode))
 
 
 func _process(_delta: float) -> void:
@@ -92,15 +115,20 @@ func _start_core() -> void:
 	_log_line("[color=gray]ядро: %s · исходники: %s · архивы миров: %s[/color]" % [
 		python, src, _db_dir,
 	])
-	_bridge.start(python, src, _db_dir)
+	Trace.log("bridge", "start: python=%s src=%s db=%s trace_core=%s" % [
+		python, src, _db_dir, str(Trace.enabled),
+	])
+	_bridge.start(python, src, _db_dir, Trace.enabled)
 	_refresh()
 
 
 # ----------------------------------------------------------- protocol ----
 
 func _on_line(line: String) -> void:
-	if _bridge.trace:
-		print("[proto <<] %s" % line.left(400))
+	var waited: String = ""
+	if _request_msec >= 0:
+		waited = " (%d ms after %s)" % [Time.get_ticks_msec() - _request_msec, _request_kind]
+	Trace.log("proto", "<< %s%s" % [line.left(400), waited])
 	var parsed: Variant = Dto.parse_line(line)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		_log_line("[color=red]Ядро прислало не JSON-объект:[/color] %s" % line.left(120))
@@ -149,6 +177,9 @@ func _on_view(msg: Dictionary) -> void:
 		return
 	_waiting = ""
 	_view = Dto.View.from(msg)
+	Trace.log("frame", "view tick=%d alive=%s cells=%d regions=%d" % [
+		_view.tick, str(_view.alive), _view.cells.size(), _view.regions.size(),
+	])
 	_set_status("Мир до первого хода. Кликните клетку или нажмите «%s»." % ACTION_LABEL)
 	_refresh()
 
@@ -160,6 +191,15 @@ func _on_frame(msg: Dictionary) -> void:
 	_before = _view
 	_view = Dto.View.from(msg)
 	_last_seq = _view.seq
+	var gained: int = _view.journal_committed - (_before.journal_committed if _before != null else 0)
+	Trace.log("frame", "seq=%d tick=%d applied=%s reject=%s alive=%s hunger=%.3f health=%.1f" % [
+		_view.seq, _view.tick, str(_view.applied), _view.reject, str(_view.alive),
+		_view.hunger, _view.health,
+	])
+	Trace.log("frame", "region=%s" % _view.region)
+	Trace.log("frame", "journal committed=%d (+%d) rejected=%d hash=%s" % [
+		_view.journal_committed, gained, _view.journal_rejected, _view.journal_hash.left(16),
+	])
 	_show_result()
 	if not _view.alive or not _view.finished.is_empty():
 		_finished = true
@@ -171,6 +211,9 @@ func _on_error(msg: Dictionary) -> void:
 	if not _accept(msg, "error"):
 		return
 	var code: String = str(msg["code"])
+	Trace.log("proto", "error code=%s seq=%s msg=%s" % [
+		code, str(msg.get("seq", "-")), str(msg["msg"]),
+	])
 	_waiting = ""
 	match code:
 		"seq_gap":
@@ -198,6 +241,8 @@ func _accept(msg: Dictionary, spec_name: String) -> bool:
 
 func _request(kind: String, message: Dictionary, status: String) -> void:
 	_waiting = kind
+	_request_kind = kind
+	_request_msec = Time.get_ticks_msec()
 	_set_status(status)
 	_refresh()
 	if not _bridge.send(message):
@@ -206,21 +251,41 @@ func _request(kind: String, message: Dictionary, status: String) -> void:
 
 func _on_act_pressed() -> void:
 	if not _can_act():
+		Trace.log("input", "«%s» pressed while disabled: %s" % [ACTION_LABEL, _act_block_reason()])
 		return
 	var seq: int = _last_seq + 1
+	Trace.log("input", "«%s» pressed → decide seq=%d" % [ACTION_LABEL, seq])
 	_request("decide", {"type": "decide", "seq": seq, "action": PLAYER_ACTION},
 		"Ход %d: ядро считает…" % seq)
 
 
 func _can_act() -> bool:
-	if _finished or _waiting != "" or _view == null or _restarting or _quitting:
-		return false
-	return _bridge.is_running()
+	return _act_block_reason() == ""
+
+
+## Why the action is not available, or "" when it is. One source for the
+## button state and the trace, so the trace always explains the button.
+func _act_block_reason() -> String:
+	var reason: String = ""
+	if _finished:
+		reason = "жизнь окончена"
+	elif _waiting != "":
+		reason = "ждём ответ ядра (%s)" % _waiting
+	elif _view == null:
+		reason = "мир ещё не прочитан"
+	elif _restarting:
+		reason = "перезапуск мира"
+	elif _quitting:
+		reason = "выход"
+	elif not _bridge.is_running():
+		reason = "ядро не запущено"
+	return reason
 
 
 func _on_restart_pressed() -> void:
 	if _restarting or _quitting:
 		return
+	Trace.log("input", "«Начать заново» pressed (core running: %s)" % str(_bridge.is_running()))
 	_log_line("[b]— Новый мир —[/b]")
 	if _bridge.is_running():
 		_restarting = true  # the new core starts when the old one has exited
@@ -244,6 +309,7 @@ func _reset_world() -> void:
 
 
 func _on_cell_selected(cell_id: String) -> void:
+	Trace.log("map", "selected %s" % cell_id)
 	_selected_cell = cell_id
 	_refresh()
 
@@ -294,7 +360,13 @@ func _fail(reason: String) -> void:
 # -------------------------------------------------------------- render ---
 
 func _refresh() -> void:
-	_act_button.disabled = not _can_act()
+	var reason: String = _act_block_reason()
+	if reason != _last_block_reason:
+		_last_block_reason = reason
+		Trace.log("ui", "«%s» %s" % [
+			ACTION_LABEL, "enabled" if reason == "" else "disabled: " + reason,
+		])
+	_act_button.disabled = reason != ""
 	_restart_button.disabled = _restarting or _quitting
 	_quit_button.disabled = _quitting
 	if _view == null:
@@ -481,6 +553,7 @@ func _build_ui() -> void:
 
 
 func _on_quit_pressed() -> void:
+	Trace.log("input", "«Выход» pressed (already quitting: %s)" % str(_quitting))
 	if _quitting:
 		return
 	_quitting = true
@@ -493,14 +566,6 @@ func _on_quit_pressed() -> void:
 
 
 # ------------------------------------------------------------ locating ---
-
-## Protocol trace in the Output panel: `--trace` on the command line, or the
-## environment variable CAUSAL_WORLD_TRACE=1. Off by default: it is verbose.
-func _want_trace() -> bool:
-	if "--trace" in OS.get_cmdline_user_args():
-		return true
-	return OS.get_environment("CAUSAL_WORLD_TRACE") == "1"
-
 
 ## The repository root is two levels above client/godot (the project dir).
 func _repo_root() -> String:

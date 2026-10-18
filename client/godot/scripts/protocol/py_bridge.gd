@@ -24,9 +24,6 @@ const LOG_QUEUE_MAX: int = 500  ## a flood of log lines drops the oldest, never 
 
 ## Last lines of the core's log. For error messages only, never protocol.
 var stderr_tail: PackedStringArray = PackedStringArray()
-## When true, every protocol line sent and received is printed to the Godot
-## Output panel (the debugger console). Set it before start().
-var trace: bool = false
 
 var _pid: int = -1
 var _stdio: FileAccess = null
@@ -44,7 +41,9 @@ var _ended: bool = false
 ## Start the core: `python -c` puts `src_dir` on sys.path and runs the
 ## JSON Lines server on `db_dir`. Returns false (and emits bridge_failed)
 ## if the interpreter cannot be started.
-func start(python: String, src_dir: String, db_dir: String) -> bool:
+## `trace_core` passes --trace to the core, so its journal and protocol trace
+## come back on stderr (printed by the game as [core] lines).
+func start(python: String, src_dir: String, db_dir: String, trace_core: bool = false) -> bool:
 	if _running:
 		return true
 	DirAccess.make_dir_recursive_absolute(db_dir)
@@ -52,10 +51,12 @@ func start(python: String, src_dir: String, db_dir: String) -> bool:
 		"-c",
 		"import sys; sys.path.insert(0, sys.argv[1]); "
 		+ "from causal_world.server.jsonl import main; "
-		+ "sys.exit(main(['--db-dir', sys.argv[2]]))",
+		+ "sys.exit(main(['--db-dir', sys.argv[2]] + sys.argv[3:]))",
 		src_dir,
 		db_dir,
 	])
+	if trace_core:
+		args.append("--trace")
 	var pipe: Dictionary = OS.execute_with_pipe(python, args)
 	if pipe.is_empty():
 		bridge_failed.emit("could not start the Python core: '%s'" % python)
@@ -84,8 +85,7 @@ func send(message: Dictionary) -> bool:
 	if not _running or _stdio == null:
 		return false
 	var line: String = JSON.stringify(message)
-	if trace:
-		print("[proto >>] %s" % line.left(400))
+	Trace.log("proto", ">> %s" % line.left(400))
 	_stdio.store_string(line + "\n")
 	return _stdio.get_error() == OK
 
