@@ -131,8 +131,8 @@ class Cell:
 		var source: Variant = d.get("last_source")
 		c.last_source = Dto.to_int(source, NO_SOURCE) if typeof(source) != TYPE_STRING else NO_SOURCE
 		c.limit = str(d.get("limit", ""))
-		var law: Variant = d.get("law", {})
-		c.law = law if typeof(law) == TYPE_DICTIONARY else {}
+		var raw_law: Variant = d.get("law", {})
+		c.law = raw_law if typeof(raw_law) == TYPE_DICTIONARY else {}
 		return c
 
 
@@ -215,10 +215,10 @@ class View:
 			v.regions.append(Region.from(row))
 		v.situations = world.get("situations", [])
 		v.goals = world.get("goals", [])
-		var decree: Variant = d.get("decree")
-		v.decree = decree if typeof(decree) == TYPE_DICTIONARY else {}
-		var finished: Variant = d.get("finished")
-		v.finished = finished if typeof(finished) == TYPE_DICTIONARY else {}
+		var raw_decree: Variant = d.get("decree")
+		v.decree = raw_decree if typeof(raw_decree) == TYPE_DICTIONARY else {}
+		var raw_finished: Variant = d.get("finished")
+		v.finished = raw_finished if typeof(raw_finished) == TYPE_DICTIONARY else {}
 		return v
 
 	func cell_by_id(cell_id: String) -> Cell:

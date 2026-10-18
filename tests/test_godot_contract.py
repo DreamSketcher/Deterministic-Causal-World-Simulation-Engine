@@ -227,3 +227,39 @@ def test_gdscript_private_names_are_declared():
         used = set(re.findall(r"(?<![\w.])(_\w+)", src))
         missing = sorted(used - declared - params - loop_vars)
         assert not missing, f"{path.name}: undeclared {missing}"
+
+
+def test_gdscript_locals_do_not_shadow_members():
+    """A local `var` must not reuse the name of a member of the same class.
+
+    Godot reports this as SHADOWED_VARIABLE when the project loads. Blocks
+    are split by a column-0 `class` line (an inner class; its members sit one
+    tab in), otherwise the file itself is the class.
+    """
+    import re
+
+    def shadowed(lines: list[str]) -> list[tuple[int, str]]:
+        blocks = []
+        current = {"indent": 0, "members": set(), "start": 0}
+        for number, line in enumerate(lines, 1):
+            if line.startswith("class ") and not line.startswith("class_name"):
+                blocks.append(current)
+                current = {"indent": 1, "members": set(), "start": number}
+            m = re.match(r"^(\t*)(?:static\s+)?var\s+(\w+)", line)
+            if m and len(m.group(1)) == current["indent"]:
+                current["members"].add(m.group(2))
+        blocks.append(current)
+        starts = [b["start"] for b in blocks]
+        hits = []
+        for number, line in enumerate(lines, 1):
+            block = blocks[max(i for i, st in enumerate(starts) if st <= number)]
+            m = re.match(r"^(\t+)var\s+(\w+)", line)
+            if m and len(m.group(1)) > block["indent"] and m.group(2) in block["members"]:
+                hits.append((number, m.group(2)))
+        return hits
+
+    problems = []
+    for path in sorted((ROOT / "client/godot").rglob("*.gd")):
+        for number, name in shadowed(path.read_text(encoding="utf-8").splitlines()):
+            problems.append(f"{path.name}:{number} {name}")
+    assert not problems, "shadowed members: " + ", ".join(problems)
