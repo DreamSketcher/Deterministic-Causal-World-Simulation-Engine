@@ -32,6 +32,7 @@ var _map: WorldMap
 var _panel: CellPanel
 var _status: Label
 var _act_button: Button
+var _quit_button: Button
 var _log: RichTextLabel
 
 var _view: Dto.View = null  ## the world now (a view, or the last frame)

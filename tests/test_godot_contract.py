@@ -199,3 +199,24 @@ def test_godot_launcher_string_starts_the_core(tmp_path):
     out, _ = proc.communicate('{"type": "shutdown"}\n', timeout=60)
     assert json.loads(out.strip().splitlines()[-1])["type"] == "bye"
     assert proc.returncode == 0
+
+
+def test_gdscript_private_names_are_declared():
+    """Every `_name` used in a .gd file is declared there (or is a parameter).
+
+    gdparse checks syntax only; Godot reports an undeclared identifier as a
+    parse error when the project loads. This catches that case without Godot.
+    """
+    import re
+
+    for path in sorted((ROOT / "client/godot").rglob("*.gd")):
+        src = re.sub(r"#.*", "", path.read_text(encoding="utf-8"))  # code only
+        declared = set(re.findall(
+            r"^\s*(?:static\s+)?(?:var|func|const|signal|class)\s+(\w+)", src, re.M))
+        params = set()
+        for signature in re.findall(r"func\s+\w+\s*\((.*?)\)", src, re.S):
+            params.update(re.findall(r"(_\w+)", signature))
+        loop_vars = set(re.findall(r"for\s+(\w+)", src))
+        used = set(re.findall(r"(?<![\w.])(_\w+)", src))
+        missing = sorted(used - declared - params - loop_vars)
+        assert not missing, f"{path.name}: undeclared {missing}"
