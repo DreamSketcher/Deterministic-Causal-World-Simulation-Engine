@@ -88,3 +88,18 @@ Godot (GDScript, клиент)                 Python (ядро, источни�
 3. **Ошибка «Invalid UTF-8 leading byte».** Причина — многобайтовые символы в каналах, которые клиент декодирует по частям. Ядро теперь пишет в stdout и stderr только ASCII (`jsonl.py`: `reconfigure(encoding="ascii", errors="backslashreplace")`). Тест `test_godot_launcher_string_starts_the_core` отправляет кириллицу и проверяет, что оба канала остаются ASCII.
 
 Также добавлен тест `test_gdscript_private_names_are_declared`: он ловит необъявленные приватные имена, которые `gdparse` не видит (как `_quit_button`).
+
+### Autopsy и трасса на пути с пробелами и «—» (после второго запуска)
+
+- **Autopsy:** `autopsy_error: unable to open database: …life-*.db?mode=ro`. Причина:
+  `QueryIndex` подключал архив через `ATTACH 'file:<path>?mode=ro'` на соединении
+  без `uri=True`, а URI строился вручную. Исправлено: `read_only_uri()` (`Path.as_uri()`),
+  параметризованный `ATTACH`. На Linux ошибка не воспроизводилась (ни с «—», ни без);
+  Windows-запуск не проверен.
+- **Трасса на смерти:** `Cannot operate on a closed database`. Шаг трассы читает
+  переходы через read-only `JournalView.since(id)`, не через закрытый журнал.
+- **Объём:** по умолчанию одна сводка на решение (~4 строки, жизнь на 46 ходов ≈ 234 строки);
+  построчный вывод только с `--trace-detail` (≈3000 строк на жизнь).
+- **Проверка:** полный pytest зелёный (exit 0); `tests/test_core_trace.py`,
+  `tests/test_readonly_paths.py` покрывают смерть на пути с «—».
+  Godot в этой среде не запускался.
