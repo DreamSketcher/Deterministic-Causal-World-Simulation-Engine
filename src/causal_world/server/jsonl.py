@@ -122,6 +122,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="directory for world archives (created if missing)")
     args = parser.parse_args(argv)
     os.makedirs(args.db_dir, exist_ok=True)
+    # The pipes are ASCII-only: the client reads them line by line and a
+    # multi-byte character split across reads is not decodable there.
+    # JSON is already ASCII (ensure_ascii); log text is escaped.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="ascii", errors="backslashreplace")
     return serve_stdio(sys.stdin, sys.stdout, args.db_dir)
 
 

@@ -5,6 +5,7 @@ extends Node2D
 ##
 ## Flow:  ready -> hello -> welcome -> look -> view   (the map exists, no step)
 ##        decide -> frame                              (one action = one tick)
+##        finished in a frame                          (the life has ended)
 ##
 ## Rules of this file:
 ## * one request in flight at a time; the action button is disabled meanwhile;
@@ -23,8 +24,26 @@ const START: Dictionary = {
 }
 ## The one player action of the slice: "work" in the core's action card.
 const PLAYER_ACTION: int = 0
-const ACTION_LABEL: String = "Работать (work) · ход"
+const ACTION_LABEL: String = "Работать (ход)"
 const MAX_CHANGE_LINES: int = 12
+## Labels of the core's death classifier (observer/deaths.py), in Russian.
+const CAUSE_LABELS: Dictionary = {
+	"starvation": "голод",
+	"disease": "болезнь",
+	"disease+starvation": "голод и болезнь",
+	"acute_infection": "острая инфекция",
+	"other": "другая причина (ядро не отнесло к голоду или болезни)",
+}
+const INTRO: String = (
+	"[b]Что это.[/b] Срез проверяет связку: карта и панель показывают реальный мир "
+	+ "Python-ядра, а ход проходит через его API.\n"
+	+ "[b]Что делать.[/b] Кликните клетку на карте — панель покажет её факты, связи "
+	+ "и гипотезы. Нажимайте «Работать (ход)»: каждое нажатие — один тик мира. "
+	+ "Журнал ниже покажет, что изменилось.\n"
+	+ "[b]Конец.[/b] В срезе одно действие, поэтому жизнь агента может закончиться. "
+	+ "В эталонном сценарии смерть наступает на тике 45. Тогда ходы закрываются, "
+	+ "а «Начать заново» создаёт новый мир.\n"
+)
 
 var _contract: Dictionary = {}
 var _bridge: PyBridge
@@ -32,6 +51,7 @@ var _map: WorldMap
 var _panel: CellPanel
 var _status: Label
 var _act_button: Button
+var _restart_button: Button
 var _quit_button: Button
 var _log: RichTextLabel
 
@@ -41,6 +61,8 @@ var _last_seq: int = 0
 var _waiting: String = ""  ## the request kind in flight, "" when idle
 var _finished: bool = false
 var _selected_cell: String = ""
+var _restarting: bool = false
+var _quitting: bool = false
 var _db_dir: String = ""
 
 
@@ -52,19 +74,24 @@ func _ready() -> void:
 	_bridge.line_received.connect(_on_line)
 	_bridge.bridge_failed.connect(_on_bridge_failed)
 	_bridge.bridge_ended.connect(_on_bridge_ended)
-
-	var python: String = _resolve_python()
-	var src: String = _resolve_src()
 	_db_dir = ProjectSettings.globalize_path("user://worlds")
-	_set_status("Запуск ядра: %s" % python)
-	_log_line("[b]Ядро:[/b] %s" % python)
-	_log_line("[b]Исходники:[/b] %s" % src)
-	_log_line("[b]Архивы миров:[/b] %s" % _db_dir)
-	_bridge.start(python, src, _db_dir)
+	_log_line(INTRO)
+	_start_core()
 
 
 func _process(_delta: float) -> void:
 	_bridge.poll()
+
+
+func _start_core() -> void:
+	var python: String = _resolve_python()
+	var src: String = _resolve_src()
+	_set_status("Запуск ядра…")
+	_log_line("[color=gray]ядро: %s · исходники: %s · архивы миров: %s[/color]" % [
+		python, src, _db_dir,
+	])
+	_bridge.start(python, src, _db_dir)
+	_refresh()
 
 
 # ----------------------------------------------------------- protocol ----
@@ -87,7 +114,7 @@ func _on_line(line: String) -> void:
 		"error":
 			_on_error(msg)
 		"bye":
-			_log_line("Ядро завершилось штатно.")
+			pass  # the shutdown is handled by _on_bridge_ended
 		_:
 			_log_line("[color=orange]Неизвестный тип ответа:[/color] %s" % str(msg.get("type", "?")))
 
@@ -95,10 +122,10 @@ func _on_line(line: String) -> void:
 func _on_ready(msg: Dictionary) -> void:
 	if not _accept(msg, "ready"):
 		return
-	_log_line("Ядро готово: протокол %s, pid %d." % [msg["protocol"], int(msg["pid"])])
 	if msg["protocol"] != PROTOCOL:
 		_fail("Версия протокола ядра (%s) не совпадает с клиентом (%s)." % [msg["protocol"], PROTOCOL])
 		return
+	_log_line("Ядро готово: протокол %s, pid %d." % [msg["protocol"], int(msg["pid"])])
 	var hello: Dictionary = {"type": "hello", "protocol": PROTOCOL}
 	hello.merge(START)
 	_request("hello", hello, "Создание мира…")
@@ -108,10 +135,8 @@ func _on_welcome(msg: Dictionary) -> void:
 	if _waiting != "hello" or not _accept(msg, "welcome"):
 		return
 	_last_seq = int(msg["last_seq"])
-	_log_line("Мир создан: %s, жизнь %s, действие «%s»." % [
-		str(msg["session_id"]), str(msg["life"].get("agent", "?")),
-		str(msg["action_card"].get(str(PLAYER_ACTION), "?")),
-	])
+	var agent: String = str(msg["life"].get("agent", "?"))
+	_log_line("Мир создан: %s. Агент: %s." % [str(msg["session_id"]), agent])
 	_request("look", {"type": "look"}, "Чтение мира…")
 
 
@@ -120,7 +145,7 @@ func _on_view(msg: Dictionary) -> void:
 		return
 	_waiting = ""
 	_view = Dto.View.from(msg)
-	_set_status("Мир до первого хода (тик %d). Нажмите «%s»." % [_view.tick, ACTION_LABEL])
+	_set_status("Мир до первого хода. Кликните клетку или нажмите «%s»." % ACTION_LABEL)
 	_refresh()
 
 
@@ -132,8 +157,9 @@ func _on_frame(msg: Dictionary) -> void:
 	_view = Dto.View.from(msg)
 	_last_seq = _view.seq
 	_show_result()
-	if not _view.alive:
+	if not _view.alive or not _view.finished.is_empty():
 		_finished = true
+		_show_death()
 	_refresh()
 
 
@@ -151,7 +177,7 @@ func _on_error(msg: Dictionary) -> void:
 			_log_line("[color=orange]Разрыв последовательности:[/color] %s" % str(msg["msg"]))
 		"finalized":
 			_finished = true
-			_log_line("[color=orange]Жизнь уже завершена ядром.[/color]")
+			_log_line("[color=orange]Жизнь уже завершена ядром — ходы не принимаются.[/color]")
 		_:
 			_log_line("[color=red]Ядро отклонило запрос (%s):[/color] %s" % [code, str(msg["msg"])])
 	_refresh()
@@ -175,11 +201,42 @@ func _request(kind: String, message: Dictionary, status: String) -> void:
 
 
 func _on_act_pressed() -> void:
-	if _finished or _waiting != "" or _view == null or not _bridge.is_running():
+	if not _can_act():
 		return
 	var seq: int = _last_seq + 1
 	_request("decide", {"type": "decide", "seq": seq, "action": PLAYER_ACTION},
 		"Ход %d: ядро считает…" % seq)
+
+
+func _can_act() -> bool:
+	if _finished or _waiting != "" or _view == null or _restarting or _quitting:
+		return false
+	return _bridge.is_running()
+
+
+func _on_restart_pressed() -> void:
+	if _restarting or _quitting:
+		return
+	_log_line("[b]— Новый мир —[/b]")
+	if _bridge.is_running():
+		_restarting = true  # the new core starts when the old one has exited
+		_set_status("Завершаю прошлый мир…")
+		_bridge.stop()
+		_refresh()
+	else:
+		_reset_world()
+		_start_core()
+
+
+func _reset_world() -> void:
+	_view = null
+	_before = null
+	_last_seq = 0
+	_waiting = ""
+	_finished = false
+	_selected_cell = ""
+	_map.clear()
+	_panel.show_empty()
 
 
 func _on_cell_selected(cell_id: String) -> void:
@@ -194,8 +251,16 @@ func _on_bridge_failed(reason: String) -> void:
 
 
 func _on_bridge_ended(reason: String) -> void:
-	_finished = true
 	_waiting = ""
+	if _quitting:
+		get_tree().quit()
+		return
+	if _restarting:
+		_restarting = false
+		_reset_world()
+		_start_core()
+		return
+	_finished = true
 	_set_status("Ядро остановлено: %s" % reason)
 	_log_line("[color=orange]Ядро остановлено:[/color] %s" % reason)
 	for line: String in _bridge.stderr_tail:
@@ -213,8 +278,9 @@ func _fail(reason: String) -> void:
 # -------------------------------------------------------------- render ---
 
 func _refresh() -> void:
-	_act_button.disabled = _finished or _waiting != "" or _view == null or not _bridge.is_running()
-	_quit_button.disabled = false
+	_act_button.disabled = not _can_act()
+	_restart_button.disabled = _restarting or _quitting
+	_quit_button.disabled = _quitting
 	if _view == null:
 		return
 	_map.set_view(_view)
@@ -225,16 +291,46 @@ func _refresh() -> void:
 		else:
 			_selected_cell = ""
 			_panel.show_empty()
-	_set_status(_status_line())
+	if _finished:
+		_set_status(_death_summary())
+	else:
+		_set_status(_status_line())
 
 
 func _status_line() -> String:
-	var text: String = "Тик %d · население %d/%d · здоровье %.0f · голод %.2f" % [
+	return "Тик %d · население %d/%d · здоровье %.0f · голод %.2f" % [
 		_view.tick, _view.alive_agents, _view.total_agents, _view.health, _view.hunger,
 	]
-	if _finished or not _view.alive:
-		text += " · жизнь окончена"
-	return text
+
+
+func _death_summary() -> String:
+	var tick: int = int(_view.finished.get("death_tick", _view.tick))
+	return "ЖИЗНЬ ОКОНЧИЛАСЬ на тике %d: %s. Ходы закрыты — «Начать заново»." % [
+		tick, _cause_text(_view.finished),
+	]
+
+
+## The cause from the core's autopsy label; never invented by the client.
+func _cause_text(finished: Dictionary) -> String:
+	var autopsy: Variant = finished.get("autopsy")
+	if typeof(autopsy) != TYPE_DICTIONARY:
+		return "причина не определена (%s)" % str(finished.get("autopsy_error", "нет данных"))
+	var label: String = str((autopsy as Dictionary).get("label", ""))
+	return str(CAUSE_LABELS.get(label, label))
+
+
+## The death: why it ended and what the player can do now. The facts come
+## from the frame (tick, label); the text only explains them.
+func _show_death() -> void:
+	var reason: String = str(_view.finished.get("reason", "?"))
+	if reason == "death":
+		_log_line("[color=orange][b]Жизнь окончилась на тике %d.[/b][/color] Причина по ядру: %s." % [
+			int(_view.finished.get("death_tick", _view.tick)), _cause_text(_view.finished),
+		])
+	else:
+		_log_line("[color=orange][b]Жизнь окончилась:[/b][/color] %s (тик %d)." % [reason, _view.tick])
+	_log_line("Дальше: ходы закрыты. Клетки и журнал остаются для просмотра. "
+		+ "«Начать заново» создаёт новый мир с новым архивом.")
 
 
 ## The result of the last decision, as facts: the view before and the frame
@@ -246,26 +342,23 @@ func _show_result() -> void:
 	else:
 		head += " · [color=orange]отклонено ядром: %s[/color]" % _view.reject
 	_log_line(head)
-	if _before != null:
-		_log_line("  вы: здоровье %.1f → %.1f, голод %.2f → %.2f, регион %s" % [
-			_before.health, _view.health, _before.hunger, _view.hunger, _view.region,
-		])
-		_log_line("  журнал: +%d переходов, отклонено +%d, хеш %s…" % [
-			_view.journal_committed - _before.journal_committed,
-			_view.journal_rejected - _before.journal_rejected,
-			_view.journal_hash.left(16),
-		])
-		var changes: Array[String] = _cell_changes(_before, _view)
-		for line: String in changes.slice(0, MAX_CHANGE_LINES):
-			_log_line("  " + line)
-		if changes.size() > MAX_CHANGE_LINES:
-			_log_line("  … и ещё %d" % (changes.size() - MAX_CHANGE_LINES))
-		for line: String in _situation_changes(_before, _view):
-			_log_line("  " + line)
-	if not _view.finished.is_empty():
-		_log_line("[color=orange]Жизнь окончена:[/color] %s, тик смерти %s." % [
-			str(_view.finished.get("reason", "?")), str(_view.finished.get("death_tick", "?")),
-		])
+	if _before == null:
+		return
+	_log_line("  вы: здоровье %.1f → %.1f, голод %.2f → %.2f, регион %s" % [
+		_before.health, _view.health, _before.hunger, _view.hunger, _view.region,
+	])
+	_log_line("  журнал: +%d переходов, отклонено +%d, хеш %s…" % [
+		_view.journal_committed - _before.journal_committed,
+		_view.journal_rejected - _before.journal_rejected,
+		_view.journal_hash.left(16),
+	])
+	var changes: Array[String] = _cell_changes(_before, _view)
+	for line: String in changes.slice(0, MAX_CHANGE_LINES):
+		_log_line("  " + line)
+	if changes.size() > MAX_CHANGE_LINES:
+		_log_line("  … и ещё %d" % (changes.size() - MAX_CHANGE_LINES))
+	for line: String in _situation_changes(_before, _view):
+		_log_line("  " + line)
 
 
 func _cell_changes(before: Dto.View, after: Dto.View) -> Array[String]:
@@ -333,6 +426,7 @@ func _build_ui() -> void:
 	root.add_child(bar)
 	_status = Label.new()
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.text = "Запуск…"
 	bar.add_child(_status)
 	_act_button = Button.new()
@@ -340,6 +434,10 @@ func _build_ui() -> void:
 	_act_button.disabled = true
 	_act_button.pressed.connect(_on_act_pressed)
 	bar.add_child(_act_button)
+	_restart_button = Button.new()
+	_restart_button.text = "Начать заново"
+	_restart_button.pressed.connect(_on_restart_pressed)
+	bar.add_child(_restart_button)
 	_quit_button = Button.new()
 	_quit_button.text = "Выход"
 	_quit_button.pressed.connect(_on_quit_pressed)
@@ -362,13 +460,20 @@ func _build_ui() -> void:
 	_log = RichTextLabel.new()
 	_log.bbcode_enabled = true
 	_log.scroll_following = true
-	_log.custom_minimum_size = Vector2(0, 220)
+	_log.custom_minimum_size = Vector2(0, 240)
 	side.add_child(_log)
 
 
 func _on_quit_pressed() -> void:
-	_bridge.stop()
-	get_tree().quit()
+	if _quitting:
+		return
+	_quitting = true
+	_refresh()
+	if _bridge.is_running():
+		_set_status("Закрываю ядро…")
+		_bridge.stop()  # the quit happens in _on_bridge_ended, once the core is gone
+	else:
+		get_tree().quit()
 
 
 # ------------------------------------------------------------ locating ---

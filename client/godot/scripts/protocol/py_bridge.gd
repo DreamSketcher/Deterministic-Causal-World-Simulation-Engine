@@ -1,30 +1,37 @@
 class_name PyBridge
 extends Node
-## Owns the Python core process and its JSON Lines pipes.
+## Owns the Python core process and its pipes.
 ##
-## The process is started with OS.execute_with_pipe. A background thread
-## blocks on stdout and queues complete lines; the main thread drains the
-## queue in poll(), so no game code runs on the reader thread. Writes go
-## straight to stdin from the main thread.
+## Two background threads read the pipes line by line: one for stdout (the
+## protocol) and one for stderr (the core's log, kept as a short tail). The
+## threads only fill guarded arrays; the main thread drains them in poll(),
+## so no game code runs on a reader thread and the main thread never blocks
+## on a pipe. The core writes ASCII only (jsonl.py), so every line decodes.
 ##
-## Lifecycle: start() -> lines arrive via line_received -> stop() sends
-## "shutdown" and waits briefly, then kills the process if it is still alive.
+## Lifecycle: start() -> lines via line_received -> stop() asks the core to
+## shut down -> poll() ends it (bridge_ended) once it exits, or kills it after
+## STOP_GRACE_MSEC. Quitting the game waits for bridge_ended, not a fixed delay.
 
 signal line_received(line: String)
 signal bridge_failed(reason: String)
 signal bridge_ended(reason: String)
 
-## Last lines of the core's stderr, for error messages only (never protocol).
+const STOP_GRACE_MSEC: int = 1500
+const STDERR_TAIL_LINES: int = 20
+
+## Last lines of the core's log. For error messages only, never protocol.
 var stderr_tail: PackedStringArray = PackedStringArray()
 
 var _pid: int = -1
 var _stdio: FileAccess = null
 var _stderr: FileAccess = null
-var _reader: Thread = null
+var _out_thread: Thread = null
+var _err_thread: Thread = null
 var _mutex: Mutex = Mutex.new()
 var _inbox: Array[String] = []
 var _running: bool = false
-var _ended_emitted: bool = false
+var _stop_started_msec: int = -1
+var _ended: bool = false
 
 
 ## Start the core: `python -c` puts `src_dir` on sys.path and runs the
@@ -50,8 +57,14 @@ func start(python: String, src_dir: String, db_dir: String) -> bool:
 	_stdio = pipe["stdio"]
 	_stderr = pipe["stderr"]
 	_running = true
-	_reader = Thread.new()
-	_reader.start(_read_loop)
+	_ended = false
+	_stop_started_msec = -1
+	stderr_tail = PackedStringArray()
+	_inbox.clear()
+	_out_thread = Thread.new()
+	_out_thread.start(_read_pipe.bind(_stdio, false))
+	_err_thread = Thread.new()
+	_err_thread.start(_read_pipe.bind(_stderr, true))
 	return true
 
 
@@ -66,60 +79,77 @@ func send(message: Dictionary) -> bool:
 	return _stdio.get_error() == OK
 
 
-## Drain queued lines onto the main thread. Call from _process().
+## Drain queued lines onto the main thread and watch the process. Call from
+## _process(). Never blocks.
 func poll() -> void:
+	_emit_queued()
+	if not _running:
+		return
+	if not OS.is_process_running(_pid):
+		_finish("the Python core exited")
+	elif _stop_started_msec >= 0 and Time.get_ticks_msec() - _stop_started_msec > STOP_GRACE_MSEC:
+		OS.kill(_pid)
+		_finish("stopped (the core did not exit in time, so it was killed)")
+
+
+## Ask the core to stop. It replies "bye" and exits; poll() finishes the bridge.
+## Returns at once; wait for bridge_ended if the caller must act after exit.
+func stop() -> void:
+	if not _running or _stop_started_msec >= 0:
+		return
+	send({"type": "shutdown"})
+	_stop_started_msec = Time.get_ticks_msec()
+
+
+func _exit_tree() -> void:
+	if _running:
+		# the window is closing: do not wait for the core, the journal is
+		# committed every step, so a kill loses nothing that was not already
+		# committed
+		OS.kill(_pid)
+		_finish("closed with the window")
+
+
+func _emit_queued() -> void:
 	_mutex.lock()
 	var lines: Array[String] = _inbox.duplicate()
 	_inbox.clear()
 	_mutex.unlock()
 	for line: String in lines:
 		line_received.emit(line)
-	if _running and not OS.is_process_running(_pid):
-		_end("the Python core exited")
 
 
-## Ask the core to stop (it replies "bye"), then kill it if it lingers.
-func stop() -> void:
-	if not _running:
+func _finish(reason: String) -> void:
+	if _ended:
 		return
-	send({"type": "shutdown"})
-	var waited: int = 0
-	while OS.is_process_running(_pid) and waited < 30:
-		OS.delay_msec(50)
-		waited += 1
-	if OS.is_process_running(_pid):
-		OS.kill(_pid)
-	_end("stopped")
-
-
-func _exit_tree() -> void:
-	stop()
-
-
-func _end(reason: String) -> void:
-	if _ended_emitted:
-		return
-	_ended_emitted = true
+	_ended = true
 	_running = false
-	if _stderr != null and _stderr.is_open():
-		var parts: PackedStringArray = _stderr.get_as_text().split("\n", false)
-		stderr_tail = parts.slice(maxi(0, parts.size() - 20))
+	# both pipes reach end-of-file once the process is gone, so the reader
+	# threads return; joining them here cannot block
+	if _out_thread != null and _out_thread.is_started():
+		_out_thread.wait_to_finish()
+	if _err_thread != null and _err_thread.is_started():
+		_err_thread.wait_to_finish()
+	_emit_queued()  # lines that arrived just before the exit (e.g. "bye")
 	_stdio = null
 	_stderr = null
-	if _reader != null and _reader.is_started():
-		_reader.wait_to_finish()
 	bridge_ended.emit(reason)
 
 
-## Runs on the reader thread. Only touches the mutex-guarded inbox.
-func _read_loop() -> void:
-	var stdio: FileAccess = _stdio
-	while stdio != null and stdio.is_open():
-		var line: String = stdio.get_line()
+## Runs on a reader thread. Stdout lines go to the inbox; stderr lines go to
+## the tail. Only mutex-guarded data is touched.
+func _read_pipe(stream: FileAccess, is_log: bool) -> void:
+	while stream != null and stream.is_open():
+		var line: String = stream.get_line()
 		if line.is_empty():
-			if stdio.eof_reached():
+			if stream.get_error() != OK or stream.eof_reached():
 				break
 			continue
 		_mutex.lock()
-		_inbox.append(line)
+		if is_log:
+			stderr_tail.append(line)
+			while stderr_tail.size() > STDERR_TAIL_LINES:
+				stderr_tail.remove_at(0)
+		else:
+			_inbox.append(line)
 		_mutex.unlock()

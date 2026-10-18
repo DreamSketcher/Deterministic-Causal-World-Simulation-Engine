@@ -196,9 +196,16 @@ def test_godot_launcher_string_starts_the_core(tmp_path):
     )
     ready = json.loads(proc.stdout.readline())
     assert ready["type"] == "ready" and ready["protocol"] == "causal-world-jsonl/1"
-    out, _ = proc.communicate('{"type": "shutdown"}\n', timeout=60)
+    # non-ASCII input is refused and logged: both pipes must stay ASCII
+    proc.stdin.write("почва: не JSON\n")
+    proc.stdin.flush()
+    refusal = json.loads(proc.stdout.readline())
+    assert refusal["type"] == "error" and refusal["code"] == "malformed"
+    out, err = proc.communicate('{"type": "shutdown"}\n', timeout=60)
     assert json.loads(out.strip().splitlines()[-1])["type"] == "bye"
     assert proc.returncode == 0
+    out.encode("ascii")
+    err.encode("ascii")  # would raise if a Cyrillic log line leaked through
 
 
 def test_gdscript_private_names_are_declared():

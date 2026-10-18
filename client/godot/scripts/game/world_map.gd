@@ -40,6 +40,14 @@ func set_view(view: Dto.View) -> void:
 	queue_redraw()
 
 
+## Forget the cells (a new life starts on an empty map).
+func clear() -> void:
+	_cells = []
+	_selected = ""
+	_framed = false
+	queue_redraw()
+
+
 func select(cell_id: String) -> void:
 	_selected = cell_id
 	queue_redraw()
