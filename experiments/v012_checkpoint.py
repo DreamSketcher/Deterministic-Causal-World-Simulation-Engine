@@ -416,7 +416,8 @@ def render(report: dict) -> str:
 
     lines: list[str] = []
     a = lines.append
-    a(f"# v0.12 — контрольная точка {num(cfg.get('agents'))} живых × "
+    kind = "контрольная точка" if cfg.get("agents") == 100000 else "поэтапный прогон"
+    a(f"# v0.12 — {kind}: {num(cfg.get('agents'))} живых × "
       f"{cfg.get('ticks')} тиков")
     a("")
     a(f"Машина: {machine.get('cpu', '?')} CPU, "
@@ -577,7 +578,14 @@ def render(report: dict) -> str:
           "пик завершённой фазы; пик завершённого генезиса существует "
           "только на 20k (см. Приложение A).")
         a("")
-    a("Пик в генезисе — это не только сам мир: `create_world()` в конце "
+    if cfg.get("agents") != 100000:
+        a("Хеш состояния потоковый (v0.12, `v012_streamed_hash.md`): "
+          "`state.hash()` не строит полный payload, и RSS в фазе "
+          "`genesis_state_hash` не растёт. Пик в генезисе — сам мир "
+          "(см. `v012_memory_audit.md`). Скачок RSS на тике 0 — "
+          "`WorldIndex.advance(0)` (см. `v012_memory_audit/tick0_rss_probe.py`).")
+    if cfg.get("agents") == 100000:
+      a("Пик в генезисе — это не только сам мир: `create_world()` в конце "
       "`initialize()` безусловно считает `WorldState.hash()`, который "
       "материализует канонический payload всего состояния. На 20k это "
       "видно как разрыв между RSS после генезиса (636 МБ) и пиком "
